@@ -25,10 +25,12 @@ const RolesModule = {
             `;
         }
 
-        const roles = window.LmsData?.roles || [];
+        const allRoles = window.LmsData?.roles || [];
+        // Super Admin is hard-coded/system-level and hidden from the normal Roles listing
+        const roles = allRoles.filter(r => r.id !== 'SUPER_ADMIN');
         const users = window.LmsData?.users || [];
 
-        // Compute metrics
+        // Compute metrics for configurable roles
         const totalRoles = roles.length;
         const systemRoles = roles.filter(r => r.isSystem).length;
         const customRoles = totalRoles - systemRoles;
@@ -96,11 +98,11 @@ const RolesModule = {
             <!-- ARCHITECTURE BANNER -->
             <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.12) 100%); border-left: 4px solid var(--gold-400); margin-bottom: 24px;">
                 <div style="display: flex; gap: 16px; align-items: center;">
-                    <div style="font-size: 2rem; color: var(--gold-400);"><i class="fas fa-network-wired"></i></div>
+                    <div style="font-size: 2rem; color: var(--gold-400);"><i class="fas fa-shield-alt"></i></div>
                     <div>
-                        <h4 style="color: #ffffff; margin-bottom: 4px;">Dynamic Role Workflow Active</h4>
+                        <h4 style="color: #ffffff; margin-bottom: 4px;">Dynamic Institutional Roles Active</h4>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
-                            <strong>Workflow:</strong> Create / Edit Role here &rarr; Role is instantly available in <strong>Users & Permissions &rarr; Users</strong> dropdown &rarr; Assign to LMS users.
+                            <strong>System Protection:</strong> The <strong>Super Admin (Mohtamim)</strong> role is permanently protected at the system level with full root access (<code style="color: var(--gold-300);">*</code>) and is hidden from configuration. All configurable institutional roles are listed below. Creating a new role here will automatically make it available for permission assignment under <strong>Users & Permissions &rarr; Permissions</strong>.
                         </p>
                     </div>
                 </div>
@@ -110,7 +112,7 @@ const RolesModule = {
             <div class="card">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h3 class="card-title"><i class="fas fa-list-ul"></i> Configured Institutional Roles Directory</h3>
-                    <span style="font-size: 0.82rem; color: var(--text-muted);">Showing all ${roles.length} roles</span>
+                    <span style="font-size: 0.82rem; color: var(--text-muted);">Showing ${roles.length} configurable roles</span>
                 </div>
                 <div class="table-responsive">
                     <table class="data-table">
@@ -270,6 +272,11 @@ const RolesModule = {
             return;
         }
 
+        if (id === 'SUPER_ADMIN') {
+            App.showToast("The identifier 'SUPER_ADMIN' is reserved for the root system.", "danger");
+            return;
+        }
+
         const roles = window.LmsData?.roles || [];
         if (roles.some(r => r.id === id)) {
             App.showToast(`Role with identifier '${id}' already exists!`, "warning");
@@ -320,6 +327,11 @@ const RolesModule = {
     },
 
     openEditRoleModal(roleId) {
+        if (roleId === 'SUPER_ADMIN') {
+            App.showToast("Super Admin is a permanent system-level role and cannot be modified.", "warning");
+            return;
+        }
+
         const role = window.LmsData?.roles?.find(r => r.id === roleId);
         if (!role) {
             App.showToast("Role not found.", "danger");
@@ -412,6 +424,11 @@ const RolesModule = {
     },
 
     deleteRole(roleId) {
+        if (roleId === 'SUPER_ADMIN') {
+            App.showToast("Super Admin is a permanent system-level role and cannot be deleted.", "danger");
+            return;
+        }
+
         const role = window.LmsData?.roles?.find(r => r.id === roleId);
         if (!role) return;
 

@@ -165,8 +165,12 @@ const AuthRBAC = {
 
     can(permission) {
         if (!this.currentUser) return false;
-        const dynamicRole = window.LmsData?.roles?.find(r => r.id === this.currentUser.role);
-        const roleConfig = dynamicRole || ROLES[this.currentUser.role];
+        const activeRole = this.getRole();
+        // Super Admin is permanently protected with unconditional root access
+        if (activeRole === 'SUPER_ADMIN') return true;
+
+        const dynamicRole = window.LmsData?.roles?.find(r => r.id === activeRole);
+        const roleConfig = dynamicRole || ROLES[activeRole];
         if (!roleConfig) return false;
         if (roleConfig.permissions && roleConfig.permissions.includes("*")) return true;
         return roleConfig.permissions ? roleConfig.permissions.includes(permission) : false;
@@ -176,7 +180,7 @@ const AuthRBAC = {
     canAccessModule(moduleKey, role = null) {
         const activeRole = role || this.getRole();
         if (activeRole === 'SUPER_ADMIN') {
-            return true; // Super admin has full root access by default
+            return true; // Super admin has full root access by default, hard-coded at system level
         }
         const permissions = window.LmsData?.roleModulePermissions?.[activeRole];
         if (!permissions) return false;
@@ -185,6 +189,7 @@ const AuthRBAC = {
 
     // Check if the current user can access a route URL/hash
     canAccessRoute(route) {
+        if (this.getRole() === 'SUPER_ADMIN') return true;
         const moduleKey = ROUTE_MODULE_MAP[route];
         if (!moduleKey) {
             // Routes without explicit module binding (e.g. 'dashboard') are allowed for all authenticated users
@@ -209,6 +214,15 @@ const AuthRBAC = {
             ...window.LmsData.roleModulePermissions,
             ...newPermissions
         };
+
+        // Guarantee Super Admin permanently retains unrestricted access across all modules
+        if (!window.LmsData.roleModulePermissions.SUPER_ADMIN) {
+            window.LmsData.roleModulePermissions.SUPER_ADMIN = {};
+        }
+        Object.keys(MODULE_DEFINITIONS).forEach(mod => {
+            window.LmsData.roleModulePermissions.SUPER_ADMIN[mod] = true;
+        });
+
         window.DataStore.save(window.LmsData);
 
         // Sync with backend API

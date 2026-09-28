@@ -1,7 +1,12 @@
 /**
  * JAMIA ASHRAFIA LAHORE - PERMISSION MANAGEMENT MODULE
- * Allows Super Admin to configure module availability per role (Student, Teacher, Super Admin)
- * Real-time synchronization with localStorage, Route Guards, and Backend Server API
+ * Allows Super Admin to configure granular module availability per dynamic role
+ * 
+ * SYSTEM RULES:
+ * 1. Super Admin is hard-coded/system-level with unrestricted root access (*) and cannot be edited.
+ * 2. Super Admin is hidden from this permissions page.
+ * 3. All other roles (Core and Custom) are dynamic and automatically appear here.
+ * 4. Real-time synchronization with localStorage, Route Guards, and Backend Server API.
  */
 
 const PermissionsModule = {
@@ -27,8 +32,71 @@ const PermissionsModule = {
             `;
         }
 
-        const permissions = window.LmsData.roleModulePermissions || {};
-        const modules = window.MODULE_DEFINITIONS;
+        const allRoles = window.LmsData?.roles || [];
+        // RULE 3 & 4: Super Admin is hidden; all other roles are dynamic
+        const configurableRoles = allRoles.filter(r => r.id !== 'SUPER_ADMIN');
+
+        // Ensure selected tab is valid among configurable roles
+        if (!configurableRoles.some(r => r.id === this.selectedRoleTab)) {
+            this.selectedRoleTab = configurableRoles.length > 0 ? configurableRoles[0].id : 'STUDENT';
+        }
+
+        if (!window.LmsData.roleModulePermissions) {
+            window.LmsData.roleModulePermissions = {};
+        }
+        const permissions = window.LmsData.roleModulePermissions;
+
+        // Auto-initialize default module permissions for any dynamic role if missing
+        configurableRoles.forEach(r => {
+            if (!permissions[r.id]) {
+                permissions[r.id] = {
+                    classes: true,
+                    assignments: false,
+                    exams: false,
+                    timetable: true,
+                    virtual_class: false,
+                    notifications: true,
+                    library: true,
+                    attendance: true,
+                    students: false,
+                    reports: false,
+                    admissions: false,
+                    teachers: false,
+                    fees: false,
+                    heritage: true,
+                    users: false,
+                    roles: false,
+                    permissions: false,
+                    security: false
+                };
+                if (r.id === 'ACADEMIC_ADMIN') {
+                    Object.assign(permissions[r.id], {
+                        admissions: true, students: true, teachers: true, classes: true,
+                        assignments: true, exams: true, timetable: true, virtual_class: true,
+                        reports: true
+                    });
+                } else if (r.id === 'ACCOUNTANT') {
+                    Object.assign(permissions[r.id], {
+                        fees: true, reports: true
+                    });
+                } else if (r.id === 'TEACHER') {
+                    Object.assign(permissions[r.id], {
+                        assignments: true, exams: true, virtual_class: true,
+                        teachers: true, students: true
+                    });
+                } else if (r.id === 'STUDENT') {
+                    Object.assign(permissions[r.id], {
+                        assignments: true, exams: true, virtual_class: true
+                    });
+                }
+            }
+        });
+
+        // Ensure Super Admin permissions remain permanently full system-level
+        if (!permissions.SUPER_ADMIN) permissions.SUPER_ADMIN = {};
+        Object.keys(window.MODULE_DEFINITIONS || {}).forEach(m => {
+            permissions.SUPER_ADMIN[m] = true;
+        });
 
         return `
             <!-- HEADER -->
@@ -38,7 +106,7 @@ const PermissionsModule = {
                         <i class="fas fa-sliders-h" style="color: var(--gold-400);"></i>
                         Institutional RBAC & Role Permission Settings
                     </h1>
-                    <p>Configure granular module access, feature visibility, and authorization policies for Students, Teachers, and Super Admins</p>
+                    <p>Configure granular module access, feature visibility, and authorization policies for institutional roles</p>
                 </div>
                 <div class="view-actions">
                     <button class="btn btn-secondary btn-sm" onclick="PermissionsModule.resetToDefaults()">
@@ -51,32 +119,38 @@ const PermissionsModule = {
             </div>
 
             <!-- SECURITY NOTICE BANNER -->
-            <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, rgba(180, 83, 9, 0.15) 100%); border-left: 4px solid var(--gold-400);">
+            <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, rgba(180, 83, 9, 0.15) 100%); border-left: 4px solid var(--gold-400); margin-bottom: 24px;">
                 <div style="display: flex; gap: 16px; align-items: center;">
                     <div style="font-size: 2rem; color: var(--gold-400);"><i class="fas fa-shield-alt"></i></div>
                     <div>
                         <h4 style="color: #ffffff; margin-bottom: 4px;">Dynamic Policy Enforcement Active</h4>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
-                            Changes to module access take effect immediately across sidebar menus, browser URL router guards, and backend REST API middleware (HTTP 403 enforcement).
+                            <strong>Root System Protection:</strong> The <strong>Super Admin (Mohtamim)</strong> role has permanent, hard-coded full access (<code style="color: var(--gold-300);">*</code>) handled internally by the system and is omitted from configuration. 
+                            All <strong>${configurableRoles.length} dynamic institutional roles</strong> below can be assigned granular module permissions. Newly created roles will automatically appear here.
                         </p>
                     </div>
                 </div>
             </div>
 
-            <!-- ROLE SELECTION TABS -->
-            <div class="role-tabs-container" style="display: flex; gap: 10px; margin-bottom: 24px;">
-                <button class="btn ${this.selectedRoleTab === 'STUDENT' ? 'btn-primary' : 'btn-secondary'}" 
-                        onclick="PermissionsModule.switchTab('STUDENT')">
-                    <i class="fas fa-user-graduate"></i> Student Permissions (Talib-e-Ilm)
-                </button>
-                <button class="btn ${this.selectedRoleTab === 'TEACHER' ? 'btn-gold' : 'btn-secondary'}" 
-                        onclick="PermissionsModule.switchTab('TEACHER')">
-                    <i class="fas fa-chalkboard-teacher"></i> Teacher Permissions (Sheikh-ul-Hadith)
-                </button>
-                <button class="btn ${this.selectedRoleTab === 'SUPER_ADMIN' ? 'btn-gold' : 'btn-secondary'}" 
-                        onclick="PermissionsModule.switchTab('SUPER_ADMIN')">
-                    <i class="fas fa-crown"></i> Super Admin (Mohtamim / Shura)
-                </button>
+            <!-- DYNAMIC ROLE SELECTION TABS -->
+            <div class="role-tabs-container" style="display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap;">
+                ${configurableRoles.map(r => {
+                    const isSelected = (this.selectedRoleTab === r.id);
+                    const icon = r.id === 'STUDENT' ? 'fa-user-graduate'
+                               : r.id === 'TEACHER' ? 'fa-chalkboard-teacher'
+                               : r.id === 'ACADEMIC_ADMIN' ? 'fa-user-tie'
+                               : r.id === 'ACCOUNTANT' ? 'fa-calculator'
+                               : 'fa-id-badge';
+                    return `
+                        <button class="btn ${isSelected ? 'btn-gold' : 'btn-secondary'}" 
+                                onclick="PermissionsModule.switchTab('${r.id}')"
+                                style="display: inline-flex; align-items: center; gap: 8px;">
+                            <i class="fas ${icon}"></i>
+                            <span>${r.name || r.title || r.id}</span>
+                            ${r.urduTitle ? `<span style="font-family: 'Amiri', serif; font-size: 0.9em; opacity: 0.85;">(${r.urduTitle})</span>` : ''}
+                        </button>
+                    `;
+                }).join('')}
             </div>
 
             <!-- ACTIVE ROLE PERMISSIONS MATRIX -->
@@ -99,7 +173,7 @@ const PermissionsModule = {
                         <h4 class="card-title"><i class="fas fa-history"></i> Last Updated Policy</h4>
                     </div>
                     <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.8;">
-                        <div><strong>Policy Admin:</strong> ${user.name}</div>
+                        <div><strong>Policy Admin:</strong> ${user.name} (Super Admin)</div>
                         <div><strong>Office:</strong> Hazrat Mohtamim Office (Ferozepur Rd)</div>
                         <div><strong>Sync Status:</strong> <span class="status-pill success"><i class="fas fa-check-circle"></i> Local & Server Synced</span></div>
                     </div>
@@ -109,6 +183,7 @@ const PermissionsModule = {
     },
 
     switchTab(roleKey) {
+        if (roleKey === 'SUPER_ADMIN') return;
         this.selectedRoleTab = roleKey;
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) {
@@ -117,36 +192,42 @@ const PermissionsModule = {
     },
 
     renderRoleMatrix(roleKey, rolePerms) {
-        const isSuperAdmin = (roleKey === 'SUPER_ADMIN');
-        const roleMeta = window.ROLES[roleKey] || { title: roleKey, urduTitle: "" };
-
-        const moduleKeys = Object.keys(window.MODULE_DEFINITIONS);
+        const role = (window.LmsData?.roles || []).find(r => r.id === roleKey) || window.ROLES?.[roleKey] || { name: roleKey, title: roleKey, urduTitle: "" };
+        const roleTitle = role.name || role.title || roleKey;
+        const roleUrdu = role.urduTitle || "";
+        const roleDesc = role.description || "Configure access permissions for this institutional role.";
+        const moduleKeys = Object.keys(window.MODULE_DEFINITIONS || {});
+        const currentPerms = rolePerms || {};
 
         return `
             <div class="card">
-                <div class="card-header">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <div>
-                        <h3 class="card-title">
-                            <i class="fas fa-user-shield"></i>
-                            Module Access Matrix for: <strong>${roleMeta.title}</strong>
+                        <h3 class="card-title" style="display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-user-shield" style="color: var(--gold-400);"></i>
+                            Module Access Matrix for: <strong>${roleTitle}</strong>
+                            <code style="font-size: 0.75rem; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: var(--primary-300);">${roleKey}</code>
                         </h3>
-                        <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-200); margin-top: 4px;">
-                            ${roleMeta.urduTitle}
-                        </div>
+                        ${roleUrdu ? `
+                            <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-200); margin-top: 4px;">
+                                ${roleUrdu}
+                            </div>
+                        ` : ''}
+                        ${roleDesc ? `
+                            <p style="font-size: 0.82rem; color: var(--text-muted); margin: 4px 0 0 0; max-width: 600px;">
+                                ${roleDesc}
+                            </p>
+                        ` : ''}
                     </div>
                     <div>
-                        ${isSuperAdmin ? `
-                            <span class="status-pill gold"><i class="fas fa-check-double"></i> Full System Access (Root)</span>
-                        ` : `
-                            <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-secondary btn-sm" onclick="PermissionsModule.quickSet('${roleKey}', true)">
-                                    <i class="fas fa-check"></i> Enable All
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="PermissionsModule.quickSet('${roleKey}', false)">
-                                    <i class="fas fa-times"></i> Disable All
-                                </button>
-                            </div>
-                        `}
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="PermissionsModule.quickSet('${roleKey}', true)">
+                                <i class="fas fa-check-double"></i> Enable All
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="PermissionsModule.quickSet('${roleKey}', false)">
+                                <i class="fas fa-ban"></i> Disable All
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -158,20 +239,20 @@ const PermissionsModule = {
                                 <th>Module / Feature</th>
                                 <th>Category / Context</th>
                                 <th>Status</th>
-                                <th style="text-align: right; width: 140px;">Access Permission</th>
+                                <th style="text-align: right; width: 150px;">Access Permission</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${moduleKeys.map(modKey => {
                                 const mod = window.MODULE_DEFINITIONS[modKey];
-                                const isEnabled = isSuperAdmin ? true : (rolePerms[modKey] === true);
-                                
-                                // Specific module categorization
+                                const isEnabled = (currentPerms[modKey] === true);
+
+                                // Categorization
                                 let category = "General";
                                 if (['classes', 'assignments', 'exams', 'timetable', 'virtual_class', 'attendance'].includes(modKey)) category = "Academic & Attendance";
                                 else if (['admissions', 'teachers', 'students', 'reports'].includes(modKey)) category = "Administration & Reports";
                                 else if (['fees'].includes(modKey)) category = "Finance";
-                                else if (['permissions', 'security'].includes(modKey)) category = "System / RBAC";
+                                else if (['permissions', 'security', 'users', 'roles'].includes(modKey)) category = "System / RBAC";
                                 else if (['library', 'heritage'].includes(modKey)) category = "Resources & Heritage";
 
                                 return `
@@ -194,18 +275,14 @@ const PermissionsModule = {
                                             `}
                                         </td>
                                         <td style="text-align: right;">
-                                            ${isSuperAdmin ? `
-                                                <span style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-lock"></i> Always ON</span>
-                                            ` : `
-                                                <label class="switch-toggle" style="display: inline-flex; align-items: center; cursor: pointer;">
-                                                    <input type="checkbox" ${isEnabled ? 'checked' : ''} 
-                                                           onchange="PermissionsModule.toggle('${roleKey}', '${modKey}', this.checked)"
-                                                           style="width: 20px; height: 20px; accent-color: var(--primary-500); cursor: pointer;">
-                                                    <span style="font-size: 0.8rem; margin-left: 8px; font-weight: 600; color: ${isEnabled ? 'var(--primary-300)' : 'var(--text-muted)'};">
-                                                        ${isEnabled ? 'ENABLED' : 'DISABLED'}
-                                                    </span>
-                                                </label>
-                                            `}
+                                            <label class="switch-toggle" style="display: inline-flex; align-items: center; cursor: pointer;">
+                                                <input type="checkbox" ${isEnabled ? 'checked' : ''} 
+                                                       onchange="PermissionsModule.toggle('${roleKey}', '${modKey}', this.checked)"
+                                                       style="width: 20px; height: 20px; accent-color: var(--primary-500); cursor: pointer;">
+                                                <span style="font-size: 0.8rem; margin-left: 8px; font-weight: 600; color: ${isEnabled ? 'var(--primary-300)' : 'var(--text-muted)'};">
+                                                    ${isEnabled ? 'ENABLED' : 'DISABLED'}
+                                                </span>
+                                            </label>
                                         </td>
                                     </tr>
                                 `;
@@ -218,6 +295,11 @@ const PermissionsModule = {
     },
 
     toggle(roleKey, modKey, isChecked) {
+        if (roleKey === 'SUPER_ADMIN') {
+            App.showToast("Super Admin permissions are hard-coded and cannot be modified.", "warning");
+            return;
+        }
+
         if (!window.LmsData.roleModulePermissions) {
             window.LmsData.roleModulePermissions = {};
         }
@@ -230,7 +312,7 @@ const PermissionsModule = {
         window.DataStore.save(window.LmsData);
         App.renderSidebar();
         App.showToast(`Updated ${roleKey} access to [${window.MODULE_DEFINITIONS[modKey]?.title || modKey}] -> ${isChecked ? 'ON' : 'OFF'}`, isChecked ? 'success' : 'warning');
-        
+
         // Refresh view
         const viewport = document.getElementById('main-content-viewport');
         if (viewport && App.currentRoute === 'permissions') {
@@ -239,10 +321,15 @@ const PermissionsModule = {
     },
 
     quickSet(roleKey, state) {
+        if (roleKey === 'SUPER_ADMIN') {
+            App.showToast("Super Admin permissions are hard-coded and cannot be modified.", "warning");
+            return;
+        }
+
         if (!window.LmsData.roleModulePermissions) window.LmsData.roleModulePermissions = {};
         if (!window.LmsData.roleModulePermissions[roleKey]) window.LmsData.roleModulePermissions[roleKey] = {};
 
-        Object.keys(window.MODULE_DEFINITIONS).forEach(k => {
+        Object.keys(window.MODULE_DEFINITIONS || {}).forEach(k => {
             window.LmsData.roleModulePermissions[roleKey][k] = state;
         });
 
@@ -266,62 +353,104 @@ const PermissionsModule = {
 
     resetToDefaults() {
         if (confirm("Are you sure you want to reset all role permissions to institutional defaults?")) {
-            window.LmsData.roleModulePermissions = {
-                STUDENT: {
-                    classes: true,
-                    assignments: true,
-                    exams: true,
-                    timetable: true,
-                    virtual_class: true,
-                    notifications: true,
-                    library: true,
-                    attendance: true,
-                    students: false,
-                    reports: false,
-                    admissions: false,
-                    teachers: false,
-                    fees: false,
-                    heritage: true,
-                    permissions: false,
-                    security: false
-                },
-                TEACHER: {
-                    classes: true,
-                    assignments: true,
-                    exams: true,
-                    timetable: true,
-                    virtual_class: true,
-                    notifications: true,
-                    library: true,
-                    teachers: true,
-                    students: true,
-                    attendance: true,
-                    reports: false,
-                    admissions: false,
-                    fees: false,
-                    heritage: true,
-                    permissions: false,
-                    security: false
-                },
-                SUPER_ADMIN: {
-                    classes: true,
-                    assignments: true,
-                    exams: true,
-                    timetable: true,
-                    virtual_class: true,
-                    notifications: true,
-                    library: true,
-                    admissions: true,
-                    teachers: true,
-                    students: true,
-                    attendance: true,
-                    reports: true,
-                    fees: true,
-                    heritage: true,
-                    permissions: true,
-                    security: true
-                }
+            const allModules = Object.keys(window.MODULE_DEFINITIONS || {});
+            const updated = { ...(window.LmsData.roleModulePermissions || {}) };
+
+            // Student defaults
+            updated.STUDENT = {
+                classes: true,
+                assignments: true,
+                exams: true,
+                timetable: true,
+                virtual_class: true,
+                notifications: true,
+                library: true,
+                attendance: true,
+                students: false,
+                reports: false,
+                admissions: false,
+                teachers: false,
+                fees: false,
+                heritage: true,
+                users: false,
+                roles: false,
+                permissions: false,
+                security: false
             };
+
+            // Teacher defaults
+            updated.TEACHER = {
+                classes: true,
+                assignments: true,
+                exams: true,
+                timetable: true,
+                virtual_class: true,
+                notifications: true,
+                library: true,
+                teachers: true,
+                students: true,
+                attendance: true,
+                reports: false,
+                admissions: false,
+                fees: false,
+                heritage: true,
+                users: false,
+                roles: false,
+                permissions: false,
+                security: false
+            };
+
+            // Academic Admin defaults
+            updated.ACADEMIC_ADMIN = {
+                admissions: true,
+                students: true,
+                teachers: true,
+                classes: true,
+                assignments: true,
+                exams: true,
+                timetable: true,
+                virtual_class: true,
+                attendance: true,
+                notifications: true,
+                reports: true,
+                library: true,
+                heritage: true,
+                fees: false,
+                users: false,
+                roles: false,
+                permissions: false,
+                security: false
+            };
+
+            // Accountant defaults
+            updated.ACCOUNTANT = {
+                fees: true,
+                reports: true,
+                notifications: true,
+                attendance: true,
+                heritage: true,
+                students: false,
+                admissions: false,
+                teachers: false,
+                classes: false,
+                assignments: false,
+                exams: false,
+                timetable: false,
+                virtual_class: false,
+                library: false,
+                users: false,
+                roles: false,
+                permissions: false,
+                security: false
+            };
+
+            // Super Admin: Permanent root access across all modules
+            updated.SUPER_ADMIN = {};
+            allModules.forEach(m => {
+                updated.SUPER_ADMIN[m] = true;
+            });
+
+            window.LmsData.roleModulePermissions = updated;
             this.saveAll();
             const viewport = document.getElementById('main-content-viewport');
             if (viewport && App.currentRoute === 'permissions') {

@@ -252,13 +252,13 @@ const UsersModule = {
                                             ${u.designation || 'Institutional Officer'}
                                         </td>
                                         <td style="text-align: center;">
-                                            <button onclick="UsersModule.toggleStatus('${u.id}')" 
-                                                    class="status-pill ${status === 'ACTIVE' ? 'success' : 'danger'}" 
-                                                    style="cursor: pointer; background: ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.22)' : 'rgba(239, 68, 68, 0.22)'}; color: ${status === 'ACTIVE' ? '#34d399' : '#f87171'}; border: 1px solid ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'}; padding: 5px 12px; font-weight: 700; font-size: 0.78rem;" 
-                                                    title="Click to toggle account status (ACTIVE / INACTIVE)">
-                                                <i class="fas ${status === 'ACTIVE' ? 'fa-check-circle' : 'fa-ban'}" style="margin-right: 4px;"></i>
-                                                ${status}
-                                            </button>
+                                            <span onclick="UsersModule.toggleStatus('${u.id}')" 
+                                                  class="status-pill ${status === 'ACTIVE' ? 'success' : 'danger'}" 
+                                                  style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.04em; background: ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.18)'}; color: ${status === 'ACTIVE' ? '#34d399' : '#f87171'}; border: 1px solid ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'};" 
+                                                  title="Click to toggle account status (ACTIVE / INACTIVE)">
+                                                <i class="fas ${status === 'ACTIVE' ? 'fa-check-circle' : 'fa-ban'}"></i>
+                                                <span>${status}</span>
+                                            </span>
                                         </td>
                                         <td style="text-align: right; white-space: nowrap;">
                                             <button class="btn btn-secondary btn-sm" onclick="UsersModule.openEditUserModal('${u.id}')" title="Edit User & Role">

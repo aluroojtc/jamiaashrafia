@@ -71,6 +71,46 @@ let systemRolePermissions = {
         permissions: false,
         security: false
     },
+    ACADEMIC_ADMIN: {
+        classes: true,
+        assignments: true,
+        exams: true,
+        timetable: true,
+        virtual_class: true,
+        notifications: true,
+        library: true,
+        teachers: true,
+        students: true,
+        attendance: true,
+        reports: true,
+        users: false,
+        roles: false,
+        admissions: true,
+        fees: false,
+        heritage: true,
+        permissions: false,
+        security: false
+    },
+    ACCOUNTANT: {
+        classes: false,
+        assignments: false,
+        exams: false,
+        timetable: false,
+        virtual_class: false,
+        notifications: true,
+        library: false,
+        teachers: false,
+        students: false,
+        attendance: true,
+        reports: true,
+        users: false,
+        roles: false,
+        admissions: false,
+        fees: true,
+        heritage: true,
+        permissions: false,
+        security: false
+    },
     SUPER_ADMIN: {
         classes: true,
         assignments: true,
@@ -187,6 +227,13 @@ const server = http.createServer((req, res) => {
                     const parsed = JSON.parse(body);
                     if (parsed && parsed.permissions) {
                         systemRolePermissions = { ...systemRolePermissions, ...parsed.permissions };
+                        // Hard-code full permissions for SUPER_ADMIN at system level
+                        if (!systemRolePermissions.SUPER_ADMIN) systemRolePermissions.SUPER_ADMIN = {};
+                        ['classes', 'assignments', 'exams', 'timetable', 'virtual_class', 'notifications',
+                         'library', 'admissions', 'teachers', 'students', 'attendance', 'reports', 'users',
+                         'roles', 'fees', 'heritage', 'permissions', 'security'].forEach(m => {
+                            systemRolePermissions.SUPER_ADMIN[m] = true;
+                        });
                     }
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({

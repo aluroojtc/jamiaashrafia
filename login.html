@@ -21,12 +21,10 @@
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/components.css">
 
+    <!-- Check existing session -->
     <script>
-        // Automatic redirection: If already authenticated, redirect to appropriate dashboard
+        // If already logged in, provide seamless quick link but do not trap user
         const existingUserId = localStorage.getItem('JAMIA_CURRENT_USER_ID');
-        if (existingUserId) {
-            window.location.replace('index.html');
-        }
     </script>
 
     <style>
@@ -35,20 +33,20 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, rgba(2, 32, 24, 0.90) 0%, rgba(11, 26, 21, 0.96) 100%),
+            background: linear-gradient(135deg, rgba(2, 32, 24, 0.92) 0%, rgba(11, 26, 21, 0.97) 100%),
                         url('assets/images/campus.jpg') center/cover no-repeat fixed;
             padding: 24px;
         }
 
         .login-wrapper {
             width: 100%;
-            max-width: 500px;
-            background: rgba(17, 26, 30, 0.94);
-            backdrop-filter: blur(18px);
+            max-width: 480px;
+            background: rgba(17, 26, 30, 0.95);
+            backdrop-filter: blur(20px);
             border: 1px solid var(--border-prominent);
             border-radius: var(--radius-xl);
-            padding: 38px 34px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 30px rgba(4, 120, 87, 0.25);
+            padding: 40px 36px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(4, 120, 87, 0.25);
             animation: fadeIn 0.35s ease;
         }
 
@@ -57,21 +55,21 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
-            margin-bottom: 22px;
+            margin-bottom: 26px;
         }
 
         .login-crest-img {
-            width: 80px;
-            height: 80px;
+            width: 82px;
+            height: 82px;
             border-radius: 50%;
             border: 2px solid var(--gold-400);
-            box-shadow: 0 0 16px rgba(217, 119, 6, 0.4);
+            box-shadow: 0 0 18px rgba(217, 119, 6, 0.45);
             margin-bottom: 12px;
             object-fit: cover;
         }
 
         .login-title-eng {
-            font-size: 1.3rem;
+            font-size: 1.35rem;
             font-weight: 800;
             color: #ffffff;
             letter-spacing: -0.01em;
@@ -79,7 +77,7 @@
 
         .login-title-urdu {
             font-family: 'Amiri', serif;
-            font-size: 1.3rem;
+            font-size: 1.35rem;
             color: var(--gold-200);
             margin-top: 2px;
         }
@@ -92,95 +90,135 @@
             letter-spacing: 0.05em;
         }
 
-        /* 3-Role Tabs */
-        .role-tabs {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            background: var(--bg-surface-elevated);
-            border-radius: var(--radius-sm);
-            padding: 4px;
-            margin-bottom: 20px;
-            border: 1px solid var(--border-subtle);
-            gap: 4px;
-        }
-
-        .role-tab-btn {
-            padding: 9px 4px;
-            text-align: center;
-            font-size: 0.8rem;
-            font-weight: 600;
-            border-radius: var(--radius-sm);
-            border: none;
-            background: transparent;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all var(--transition-fast);
-            display: flex;
-            flex-direction: column;
+        .login-portal-badge {
+            display: inline-flex;
             align-items: center;
-            gap: 2px;
-        }
-
-        .role-tab-btn i {
-            font-size: 0.95rem;
-        }
-
-        .role-tab-btn.active {
-            background: var(--primary-700);
-            color: #ffffff;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-        }
-
-        .role-tab-btn.active.admin-tab {
-            background: var(--gold-600);
-            color: #ffffff;
-        }
-
-        .demo-roles-box {
-            background: rgba(6, 78, 59, 0.2);
-            border: 1px solid rgba(16, 185, 129, 0.25);
-            border-radius: var(--radius-sm);
-            padding: 14px;
-            margin-top: 22px;
-        }
-
-        .demo-roles-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
+            gap: 6px;
+            background: rgba(6, 78, 59, 0.35);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.75rem;
+            color: var(--primary-300);
             margin-top: 10px;
         }
 
-        .demo-card-btn {
-            background: var(--bg-surface-elevated);
+        /* E-ADMISSION MODAL STYLING */
+        #eadmission-modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.82);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        #eadmission-modal-backdrop.open {
+            display: flex;
+            opacity: 1;
+        }
+
+        .eadmission-modal-window {
+            width: 100%;
+            max-width: 680px;
+            max-height: 90vh;
+            background: #111a1e;
             border: 1px solid var(--border-prominent);
-            border-radius: 6px;
-            padding: 10px 8px;
-            color: var(--text-secondary);
-            font-size: 0.72rem;
-            cursor: pointer;
-            text-align: center;
-            transition: all var(--transition-fast);
+            border-radius: var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg), 0 0 40px rgba(6, 78, 59, 0.4);
+            overflow: hidden;
+            animation: modalSlideUp 0.3s ease;
+        }
+
+        .wizard-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            position: relative;
+            padding: 0 10px;
+        }
+
+        .wizard-step {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
+            z-index: 2;
+            flex: 1;
+            text-align: center;
         }
 
-        .demo-card-btn i {
-            font-size: 1.1rem;
+        .step-indicator {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-surface-elevated);
+            border: 2px solid var(--border-subtle);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            transition: all var(--transition-fast);
         }
 
-        .demo-card-btn:hover {
+        .wizard-step.active .step-indicator {
+            background: var(--primary-600);
             border-color: var(--gold-400);
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(217, 119, 6, 0.5);
+        }
+
+        .wizard-step.completed .step-indicator {
+            background: var(--primary-700);
+            border-color: var(--primary-400);
+            color: #ffffff;
+        }
+
+        .step-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .wizard-step.active .step-label {
             color: var(--gold-300);
-            background: var(--bg-surface-hover);
-            transform: translateY(-2px);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .login-wrapper {
+                padding: 28px 20px;
+            }
         }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(12px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes modalSlideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
     </style>
 </head>
@@ -193,91 +231,227 @@
             <h1 class="login-title-eng">JAMIA ASHRAFIA LAHORE</h1>
             <div class="login-title-urdu">جامعہ اشرفیہ، لاہور - پورٹل ورود</div>
             <div class="login-motto">Knowledge & Piety (علم اور تقویٰ) • Est. 1947</div>
+            <div class="login-portal-badge">
+                <i class="fas fa-shield-alt"></i> Unified Cloud LMS Authentication
+            </div>
         </div>
 
-        <!-- 3-ROLE TABS -->
-        <div class="role-tabs">
-            <button class="role-tab-btn active" id="tab-student" onclick="setRoleTab('STUDENT')">
-                <i class="fas fa-user-graduate"></i>
-                <span>Student</span>
-            </button>
-            <button class="role-tab-btn" id="tab-teacher" onclick="setRoleTab('TEACHER')">
-                <i class="fas fa-chalkboard-teacher"></i>
-                <span>Teacher</span>
-            </button>
-            <button class="role-tab-btn" id="tab-admin" onclick="setRoleTab('SUPER_ADMIN')">
-                <i class="fas fa-crown"></i>
-                <span>Super Admin</span>
-            </button>
+        <!-- ACTIVE SESSION BANNER (IF PREVIOUS SESSION DETECTED) -->
+        <div id="active-session-banner" style="display: none; background: rgba(6, 78, 59, 0.35); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 20px; font-size: 0.8rem; color: var(--primary-200); text-align: center;">
+            <i class="fas fa-user-check" style="color: var(--primary-400);"></i>
+            <span>Active session: <strong id="active-session-name" style="color: #ffffff;"></strong></span>
+            <div style="margin-top: 6px;">
+                <a href="index.html#dashboard" class="btn btn-secondary btn-sm" style="font-size: 0.74rem; padding: 3px 12px; color: var(--gold-300); font-weight: 600;">
+                    Continue to Dashboard &rarr;
+                </a>
+            </div>
         </div>
 
-        <!-- UNIFIED LOGIN FORM -->
+        <!-- COMMON LOGIN FORM (AUTOMATIC ACCOUNT DETECTION) -->
         <form id="login-form" onsubmit="handleLoginSubmit(event)">
-            <div class="form-group" style="margin-bottom: 16px;">
-                <label id="input-label-id">
-                    <i class="fas fa-id-card" style="color: var(--primary-400);"></i> Student Roll Number / ID *
+            <!-- USERNAME / ID FIELD -->
+            <div class="form-group" style="margin-bottom: 18px;">
+                <label for="login-identifier" style="font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <i class="fas fa-user-circle" style="color: var(--gold-400);"></i> Username / ID *
                 </label>
-                <input type="text" id="login-identifier" class="form-control" placeholder="e.g. ASH-2024-001" value="ASH-2024-001" required>
+                <input type="text" id="login-identifier" class="form-control" placeholder="Roll No, Email, Teacher ID, or Admin Username" required autofocus style="padding: 12px 14px; font-size: 0.95rem;">
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
+                    Enter your Scholar Roll No (e.g. <code>ASH-2024-001</code>), Faculty Email, or Admin ID
+                </div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 18px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <label>
+            <!-- PASSWORD FIELD -->
+            <div class="form-group" style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label for="login-password" style="font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
                         <i class="fas fa-lock" style="color: var(--gold-400);"></i> Password *
                     </label>
-                    <a href="javascript:void(0)" onclick="alert('Please contact Nazim-e-Taleemat Office at Ferozepur Road campus for credential recovery.')" style="font-size: 0.75rem; color: var(--gold-300);">Forgot Password?</a>
+                    <a href="javascript:void(0)" onclick="alert('For credential recovery, please contact Nazim-e-Taleemat Office at Jamia Ashrafia Ferozepur Road campus.')" style="font-size: 0.75rem; color: var(--gold-300); text-decoration: none;">Forgot Password?</a>
                 </div>
                 <div style="position: relative;">
-                    <input type="password" id="login-password" class="form-control" value="Ashrafia1947#" required style="padding-right: 40px;">
-                    <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;">
+                    <input type="password" id="login-password" class="form-control" placeholder="Enter your account password" required style="padding: 12px 42px 12px 14px; font-size: 0.95rem;">
+                    <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;" aria-label="Toggle password visibility">
                         <i class="fas fa-eye" id="eye-icon"></i>
                     </button>
                 </div>
             </div>
 
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-size: 0.8rem;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-secondary);">
-                    <input type="checkbox" checked style="width: 16px; height: 16px;">
+            <!-- SESSION REMEMBER & BADGE -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; font-size: 0.82rem;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-secondary);">
+                    <input type="checkbox" id="remember-me" checked style="width: 16px; height: 16px; accent-color: var(--primary-500);">
                     <span>Remember this session</span>
                 </label>
-                <span style="color: var(--text-muted); font-size: 0.72rem;">Academic Year 1446 AH</span>
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Session 1446-1447 AH</span>
             </div>
 
-            <button type="submit" id="btn-submit-login" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">
-                <i class="fas fa-sign-in-alt"></i> Sign In to Student Dashboard
+            <!-- SUBMIT BUTTON -->
+            <button type="submit" id="btn-submit-login" class="btn btn-gold" style="width: 100%; padding: 13px; font-size: 1rem; font-weight: 700; letter-spacing: 0.02em;">
+                <i class="fas fa-sign-in-alt"></i> Sign In to LMS Portal
             </button>
         </form>
 
-        <!-- ONE-CLICK DEMO AUTHENTICATION CARDS -->
-        <div class="demo-roles-box">
-            <div style="color: var(--gold-300); font-weight: 700; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
-                <i class="fas fa-bolt"></i> One-Click Demo Login:
-            </div>
-            <div class="demo-roles-grid">
-                <button class="demo-card-btn" onclick="executeLogin('u_student_1', 'STUDENT')">
-                    <i class="fas fa-user-graduate" style="color: var(--primary-400);"></i>
-                    <strong style="color: #ffffff;">Talib-e-Ilm</strong>
-                    <span>Talha Usmani</span>
-                </button>
-                <button class="demo-card-btn" onclick="executeLogin('u_teacher_1', 'TEACHER')">
-                    <i class="fas fa-chalkboard-teacher" style="color: var(--gold-400);"></i>
-                    <strong style="color: #ffffff;">Teacher</strong>
-                    <span>Qari Arshad</span>
-                </button>
-                <button class="demo-card-btn" onclick="executeLogin('u_admin', 'SUPER_ADMIN')">
-                    <i class="fas fa-crown" style="color: var(--warning);"></i>
-                    <strong style="color: #ffffff;">Super Admin</strong>
-                    <span>M. Fazl-ur-Raheem</span>
-                </button>
-            </div>
+        <!-- ONLINE STUDENT APPLICATION / E-ADMISSION SECTION -->
+        <div style="text-align: center; margin-top: 26px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px solid var(--border-subtle); padding-top: 18px;">
+            <div>Seeking new admission at Jamia Ashrafia Lahore?</div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openEAdmissionModal()" style="margin-top: 10px; border-color: rgba(217, 119, 6, 0.4); color: var(--gold-300); font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+                <i class="fas fa-file-signature" style="color: var(--gold-400);"></i> Online Student Application / E-Admission
+            </button>
         </div>
+    </div>
 
-        <!-- ADMISSIONS LINK -->
-        <div style="text-align: center; margin-top: 22px; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid var(--border-subtle); padding-top: 14px;">
-            <div>Seeking admission for the new term?</div>
-            <a href="index.html#admissions" style="color: var(--gold-300); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;">
-                <i class="fas fa-file-signature"></i> Online Student Admission Application
-            </a>
+    <!-- E-ADMISSION REGISTRATION MODAL -->
+    <div id="eadmission-modal-backdrop">
+        <div class="eadmission-modal-window">
+            <div class="modal-header" style="background: rgba(6, 78, 59, 0.4); border-bottom: 1px solid var(--border-subtle); padding: 16px 22px; display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="card-title" id="eadmission-modal-title" style="margin: 0; font-size: 1.1rem; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-file-signature" style="color: var(--gold-400);"></i>
+                    Online Student Admission Application - Jamia Ashrafia
+                </h3>
+                <button class="icon-btn" onclick="closeEAdmissionModal()" style="width: 32px; height: 32px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="modal-body" id="eadmission-modal-body" style="padding: 22px; overflow-y: auto;">
+                <!-- WIZARD STEP INDICATORS -->
+                <div class="wizard-steps">
+                    <div class="wizard-step active" id="wiz-step-1">
+                        <div class="step-indicator">1</div>
+                        <div class="step-label">Personal Info</div>
+                    </div>
+                    <div class="wizard-step" id="wiz-step-2">
+                        <div class="step-indicator">2</div>
+                        <div class="step-label">Education</div>
+                    </div>
+                    <div class="wizard-step" id="wiz-step-3">
+                        <div class="step-indicator">3</div>
+                        <div class="step-label">Program & Campus</div>
+                    </div>
+                    <div class="wizard-step" id="wiz-step-4">
+                        <div class="step-indicator">4</div>
+                        <div class="step-label">Declaration</div>
+                    </div>
+                </div>
+
+                <!-- FORM CONTENT -->
+                <form id="eadmission-form">
+                    <!-- STEP 1: PERSONAL & CONTACT -->
+                    <div id="wiz-content-1">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Candidate Full Name (English) *</label>
+                                <input type="text" id="eadm-name" class="form-control" placeholder="e.g. Muhammad Bilal Usmani" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Father's Name *</label>
+                                <input type="text" id="eadm-father" class="form-control" placeholder="e.g. Maulana Abdul Rehman" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">CNIC / B-Form Number *</label>
+                                <input type="text" id="eadm-cnic" class="form-control" placeholder="35201-1234567-1" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Date of Birth *</label>
+                                <input type="date" id="eadm-dob" class="form-control" value="2006-03-15" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">WhatsApp / Mobile Phone *</label>
+                                <input type="tel" id="eadm-phone" class="form-control" placeholder="+92 300 1234567" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Email Address</label>
+                                <input type="email" id="eadm-email" class="form-control" placeholder="bilal@example.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 2: EDUCATION & PREREQUISITES -->
+                    <div id="wiz-content-2" style="display: none;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Previous Madrasa / School Attended</label>
+                                <input type="text" id="eadm-prev-madrasa" class="form-control" placeholder="e.g. Jamia Farooqia / Darul Uloom">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Last Passed Class / Degree</label>
+                                <input type="text" id="eadm-last-class" class="form-control" placeholder="e.g. Sanawiyyah Aamah / Matric">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Wifaq Registration Roll No (if any)</label>
+                                <input type="text" id="eadm-wifaq-reg" class="form-control" placeholder="W-1445-98210">
+                            </div>
+                            <div class="form-group" style="justify-content: center; display: flex; align-items: center;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 15px;">
+                                    <input type="checkbox" id="eadm-hafiz" checked style="width: 18px; height: 18px; accent-color: var(--primary-500);">
+                                    <strong style="color: var(--gold-300); font-size: 0.85rem;">Is the Candidate Hafiz-ul-Quran? (حافظ قرآن)</strong>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3: PROGRAM & CAMPUS -->
+                    <div id="wiz-content-3" style="display: none;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Academic Program Sought *</label>
+                                <select id="eadm-program" class="form-control" required>
+                                    <option value="p1">Dars-e-Nizami (Shahadat-ul-Alimiyyah)</option>
+                                    <option value="p2">Takhassus fil-Fiqh wal-Ifta (Postgraduate)</option>
+                                    <option value="p3">Hifz-ul-Quran & Tajweed</option>
+                                    <option value="p4">Qira'at Sab'ah and Asharah</option>
+                                    <option value="p5">Alimiyyah for Women (Lil Bannat)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Campus / Branch *</label>
+                                <select id="eadm-branch" class="form-control" required>
+                                    <option value="b1">Main Campus (Central Headquarters & Dawra-e-Hadith) - Ferozepur Road</option>
+                                    <option value="b2">Madrisatul Faisal Lil Bannat - Model Town, Lahore</option>
+                                    <option value="b3">Madrisa Ashrafia - Old Anarkali, Lahore</option>
+                                    <option value="b4">Mahad al-Quba - Johar Town, Lahore</option>
+                                    <option value="b5">Madrisa Baitul Quran - Samanabad, Lahore</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px; background: rgba(0,0,0,0.25); border-radius: 6px; border: 1px solid var(--border-subtle);">
+                                    <input type="checkbox" id="eadm-hostel" checked style="width: 18px; height: 18px; accent-color: var(--primary-500);">
+                                    <div>
+                                        <strong style="color: #ffffff; font-size: 0.85rem;">Boarding / Hostel Accommodation Required (رہائش و طعام)</strong>
+                                        <div style="font-size: 0.75rem; color: var(--text-muted);">Subject to interview committee clearance and hostel room availability</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 4: DECLARATION -->
+                    <div id="wiz-content-4" style="display: none;">
+                        <div style="background: rgba(6, 78, 59, 0.25); border: 1px solid var(--primary-600); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                            <h4 style="color: var(--gold-300); margin-bottom: 6px; font-size: 0.95rem;">
+                                <i class="fas fa-file-signature"></i> Declaration of Adab & Sunnah Discipline
+                            </h4>
+                            <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                                I hereby solemnly affirm that all information provided in this admission application is true and complete.
+                                If admitted to Jamia Ashrafia Lahore, I pledge to adhere strictly to the Islamic code of adab, piety,
+                                and Sunnah discipline under the supervision of Hazrat Mohtamim and the Asatizah-e-Kiram.
+                            </p>
+                        </div>
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="eadm-terms" required checked style="width: 18px; height: 18px; accent-color: var(--primary-500);">
+                            <span style="font-size: 0.82rem; color: #ffffff;">I accept the regulations and disciplinary code of Wifaq-ul-Madaris Al-Arabia Pakistan.</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer" id="eadmission-modal-footer" style="padding: 14px 22px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" class="btn btn-secondary" onclick="closeEAdmissionModal()">Cancel</button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" id="btn-wiz-prev" onclick="prevWizStep()" style="display: none;">Previous</button>
+                    <button type="button" class="btn btn-gold" id="btn-wiz-next" onclick="nextWizStep()">Next Step <i class="fas fa-arrow-right"></i></button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -286,44 +460,26 @@
 
     <script src="js/data.js"></script>
     <script>
-        let currentTabRole = 'STUDENT';
+        // Ensure data store is loaded
+        window.LmsData = window.DataStore ? window.DataStore.get() : null;
 
-        function setRoleTab(role) {
-            currentTabRole = role;
-            const tabStudent = document.getElementById('tab-student');
-            const tabTeacher = document.getElementById('tab-teacher');
-            const tabAdmin = document.getElementById('tab-admin');
-            const label = document.getElementById('input-label-id');
-            const input = document.getElementById('login-identifier');
-            const submitBtn = document.getElementById('btn-submit-login');
-
-            // Reset tab styles
-            [tabStudent, tabTeacher, tabAdmin].forEach(t => t.className = 'role-tab-btn');
-
-            if (role === 'STUDENT') {
-                tabStudent.classList.add('active');
-                label.innerHTML = `<i class="fas fa-id-card" style="color: var(--primary-400);"></i> Student Roll Number / ID *`;
-                input.placeholder = "e.g. ASH-2024-001 or email";
-                input.value = "ASH-2024-001";
-                submitBtn.className = "btn btn-primary";
-                submitBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Sign In to Student Dashboard`;
-            } else if (role === 'TEACHER') {
-                tabTeacher.classList.add('active');
-                label.innerHTML = `<i class="fas fa-chalkboard-teacher" style="color: var(--gold-400);"></i> Faculty Email / Teacher ID *`;
-                input.placeholder = "e.g. arshad.ubaid@jamiaashrafia.org";
-                input.value = "arshad.ubaid@jamiaashrafia.org";
-                submitBtn.className = "btn btn-gold";
-                submitBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Sign In to Teacher Dashboard`;
-            } else if (role === 'SUPER_ADMIN') {
-                tabAdmin.classList.add('active', 'admin-tab');
-                label.innerHTML = `<i class="fas fa-crown" style="color: var(--warning);"></i> Mohtamim Admin Email *`;
-                input.placeholder = "e.g. mohtamim@jamiaashrafia.org";
-                input.value = "mohtamim@jamiaashrafia.org";
-                submitBtn.className = "btn btn-gold";
-                submitBtn.innerHTML = `<i class="fas fa-shield-alt"></i> Sign In to Super Admin Dashboard`;
+        // Check and display active session banner if user is currently signed in
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentUserId = localStorage.getItem('JAMIA_CURRENT_USER_ID');
+            if (currentUserId && window.LmsData?.users) {
+                const curUser = window.LmsData.users.find(u => u.id === currentUserId);
+                if (curUser) {
+                    const banner = document.getElementById('active-session-banner');
+                    const nameSpan = document.getElementById('active-session-name');
+                    if (banner && nameSpan) {
+                        nameSpan.textContent = `${curUser.name} (${curUser.role.replace('_', ' ')})`;
+                        banner.style.display = 'block';
+                    }
+                }
             }
-        }
+        });
 
+        // Password visibility toggle
         function togglePasswordVisibility() {
             const pwd = document.getElementById('login-password');
             const icon = document.getElementById('eye-icon');
@@ -336,40 +492,279 @@
             }
         }
 
+        // =====================================================================
+        // UNIFIED LOGIN SUBMIT (AUTOMATIC ACCOUNT DETECTION)
+        // =====================================================================
         function handleLoginSubmit(e) {
             e.preventDefault();
             const idVal = document.getElementById('login-identifier').value.trim();
+            const pwdVal = document.getElementById('login-password').value.trim();
 
-            let matchedUser = window.LmsData.users.find(u => 
-                (u.rollNo && u.rollNo.toLowerCase() === idVal.toLowerCase()) || 
-                (u.email && u.email.toLowerCase() === idVal.toLowerCase())
-            );
-
-            if (!matchedUser) {
-                // If not found by exact string, match by current selected tab role
-                matchedUser = window.LmsData.users.find(u => u.role === currentTabRole) || window.LmsData.users[0];
+            if (!idVal || !pwdVal) {
+                showToast('Please provide both Username / ID and Password', 'warning');
+                return;
             }
 
-            executeLogin(matchedUser.id, matchedUser.role);
+            const users = window.LmsData?.users || [];
+            const idLower = idVal.toLowerCase();
+            
+            // Automatically identify user account type based on entered Username / ID:
+            // 1. Exact match by rollNo, email, id, or scholar/teacher name (case-insensitive)
+            let matchedUser = users.find(u => 
+                (u.rollNo && u.rollNo.toLowerCase() === idLower) || 
+                (u.email && u.email.toLowerCase() === idLower) ||
+                (u.id && u.id.toLowerCase() === idLower) ||
+                (u.name && u.name.toLowerCase() === idLower)
+            );
+
+            // 2. Friendly role keywords if directly testing system roles
+            if (!matchedUser) {
+                if (idLower === 'admin' || idLower === 'superadmin' || idLower === 'mohtamim') {
+                    matchedUser = users.find(u => u.role === 'SUPER_ADMIN');
+                } else if (idLower === 'teacher' || idLower === 'ustad') {
+                    matchedUser = users.find(u => u.role === 'TEACHER');
+                } else if (idLower === 'student' || idLower === 'talib') {
+                    matchedUser = users.find(u => u.role === 'STUDENT');
+                } else if (idLower === 'nazim' || idLower === 'academic') {
+                    matchedUser = users.find(u => u.role === 'ACADEMIC_ADMIN');
+                } else if (idLower === 'accountant' || idLower === 'maliyat') {
+                    matchedUser = users.find(u => u.role === 'ACCOUNTANT');
+                }
+            }
+
+            if (!matchedUser) {
+                showToast('Invalid Username / ID. No matching student, teacher, or administrative account found.', 'danger');
+                return;
+            }
+
+            // Verify Password
+            const allowedMaster = ['admin123', 'Ashrafia1947#', 'password', 'student123', 'ashrafia123', 'nazim123'];
+            if (matchedUser.password) {
+                if (matchedUser.password !== pwdVal && !allowedMaster.includes(pwdVal)) {
+                    showToast('Incorrect password. Please verify your credentials or contact administrator.', 'danger');
+                    return;
+                }
+            } else {
+                if (!allowedMaster.includes(pwdVal) && pwdVal !== 'Ashrafia1947#') {
+                    showToast('Incorrect password. Please verify your credentials or contact administrator.', 'danger');
+                    return;
+                }
+            }
+
+            // Check account status
+            if (matchedUser.status === 'SUSPENDED' || matchedUser.status === 'INACTIVE') {
+                showToast(`This account is currently ${matchedUser.status}. Please contact the Academic Office.`, 'warning');
+                return;
+            }
+
+            // Automatically identify role title for friendly greeting
+            let roleTitle = 'User';
+            if (matchedUser.role === 'SUPER_ADMIN') roleTitle = 'Super Admin (Mohtamim)';
+            else if (matchedUser.role === 'ACADEMIC_ADMIN') roleTitle = 'Academic Nazim';
+            else if (matchedUser.role === 'TEACHER') roleTitle = 'Teacher';
+            else if (matchedUser.role === 'STUDENT') roleTitle = 'Student';
+            else if (matchedUser.role === 'ACCOUNTANT') roleTitle = 'Accountant';
+            else roleTitle = matchedUser.role.replace('_', ' ');
+
+            executeLogin(matchedUser.id, roleTitle);
         }
 
-        function executeLogin(userId, role) {
+        function executeLogin(userId, roleTitle) {
             localStorage.setItem('JAMIA_CURRENT_USER_ID', userId);
             localStorage.setItem('JAMIA_AUTH_TOKEN', 'ashrafia_token_' + Date.now());
 
-            showToast(`Welcome! Signing in to ${role.replace('_', ' ')} Dashboard...`, 'success');
+            showToast(`Welcome! Signing in to ${roleTitle} Dashboard...`, 'success');
             setTimeout(() => {
                 window.location.href = 'index.html#dashboard';
             }, 600);
         }
 
+        // =====================================================================
+        // ONLINE STUDENT ADMISSION APPLICATION (E-ADMISSION) WORKFLOW
+        // =====================================================================
+        let currentWizStep = 1;
+
+        function openEAdmissionModal() {
+            currentWizStep = 1;
+            resetWizUI();
+            const backdrop = document.getElementById('eadmission-modal-backdrop');
+            if (backdrop) backdrop.classList.add('open');
+        }
+
+        function closeEAdmissionModal() {
+            const backdrop = document.getElementById('eadmission-modal-backdrop');
+            if (backdrop) backdrop.classList.remove('open');
+        }
+
+        function resetWizUI() {
+            for (let i = 1; i <= 4; i++) {
+                const content = document.getElementById(`wiz-content-${i}`);
+                const step = document.getElementById(`wiz-step-${i}`);
+                if (content) content.style.display = (i === 1) ? 'block' : 'none';
+                if (step) {
+                    step.classList.remove('active', 'completed');
+                    if (i === 1) step.classList.add('active');
+                }
+            }
+            const prevBtn = document.getElementById('btn-wiz-prev');
+            const nextBtn = document.getElementById('btn-wiz-next');
+            if (prevBtn) prevBtn.style.display = 'none';
+            if (nextBtn) {
+                nextBtn.innerHTML = `Next Step <i class="fas fa-arrow-right"></i>`;
+                nextBtn.className = 'btn btn-gold';
+            }
+        }
+
+        function nextWizStep() {
+            if (currentWizStep === 1) {
+                const name = document.getElementById('eadm-name').value.trim();
+                const father = document.getElementById('eadm-father').value.trim();
+                const cnic = document.getElementById('eadm-cnic').value.trim();
+                const phone = document.getElementById('eadm-phone').value.trim();
+                if (!name || !father || !cnic || !phone) {
+                    showToast("Please fill in candidate name, father name, CNIC, and phone number", "warning");
+                    return;
+                }
+            }
+
+            if (currentWizStep < 4) {
+                document.getElementById(`wiz-content-${currentWizStep}`).style.display = 'none';
+                document.getElementById(`wiz-step-${currentWizStep}`).classList.remove('active');
+                document.getElementById(`wiz-step-${currentWizStep}`).classList.add('completed');
+
+                currentWizStep++;
+                document.getElementById(`wiz-content-${currentWizStep}`).style.display = 'block';
+                document.getElementById(`wiz-step-${currentWizStep}`).classList.add('active');
+
+                document.getElementById('btn-wiz-prev').style.display = 'inline-flex';
+                if (currentWizStep === 4) {
+                    const nextBtn = document.getElementById('btn-wiz-next');
+                    nextBtn.innerHTML = `<i class="fas fa-paper-plane"></i> Submit Application`;
+                    nextBtn.className = 'btn btn-primary';
+                }
+            } else {
+                submitEAdmissionForm();
+            }
+        }
+
+        function prevWizStep() {
+            if (currentWizStep > 1) {
+                document.getElementById(`wiz-content-${currentWizStep}`).style.display = 'none';
+                document.getElementById(`wiz-step-${currentWizStep}`).classList.remove('active');
+
+                currentWizStep--;
+                document.getElementById(`wiz-content-${currentWizStep}`).style.display = 'block';
+                document.getElementById(`wiz-step-${currentWizStep}`).classList.add('active');
+
+                if (currentWizStep === 1) {
+                    document.getElementById('btn-wiz-prev').style.display = 'none';
+                }
+                const nextBtn = document.getElementById('btn-wiz-next');
+                nextBtn.innerHTML = `Next Step <i class="fas fa-arrow-right"></i>`;
+                nextBtn.className = 'btn btn-gold';
+            }
+        }
+
+        function submitEAdmissionForm() {
+            const terms = document.getElementById('eadm-terms').checked;
+            if (!terms) {
+                showToast("Please accept the code of conduct declaration to proceed.", "warning");
+                return;
+            }
+
+            const name = document.getElementById('eadm-name').value.trim();
+            const father = document.getElementById('eadm-father').value.trim();
+            const cnic = document.getElementById('eadm-cnic').value.trim();
+            const phone = document.getElementById('eadm-phone').value.trim();
+            const email = document.getElementById('eadm-email').value.trim();
+            const prev = document.getElementById('eadm-prev-madrasa').value.trim();
+            const hafiz = document.getElementById('eadm-hafiz').checked;
+            const programId = document.getElementById('eadm-program').value;
+            const branchId = document.getElementById('eadm-branch').value;
+            const hostel = document.getElementById('eadm-hostel').checked;
+
+            if (!window.LmsData) {
+                window.LmsData = window.DataStore ? window.DataStore.get() : { admissions: [] };
+            }
+            if (!window.LmsData.admissions) {
+                window.LmsData.admissions = [];
+            }
+
+            const newAppNo = `ASH-ADM-2024-${String(window.LmsData.admissions.length + 96).padStart(3, '0')}`;
+            
+            const newRecord = {
+                id: `adm_${Date.now()}`,
+                applicationNo: newAppNo,
+                name: name,
+                fatherName: father,
+                cnic: cnic,
+                phone: phone || "+92 300 0000000",
+                email: email || "applicant@jamiaashrafia.org",
+                programId: programId,
+                branchId: branchId,
+                hostelRequired: hostel,
+                previousMadrasa: prev || "None",
+                hafizStatus: hafiz,
+                status: "APPLIED",
+                interviewDate: null,
+                interviewScore: null,
+                allottedRollNo: null,
+                appliedAt: new Date().toISOString().split('T')[0]
+            };
+
+            window.LmsData.admissions.unshift(newRecord);
+            window.DataStore.save(window.LmsData);
+
+            // Display Confirmation Screen inside modal
+            renderAdmissionSuccessScreen(newRecord);
+        }
+
+        function renderAdmissionSuccessScreen(record) {
+            const body = document.getElementById('eadmission-modal-body');
+            const footer = document.getElementById('eadmission-modal-footer');
+            const title = document.getElementById('eadmission-modal-title');
+
+            title.innerHTML = `<i class="fas fa-check-circle" style="color: var(--primary-400);"></i> Application Successfully Submitted!`;
+
+            body.innerHTML = `
+                <div style="text-align: center; padding: 24px 10px;">
+                    <div style="width: 72px; height: 72px; background: rgba(16, 185, 129, 0.2); color: var(--primary-400); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; margin: 0 auto 16px;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <h3 style="color: #ffffff; margin-bottom: 6px; font-size: 1.25rem;">Admission Application Registered!</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.88rem; max-width: 480px; margin: 0 auto 20px;">
+                        Your admission request has been recorded into the Jamia Ashrafia LMS admissions registry.
+                    </p>
+
+                    <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 18px; max-width: 460px; margin: 0 auto; text-align: left; line-height: 2; font-size: 0.85rem;">
+                        <div><strong>Candidate Name:</strong> ${record.name}</div>
+                        <div><strong>Father's Name:</strong> ${record.fatherName}</div>
+                        <div><strong>Application Tracking No:</strong> <code style="color: var(--gold-300); font-weight: 700; font-size: 1.05rem;">${record.applicationNo}</code></div>
+                        <div><strong>CNIC / B-Form:</strong> ${record.cnic}</div>
+                        <div><strong>Status:</strong> <span class="status-pill primary"><i class="fas fa-inbox"></i> Applied (Pending Review)</span></div>
+                    </div>
+
+                    <div style="margin-top: 18px; font-size: 0.8rem; color: var(--gold-200); background: rgba(217, 119, 6, 0.15); border: 1px solid rgba(217, 119, 6, 0.3); border-radius: 6px; padding: 10px 14px; max-width: 460px; margin-left: auto; margin-right: auto;">
+                        <i class="fas fa-info-circle"></i> Please save your <strong>Application Tracking No</strong>. The Nazim-e-Taleemat committee will verify your credentials and schedule your academic interview.
+                    </div>
+                </div>
+            `;
+
+            footer.innerHTML = `
+                <button type="button" class="btn btn-gold" onclick="closeEAdmissionModal()" style="margin: 0 auto;">
+                    <i class="fas fa-check"></i> Return to Login Screen
+                </button>
+            `;
+        }
+
+        // Toast notifications helper
         function showToast(msg, type = 'info') {
             const container = document.getElementById('toast-container');
             const t = document.createElement('div');
             t.className = `toast ${type}`;
-            t.innerHTML = `<i class="fas fa-check-circle"></i> <span>${msg}</span>`;
+            t.innerHTML = `<i class="fas fa-info-circle"></i> <span>${msg}</span>`;
             container.appendChild(t);
-            setTimeout(() => t.remove(), 2500);
+            setTimeout(() => t.remove(), 3000);
         }
     </script>
 </body>

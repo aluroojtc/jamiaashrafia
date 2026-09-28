@@ -5,15 +5,22 @@
 
 const App = {
     currentRoute: 'dashboard',
-    usersPermissionsSubmenuOpen: true,
+    usersPermissionsSubmenuOpen: false,
 
     toggleNavSubmenu(id) {
         const submenu = document.getElementById('submenu-' + id);
         const caret = document.getElementById('caret-' + id);
         if (!submenu) return;
-        const isClosed = submenu.style.display === 'none';
-        submenu.style.display = isClosed ? 'flex' : 'none';
-        if (caret) caret.style.transform = isClosed ? 'rotate(180deg)' : 'rotate(0deg)';
+        const isClosed = submenu.style.display === 'none' || (!submenu.classList.contains('open') && submenu.style.display !== 'flex');
+        if (isClosed) {
+            submenu.style.display = 'flex';
+            submenu.classList.add('open');
+            if (caret) caret.style.transform = 'rotate(180deg)';
+        } else {
+            submenu.style.display = 'none';
+            submenu.classList.remove('open');
+            if (caret) caret.style.transform = 'rotate(0deg)';
+        }
         if (id === 'users-permissions') {
             this.usersPermissionsSubmenuOpen = isClosed;
         }
@@ -134,16 +141,17 @@ const App = {
                     <div class="nav-item nav-parent-item ${['users', 'roles', 'permissions'].includes(this.currentRoute) ? 'active' : ''}" 
                          onclick="App.toggleNavSubmenu('users-permissions')" 
                          id="parent-nav-users-permissions"
-                         title="Manage LMS Users, Configured Roles & Module Permissions">
+                         title="Manage LMS Users, Configured Roles & Module Permissions"
+                         style="cursor: pointer;">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <i class="fas fa-user-shield" style="color: var(--gold-400);"></i>
                             <span>Users & Permissions</span>
                         </div>
                         <i class="fas fa-chevron-down submenu-caret" id="caret-users-permissions" 
-                           style="${['users', 'roles', 'permissions'].includes(this.currentRoute) || this.usersPermissionsSubmenuOpen !== false ? 'transform: rotate(180deg);' : ''}"></i>
+                           style="${this.usersPermissionsSubmenuOpen ? 'transform: rotate(180deg);' : 'transform: rotate(0deg);'}"></i>
                     </div>
-                    <div class="nav-submenu-list" id="submenu-users-permissions" 
-                         style="display: ${['users', 'roles', 'permissions'].includes(this.currentRoute) || this.usersPermissionsSubmenuOpen !== false ? 'flex' : 'none'};">
+                    <div class="nav-submenu-list ${this.usersPermissionsSubmenuOpen ? 'open' : ''}" id="submenu-users-permissions" 
+                         style="display: ${this.usersPermissionsSubmenuOpen ? 'flex' : 'none'};">
                         <a href="#users" class="nav-item ${this.currentRoute === 'users' ? 'active' : ''}" data-route="users">
                             <i class="fas fa-users" style="color: var(--primary-400);"></i>
                             <span>Users</span>
@@ -413,6 +421,14 @@ const App = {
         if (parentNav) {
             if (['users', 'roles', 'permissions'].includes(route)) {
                 parentNav.classList.add('active');
+                const submenu = document.getElementById('submenu-users-permissions');
+                const caret = document.getElementById('caret-users-permissions');
+                if (submenu) {
+                    submenu.style.display = 'flex';
+                    submenu.classList.add('open');
+                    if (caret) caret.style.transform = 'rotate(180deg)';
+                    this.usersPermissionsSubmenuOpen = true;
+                }
             } else {
                 parentNav.classList.remove('active');
             }

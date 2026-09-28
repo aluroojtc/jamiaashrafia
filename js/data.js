@@ -1073,6 +1073,46 @@ const INITIAL_DATA = {
             permissions: false,
             security: false
         },
+        ACADEMIC_ADMIN: {
+            classes: true,
+            assignments: true,
+            exams: true,
+            timetable: true,
+            virtual_class: true,
+            notifications: true,
+            library: true,
+            teachers: true,
+            students: true,
+            attendance: true,
+            reports: true,
+            users: false,
+            roles: false,
+            admissions: true,
+            fees: false,
+            heritage: true,
+            permissions: false,
+            security: false
+        },
+        ACCOUNTANT: {
+            classes: false,
+            assignments: false,
+            exams: false,
+            timetable: false,
+            virtual_class: false,
+            notifications: true,
+            library: false,
+            teachers: false,
+            students: false,
+            attendance: true,
+            reports: true,
+            users: false,
+            roles: false,
+            admissions: false,
+            fees: true,
+            heritage: true,
+            permissions: false,
+            security: false
+        },
         SUPER_ADMIN: {
             classes: true,
             assignments: true,
@@ -1116,15 +1156,44 @@ const DataStore = {
                     parsed.roleModulePermissions = JSON.parse(JSON.stringify(INITIAL_DATA.roleModulePermissions));
                     dirty = true;
                 } else {
-                    // Guarantee new modules (students, attendance, reports, users, roles) exist in all roles
-                    ['STUDENT', 'TEACHER', 'SUPER_ADMIN'].forEach(r => {
-                        if (!parsed.roleModulePermissions[r]) parsed.roleModulePermissions[r] = {};
-                        ['students', 'attendance', 'reports', 'users', 'roles'].forEach(m => {
-                            if (parsed.roleModulePermissions[r][m] === undefined) {
-                                parsed.roleModulePermissions[r][m] = INITIAL_DATA.roleModulePermissions[r][m];
-                                dirty = true;
-                            }
-                        });
+                    // Guarantee SUPER_ADMIN retains full permissions permanently
+                    if (!parsed.roleModulePermissions.SUPER_ADMIN) {
+                        parsed.roleModulePermissions.SUPER_ADMIN = {};
+                    }
+                    Object.keys(INITIAL_DATA.roleModulePermissions.SUPER_ADMIN).forEach(m => {
+                        if (parsed.roleModulePermissions.SUPER_ADMIN[m] !== true) {
+                            parsed.roleModulePermissions.SUPER_ADMIN[m] = true;
+                            dirty = true;
+                        }
+                    });
+
+                    // Guarantee all configurable roles have permission definitions
+                    (parsed.roles || []).forEach(r => {
+                        if (!parsed.roleModulePermissions[r.id]) {
+                            parsed.roleModulePermissions[r.id] = INITIAL_DATA.roleModulePermissions[r.id] 
+                                ? JSON.parse(JSON.stringify(INITIAL_DATA.roleModulePermissions[r.id]))
+                                : {
+                                    classes: true,
+                                    assignments: false,
+                                    exams: false,
+                                    timetable: true,
+                                    virtual_class: false,
+                                    notifications: true,
+                                    library: true,
+                                    attendance: true,
+                                    students: false,
+                                    reports: false,
+                                    users: false,
+                                    roles: false,
+                                    admissions: false,
+                                    teachers: false,
+                                    fees: false,
+                                    heritage: true,
+                                    permissions: false,
+                                    security: false
+                                };
+                            dirty = true;
+                        }
                     });
                 }
 

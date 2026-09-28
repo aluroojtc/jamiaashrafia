@@ -472,7 +472,7 @@ button, input, select, textarea {
 }
 
 .nav-submenu-list {
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 2px;
     padding-left: 12px;
@@ -481,6 +481,10 @@ button, input, select, textarea {
     margin-bottom: 5px;
     border-left: 2px solid rgba(217, 119, 6, 0.35);
     transition: all 0.2s ease;
+}
+
+.nav-submenu-list.open {
+    display: flex;
 }
 
 .nav-submenu-list .nav-item {
