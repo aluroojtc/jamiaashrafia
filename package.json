@@ -1,0 +1,21 @@
+{
+  "name": "jamia-ashrafia-lms",
+  "version": "1.0.0",
+  "description": "Cloud-Based Learning Management System for Jamia Ashrafia Lahore",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "jamia-ashrafia",
+    "lms",
+    "islamic-university",
+    "madrasa-management",
+    "wifaq-ul-madaris",
+    "zoom-virtual-classroom",
+    "webrtc"
+  ],
+  "author": "Jamia Ashrafia Lahore Academic Computing Cell",
+  "license": "MIT"
+}

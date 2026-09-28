@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Jamia Ashrafia Lahore - Cloud Learning Management System Login Portal">
+    <title>Login - Jamia Ashrafia Lahore LMS</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/jpeg" href="assets/images/crest.jpg">
+
+    <!-- Google Fonts: Amiri, Scheherazade, Outfit, Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Core CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+
+    <script>
+        // Automatic redirection: If already authenticated, redirect to appropriate dashboard
+        const existingUserId = localStorage.getItem('JAMIA_CURRENT_USER_ID');
+        if (existingUserId) {
+            window.location.replace('index.html');
+        }
+    </script>
+
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(2, 32, 24, 0.90) 0%, rgba(11, 26, 21, 0.96) 100%),
+                        url('assets/images/campus.jpg') center/cover no-repeat fixed;
+            padding: 24px;
+        }
+
+        .login-wrapper {
+            width: 100%;
+            max-width: 500px;
+            background: rgba(17, 26, 30, 0.94);
+            backdrop-filter: blur(18px);
+            border: 1px solid var(--border-prominent);
+            border-radius: var(--radius-xl);
+            padding: 38px 34px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 30px rgba(4, 120, 87, 0.25);
+            animation: fadeIn 0.35s ease;
+        }
+
+        .login-crest-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 22px;
+        }
+
+        .login-crest-img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid var(--gold-400);
+            box-shadow: 0 0 16px rgba(217, 119, 6, 0.4);
+            margin-bottom: 12px;
+            object-fit: cover;
+        }
+
+        .login-title-eng {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.01em;
+        }
+
+        .login-title-urdu {
+            font-family: 'Amiri', serif;
+            font-size: 1.3rem;
+            color: var(--gold-200);
+            margin-top: 2px;
+        }
+
+        .login-motto {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* 3-Role Tabs */
+        .role-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            background: var(--bg-surface-elevated);
+            border-radius: var(--radius-sm);
+            padding: 4px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-subtle);
+            gap: 4px;
+        }
+
+        .role-tab-btn {
+            padding: 9px 4px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .role-tab-btn i {
+            font-size: 0.95rem;
+        }
+
+        .role-tab-btn.active {
+            background: var(--primary-700);
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
+
+        .role-tab-btn.active.admin-tab {
+            background: var(--gold-600);
+            color: #ffffff;
+        }
+
+        .demo-roles-box {
+            background: rgba(6, 78, 59, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            margin-top: 22px;
+        }
+
+        .demo-roles-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .demo-card-btn {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border-prominent);
+            border-radius: 6px;
+            padding: 10px 8px;
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+            cursor: pointer;
+            text-align: center;
+            transition: all var(--transition-fast);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .demo-card-btn i {
+            font-size: 1.1rem;
+        }
+
+        .demo-card-btn:hover {
+            border-color: var(--gold-400);
+            color: var(--gold-300);
+            background: var(--bg-surface-hover);
+            transform: translateY(-2px);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-wrapper">
+        <!-- CREST & BRAND -->
+        <div class="login-crest-box">
+            <img src="assets/images/crest.jpg" alt="Jamia Ashrafia Crest" class="login-crest-img">
+            <h1 class="login-title-eng">JAMIA ASHRAFIA LAHORE</h1>
+            <div class="login-title-urdu">جامعہ اشرفیہ، لاہور - پورٹل ورود</div>
+            <div class="login-motto">Knowledge & Piety (علم اور تقویٰ) • Est. 1947</div>
+        </div>
+
+        <!-- 3-ROLE TABS -->
+        <div class="role-tabs">
+            <button class="role-tab-btn active" id="tab-student" onclick="setRoleTab('STUDENT')">
+                <i class="fas fa-user-graduate"></i>
+                <span>Student</span>
+            </button>
+            <button class="role-tab-btn" id="tab-teacher" onclick="setRoleTab('TEACHER')">
+                <i class="fas fa-chalkboard-teacher"></i>
+                <span>Teacher</span>
+            </button>
+            <button class="role-tab-btn" id="tab-admin" onclick="setRoleTab('SUPER_ADMIN')">
+                <i class="fas fa-crown"></i>
+                <span>Super Admin</span>
+            </button>
+        </div>
+
+        <!-- UNIFIED LOGIN FORM -->
+        <form id="login-form" onsubmit="handleLoginSubmit(event)">
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label id="input-label-id">
+                    <i class="fas fa-id-card" style="color: var(--primary-400);"></i> Student Roll Number / ID *
+                </label>
+                <input type="text" id="login-identifier" class="form-control" placeholder="e.g. ASH-2024-001" value="ASH-2024-001" required>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label>
+                        <i class="fas fa-lock" style="color: var(--gold-400);"></i> Password *
+                    </label>
+                    <a href="javascript:void(0)" onclick="alert('Please contact Nazim-e-Taleemat Office at Ferozepur Road campus for credential recovery.')" style="font-size: 0.75rem; color: var(--gold-300);">Forgot Password?</a>
+                </div>
+                <div style="position: relative;">
+                    <input type="password" id="login-password" class="form-control" value="Ashrafia1947#" required style="padding-right: 40px;">
+                    <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;">
+                        <i class="fas fa-eye" id="eye-icon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-size: 0.8rem;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-secondary);">
+                    <input type="checkbox" checked style="width: 16px; height: 16px;">
+                    <span>Remember this session</span>
+                </label>
+                <span style="color: var(--text-muted); font-size: 0.72rem;">Academic Year 1446 AH</span>
+            </div>
+
+            <button type="submit" id="btn-submit-login" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">
+                <i class="fas fa-sign-in-alt"></i> Sign In to Student Dashboard
+            </button>
+        </form>
+
+        <!-- ONE-CLICK DEMO AUTHENTICATION CARDS -->
+        <div class="demo-roles-box">
+            <div style="color: var(--gold-300); font-weight: 700; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                <i class="fas fa-bolt"></i> One-Click Demo Login:
+            </div>
+            <div class="demo-roles-grid">
+                <button class="demo-card-btn" onclick="executeLogin('u_student_1', 'STUDENT')">
+                    <i class="fas fa-user-graduate" style="color: var(--primary-400);"></i>
+                    <strong style="color: #ffffff;">Talib-e-Ilm</strong>
+                    <span>Talha Usmani</span>
+                </button>
+                <button class="demo-card-btn" onclick="executeLogin('u_teacher_1', 'TEACHER')">
+                    <i class="fas fa-chalkboard-teacher" style="color: var(--gold-400);"></i>
+                    <strong style="color: #ffffff;">Teacher</strong>
+                    <span>Qari Arshad</span>
+                </button>
+                <button class="demo-card-btn" onclick="executeLogin('u_admin', 'SUPER_ADMIN')">
+                    <i class="fas fa-crown" style="color: var(--warning);"></i>
+                    <strong style="color: #ffffff;">Super Admin</strong>
+                    <span>M. Fazl-ur-Raheem</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ADMISSIONS LINK -->
+        <div style="text-align: center; margin-top: 22px; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid var(--border-subtle); padding-top: 14px;">
+            <div>Seeking admission for the new term?</div>
+            <a href="index.html#admissions" style="color: var(--gold-300); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;">
+                <i class="fas fa-file-signature"></i> Online Student Admission Application
+            </a>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container"></div>
+
+    <script src="js/data.js"></script>
+    <script>
+        let currentTabRole = 'STUDENT';
+
+        function setRoleTab(role) {
+            currentTabRole = role;
+            const tabStudent = document.getElementById('tab-student');
+            const tabTeacher = document.getElementById('tab-teacher');
+            const tabAdmin = document.getElementById('tab-admin');
+            const label = document.getElementById('input-label-id');
+            const input = document.getElementById('login-identifier');
+            const submitBtn = document.getElementById('btn-submit-login');
+
+            // Reset tab styles
+            [tabStudent, tabTeacher, tabAdmin].forEach(t => t.className = 'role-tab-btn');
+
+            if (role === 'STUDENT') {
+                tabStudent.classList.add('active');
+                label.innerHTML = `<i class="fas fa-id-card" style="color: var(--primary-400);"></i> Student Roll Number / ID *`;
+                input.placeholder = "e.g. ASH-2024-001 or email";
+                input.value = "ASH-2024-001";
+                submitBtn.className = "btn btn-primary";
+                submitBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Sign In to Student Dashboard`;
+            } else if (role === 'TEACHER') {
+                tabTeacher.classList.add('active');
+                label.innerHTML = `<i class="fas fa-chalkboard-teacher" style="color: var(--gold-400);"></i> Faculty Email / Teacher ID *`;
+                input.placeholder = "e.g. arshad.ubaid@jamiaashrafia.org";
+                input.value = "arshad.ubaid@jamiaashrafia.org";
+                submitBtn.className = "btn btn-gold";
+                submitBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Sign In to Teacher Dashboard`;
+            } else if (role === 'SUPER_ADMIN') {
+                tabAdmin.classList.add('active', 'admin-tab');
+                label.innerHTML = `<i class="fas fa-crown" style="color: var(--warning);"></i> Mohtamim Admin Email *`;
+                input.placeholder = "e.g. mohtamim@jamiaashrafia.org";
+                input.value = "mohtamim@jamiaashrafia.org";
+                submitBtn.className = "btn btn-gold";
+                submitBtn.innerHTML = `<i class="fas fa-shield-alt"></i> Sign In to Super Admin Dashboard`;
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const pwd = document.getElementById('login-password');
+            const icon = document.getElementById('eye-icon');
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                pwd.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const idVal = document.getElementById('login-identifier').value.trim();
+
+            let matchedUser = window.LmsData.users.find(u => 
+                (u.rollNo && u.rollNo.toLowerCase() === idVal.toLowerCase()) || 
+                (u.email && u.email.toLowerCase() === idVal.toLowerCase())
+            );
+
+            if (!matchedUser) {
+                // If not found by exact string, match by current selected tab role
+                matchedUser = window.LmsData.users.find(u => u.role === currentTabRole) || window.LmsData.users[0];
+            }
+
+            executeLogin(matchedUser.id, matchedUser.role);
+        }
+
+        function executeLogin(userId, role) {
+            localStorage.setItem('JAMIA_CURRENT_USER_ID', userId);
+            localStorage.setItem('JAMIA_AUTH_TOKEN', 'ashrafia_token_' + Date.now());
+
+            showToast(`Welcome! Signing in to ${role.replace('_', ' ')} Dashboard...`, 'success');
+            setTimeout(() => {
+                window.location.href = 'index.html#dashboard';
+            }, 600);
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            t.className = `toast ${type}`;
+            t.innerHTML = `<i class="fas fa-check-circle"></i> <span>${msg}</span>`;
+            container.appendChild(t);
+            setTimeout(() => t.remove(), 2500);
+        }
+    </script>
+</body>
+</html>

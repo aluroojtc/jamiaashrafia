@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Jamia Ashrafia Lahore Cloud Learning Management System (LMS) - Comprehensive institutional portal for Dars-e-Nizami, admissions, faculty, virtual classrooms, library, and Wifaq examinations. Founded 1947.">
+    <title>Jamia Ashrafia Lahore - Cloud Learning Management System (LMS)</title>
+    
+    <!-- AUTHENTICATION GUARD: Redirect unauthenticated visitors immediately to Login Page -->
+    <script>
+        if (!localStorage.getItem('JAMIA_CURRENT_USER_ID')) {
+            window.location.replace('login.html');
+        }
+    </script>
+
+    <!-- Favicon using Institutional Crest -->
+    <link rel="icon" type="image/jpeg" href="assets/images/crest.jpg">
+
+    <!-- Google Fonts: Amiri & Scheherazade for Arabic/Urdu, Outfit & Inter for UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Design System CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/zoom-room.css">
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- TOP INSTITUTIONAL HEADER -->
+        <header class="top-header">
+            <!-- Brand & Crest -->
+            <div class="brand-section">
+                <img src="assets/images/crest.jpg" alt="Jamia Ashrafia Lahore Crest" class="brand-crest">
+                <div class="brand-info">
+                    <div class="brand-title">
+                        JAMIA ASHRAFIA LAHORE
+                        <span class="brand-tag">LMS Cloud</span>
+                    </div>
+                    <div class="brand-subtitle">
+                        <span class="urdu-motto">الجامعة الأشرفية - علم اور تقویٰ</span>
+                        <span>•</span>
+                        <span>Est. 1947</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prayer Times Ticker Widget -->
+            <div class="prayer-ticker">
+                <div class="ticker-label"><i class="fas fa-mosque"></i> Prayer Schedule:</div>
+                <div class="prayer-pill">Fajr 04:45 AM</div>
+                <div class="prayer-pill active">Zuhr 12:15 PM</div>
+                <div class="prayer-pill">Asr 04:30 PM</div>
+                <div class="prayer-pill">Maghrib 06:10 PM</div>
+                <div class="prayer-pill">Isha 07:45 PM</div>
+            </div>
+
+            <!-- Global Search & Role Switcher -->
+            <div class="header-actions">
+                <div class="search-input-wrap" style="width: 220px; display: none; @media(min-width: 1200px){ display: block; }">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="form-control" placeholder="Search LMS..." style="padding: 6px 12px 6px 36px; font-size: 0.82rem;" onkeypress="if(event.key==='Enter') App.globalSearch(this.value)">
+                </div>
+
+                <!-- Notifications Button with Badge -->
+                <button class="icon-btn" onclick="App.navigate('notifications')" title="Notifications & Broadcasts">
+                    <i class="fas fa-bell"></i>
+                    <span class="icon-badge" id="header-notif-badge">3</span>
+                </button>
+
+                <!-- Current User Avatar Profile with Dropdown Menu -->
+                <div class="user-menu-wrapper">
+                    <div class="user-profile-btn" title="User Menu: Profile, Settings, and Sign Out">
+                        <div class="user-avatar" id="header-user-avatar">FR</div>
+                        <div class="user-meta">
+                            <span class="user-name" id="header-user-name">Maulana Fazl-ur-Raheem</span>
+                            <span class="user-role-label" id="header-user-role">Super Admin (Mohtamim)</span>
+                        </div>
+                        <i class="fas fa-chevron-down" style="font-size: 0.72rem; color: var(--gold-400); margin-left: 4px;"></i>
+                    </div>
+
+                    <!-- User Dropdown Menu -->
+                    <div class="user-dropdown-menu" id="header-user-dropdown">
+                        <div class="user-dropdown-header">
+                            <div style="font-weight: 700; color: #ffffff;" id="dropdown-user-name">Maulana Fazl-ur-Raheem</div>
+                            <div style="font-size: 0.75rem; color: var(--gold-300);" id="dropdown-user-role">Super Admin (Mohtamim)</div>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="App.openProfileModal()">
+                            <i class="fas fa-id-badge"></i>
+                            <span>My Profile</span>
+                        </button>
+                        <button class="dropdown-item" id="dropdown-settings-link" onclick="App.navigate('users'); document.getElementById('header-user-dropdown').classList.remove('open');">
+                            <i class="fas fa-user-shield"></i>
+                            <span>Users & Permissions</span>
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item danger" onclick="window.AuthRBAC.logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Sign Out (Logout)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- APP BODY (SIDEBAR + MAIN VIEWPORT) -->
+        <div class="app-body">
+            <!-- SIDEBAR NAVIGATION -->
+            <aside class="sidebar" id="app-sidebar">
+                <nav class="sidebar-nav">
+                    <div class="nav-section-title">Core Management</div>
+                    <a href="#dashboard" class="nav-item active" data-route="dashboard">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Executive Dashboard</span>
+                    </a>
+                    <a href="#heritage" class="nav-item" data-route="heritage">
+                        <i class="fas fa-landmark"></i>
+                        <span>Institutional Heritage</span>
+                        <span class="badge-pill">1947</span>
+                    </a>
+
+                    <div class="nav-section-title">Admissions & Faculty</div>
+                    <a href="#admissions" class="nav-item" data-route="admissions">
+                        <i class="fas fa-user-graduate"></i>
+                        <span>Student Admissions</span>
+                        <span class="badge-pill gold" id="sidebar-adm-badge">Queue</span>
+                    </a>
+                    <a href="#classes" class="nav-item" data-route="classes">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                        <span>Classes & Curriculum</span>
+                    </a>
+                    <a href="#teachers" class="nav-item" data-route="teachers">
+                        <i class="fas fa-user-tie"></i>
+                        <span>Teachers & Portals</span>
+                    </a>
+
+                    <div class="nav-section-title">Academic & Examination</div>
+                    <a href="#virtual-class" class="nav-item" data-route="virtual-class">
+                        <i class="fas fa-video"></i>
+                        <span>Zoom Virtual Dars</span>
+                        <span class="badge-pill urgent"><i class="fas fa-circle"></i> Live</span>
+                    </a>
+                    <a href="#assignments" class="nav-item" data-route="assignments">
+                        <i class="fas fa-edit"></i>
+                        <span>Assignments & Checking</span>
+                    </a>
+                    <a href="#exams" class="nav-item" data-route="exams">
+                        <i class="fas fa-award"></i>
+                        <span>Exams & Wifaq Sanad</span>
+                    </a>
+                    <a href="#timetable" class="nav-item" data-route="timetable">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Schedules & Timetable</span>
+                    </a>
+
+                    <div class="nav-section-title">Resources & Finances</div>
+                    <a href="#fees" class="nav-item" data-route="fees">
+                        <i class="fas fa-hand-holding-heart"></i>
+                        <span>Fees & Zakat Donations</span>
+                    </a>
+                    <a href="#library" class="nav-item" data-route="library">
+                        <i class="fas fa-book-reader"></i>
+                        <span>Maktaba Ashrafia</span>
+                    </a>
+                    <a href="#notifications" class="nav-item" data-route="notifications">
+                        <i class="fas fa-bullhorn"></i>
+                        <span>Broadcasts & Alerts</span>
+                    </a>
+                    <a href="#security" class="nav-item" data-route="security">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Architecture & RBAC</span>
+                    </a>
+                </nav>
+
+                <!-- Sidebar Footer Status Indicator -->
+                <div class="sidebar-footer">
+                    <div class="branch-indicator">
+                        <div class="branch-icon"><i class="fas fa-mosque"></i></div>
+                        <div class="branch-details">
+                            <span class="branch-title">Main Ferozepur Rd</span>
+                            <span class="branch-sub">Headquarters • 120 Kanals</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- MAIN VIEWPORT CONTAINER -->
+            <main class="content-viewport" id="main-content-viewport">
+                <!-- Dynamically populated by App.navigate() -->
+            </main>
+        </div>
+    </div>
+
+    <!-- GLOBAL MODAL BACKDROP -->
+    <div class="modal-backdrop" id="global-modal-backdrop">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h3 class="card-title" id="modal-title-text">Modal Title</h3>
+                <button class="icon-btn" onclick="App.closeModal()" style="width: 32px; height: 32px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body-container">
+                <!-- Modal Body Content -->
+            </div>
+            <div class="modal-footer" id="modal-footer-container">
+                <!-- Modal Action Buttons -->
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container"></div>
+
+    <!-- APPLICATION SCRIPTS -->
+    <script src="js/data.js"></script>
+    <script src="js/auth-rbac.js"></script>
+    <script src="js/modules/permissions.js"></script>
+    <script src="js/modules/institutional.js"></script>
+    <script src="js/modules/admissions.js"></script>
+    <script src="js/modules/classes-courses.js"></script>
+    <script src="js/modules/teachers.js"></script>
+    <script src="js/modules/assignments.js"></script>
+    <script src="js/modules/fees-donations.js"></script>
+    <script src="js/modules/library.js"></script>
+    <script src="js/modules/exams.js"></script>
+    <script src="js/modules/timetable.js"></script>
+    <script src="js/modules/notifications.js"></script>
+    <script src="js/modules/attendance.js"></script>
+    <script src="js/modules/students.js"></script>
+    <script src="js/modules/users.js"></script>
+    <script src="js/modules/roles.js"></script>
+    <script src="js/modules/reports.js"></script>
+    <script src="js/modules/virtual-class.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

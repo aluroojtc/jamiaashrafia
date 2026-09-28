@@ -1,0 +1,526 @@
+/* ==========================================================================
+   JAMIA ASHRAFIA LAHORE - VIRTUAL CLASSROOM (ZOOM-LIKE SUITE)
+   Interactive WebRTC Layout, Whiteboard, In-Meeting Chat, Floating Controls
+   ========================================================================== */
+
+.zoom-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 175px);
+    min-height: 580px;
+    background: #0b1114;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-prominent);
+    overflow: hidden;
+    position: relative;
+    box-shadow: var(--shadow-lg), 0 0 30px rgba(0, 0, 0, 0.8);
+}
+
+/* TOP STATUS BAR */
+.zoom-topbar {
+    height: 52px;
+    background: rgba(13, 20, 24, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 10;
+}
+
+.zoom-room-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.zoom-rec-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #f87171;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: blinkRec 1s infinite;
+}
+
+@keyframes blinkRec {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+}
+
+.zoom-room-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.zoom-security-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    color: var(--primary-400);
+    background: rgba(16, 185, 129, 0.1);
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.zoom-timer {
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--gold-300);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(217, 119, 6, 0.3);
+}
+
+.zoom-view-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* MAIN STAGE (SPLIT VIEW: VIDEO GRID / WHITEBOARD / SCREEN SHARE) */
+.zoom-stage-area {
+    display: flex;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.zoom-main-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    overflow-y: auto;
+    position: relative;
+}
+
+/* VIDEO TILES GRID */
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    flex: 1;
+    align-content: center;
+    justify-content: center;
+}
+
+.video-grid.spotlight-mode {
+    grid-template-columns: 3fr 1fr;
+}
+
+.video-tile {
+    background: #141e23;
+    border-radius: var(--radius-md);
+    border: 2px solid rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-normal);
+}
+
+.video-tile.speaking {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);
+}
+
+.video-tile.teacher-tile {
+    border-color: var(--gold-400);
+}
+
+.video-tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000000;
+}
+
+.video-avatar-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.avatar-circle {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-800), var(--primary-600));
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    font-weight: 700;
+    border: 3px solid var(--border-prominent);
+}
+
+.avatar-circle.gold {
+    background: linear-gradient(135deg, var(--gold-600), var(--gold-400));
+}
+
+.tile-participant-label {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 2;
+}
+
+.tile-participant-label i.mic-muted {
+    color: #f87171;
+}
+
+.tile-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--gold-500);
+    color: #ffffff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.audio-waves {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 12px;
+}
+
+.audio-waves span {
+    width: 2px;
+    height: 100%;
+    background: var(--primary-400);
+    border-radius: 1px;
+    animation: waveAnim 0.8s infinite ease-in-out;
+}
+
+.audio-waves span:nth-child(2) { animation-delay: 0.2s; }
+.audio-waves span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes waveAnim {
+    0%, 100% { height: 3px; }
+    50% { height: 12px; }
+}
+
+/* ==========================================================================
+   INTERACTIVE WHITEBOARD CANVAS
+   ========================================================================== */
+
+.zoom-whiteboard-panel {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #ffffff;
+    z-index: 5;
+    flex-direction: column;
+}
+
+.zoom-whiteboard-panel.active {
+    display: flex;
+}
+
+.wb-toolbar {
+    height: 48px;
+    background: #f1f5f9;
+    border-bottom: 1px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    color: #0f172a;
+}
+
+.wb-tools-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wb-tool-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.wb-tool-btn:hover, .wb-tool-btn.active {
+    background: #064e3b;
+    color: #ffffff;
+    border-color: #064e3b;
+}
+
+.wb-color-picker {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+.color-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 2px rgba(0,0,0,0.4);
+}
+
+.color-dot.active {
+    transform: scale(1.2);
+    border-color: #000000;
+}
+
+.wb-canvas-wrap {
+    flex: 1;
+    position: relative;
+    cursor: crosshair;
+    background: #ffffff;
+}
+
+#whiteboard-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* ==========================================================================
+   SIDE DRAWERS: IN-MEETING CHAT & PARTICIPANTS
+   ========================================================================== */
+
+.zoom-side-drawer {
+    width: 310px;
+    background: #111a1e;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    display: none;
+    flex-direction: column;
+    z-index: 6;
+}
+
+.zoom-side-drawer.active {
+    display: flex;
+}
+
+.drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.drawer-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.drawer-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.chat-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #17242a;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+}
+
+.chat-bubble.teacher-msg {
+    border-left: 3px solid var(--gold-400);
+}
+
+.chat-author {
+    font-weight: 700;
+    color: var(--primary-400);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chat-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.chat-text {
+    color: #e2e8f0;
+    line-height: 1.4;
+}
+
+.chat-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chat-input-bar input {
+    flex: 1;
+    background: #17242a;
+    border: 1px solid var(--border-prominent);
+    border-radius: 4px;
+    padding: 8px 10px;
+    color: #ffffff;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.quick-emojis {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #141e23;
+    overflow-x: auto;
+}
+
+.emoji-btn {
+    background: transparent;
+    border: none;
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.emoji-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ==========================================================================
+   FLOATING BOTTOM ACTION DOCK
+   ========================================================================== */
+
+.zoom-dock {
+    height: 72px;
+    background: rgba(13, 20, 24, 0.98);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 10;
+}
+
+.dock-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dock-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 600;
+    transition: all var(--transition-fast);
+    min-width: 64px;
+}
+
+.dock-btn i {
+    font-size: 1.15rem;
+    color: var(--primary-400);
+}
+
+.dock-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+
+.dock-btn.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--primary-500);
+    color: #ffffff;
+}
+
+.dock-btn.danger-action {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+
+.dock-btn.danger-action:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.dock-btn.end-meeting {
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+    font-weight: 700;
+}
+
+.dock-btn.end-meeting:hover {
+    background: #b91c1c;
+}
