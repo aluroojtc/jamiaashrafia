@@ -26,8 +26,83 @@ const App = {
         }
     },
 
+    /**
+     * Resets scroll position to (0, 0) across all document and viewport containers
+     * Guarantees every navigated page opens at the top immediately.
+     */
+    resetScrollToTop() {
+        const doReset = () => {
+            // 1. Primary content viewport
+            const viewport = document.getElementById('main-content-viewport');
+            if (viewport) {
+                viewport.scrollTop = 0;
+                viewport.scrollLeft = 0;
+                if (typeof viewport.scrollTo === 'function') {
+                    try {
+                        viewport.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                    } catch (e) {
+                        viewport.scrollTo(0, 0);
+                    }
+                }
+            }
+
+            // 2. Body, HTML, and App Layout containers
+            const appBody = document.querySelector('.app-body');
+            if (appBody) {
+                appBody.scrollTop = 0;
+                appBody.scrollLeft = 0;
+            }
+
+            const appContainer = document.getElementById('app-container');
+            if (appContainer) {
+                appContainer.scrollTop = 0;
+                appContainer.scrollLeft = 0;
+            }
+
+            // 3. Window & Document root
+            if (typeof window.scrollTo === 'function') {
+                try {
+                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                } catch (e) {
+                    window.scrollTo(0, 0);
+                }
+            }
+            if (document.documentElement) {
+                document.documentElement.scrollTop = 0;
+                document.documentElement.scrollLeft = 0;
+            }
+            if (document.body) {
+                document.body.scrollTop = 0;
+                document.body.scrollLeft = 0;
+            }
+        };
+
+        // 1. Immediate synchronous reset
+        doReset();
+
+        // 2. Next animation frame (DOM render phase)
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                doReset();
+                // 3. Post-paint second frame
+                requestAnimationFrame(doReset);
+            });
+        }
+
+        // 4. Macro-task delays for async layout adjustments or image rendering
+        setTimeout(doReset, 0);
+        setTimeout(doReset, 25);
+        setTimeout(doReset, 80);
+    },
+
     init() {
         console.log("Initializing Jamia Ashrafia Cloud LMS with Multi-Tier RBAC...");
+        
+        // Prevent browser from automatically restoring scroll position on hash navigation
+        if ('scrollRestoration' in history) {
+            history.scrollRestoration = 'manual';
+        }
+
         window.AuthRBAC.init();
         this.renderSidebar();
         this.bindEvents();
@@ -59,14 +134,18 @@ const App = {
             });
         }
 
-        // Global Navigation Click delegation
+        // Global Navigation Click delegation (supports data-route and internal hash navigation)
         document.addEventListener('click', (e) => {
-            const navLink = e.target.closest('[data-route]');
-            if (navLink) {
-                e.preventDefault();
-                const route = navLink.getAttribute('data-route');
-                window.location.hash = route;
-                this.navigate(route);
+            const navLink = e.target.closest('[data-route], a[href^="#"]');
+            if (navLink && !navLink.classList.contains('nav-parent-item')) {
+                const route = navLink.getAttribute('data-route') || (navLink.getAttribute('href') && navLink.getAttribute('href').replace('#', ''));
+                if (route && !route.startsWith('!') && route !== '') {
+                    e.preventDefault();
+                    if (window.location.hash !== '#' + route) {
+                        window.location.hash = route;
+                    }
+                    this.navigate(route);
+                }
             }
 
             // Close user menu dropdown if clicked outside
@@ -407,6 +486,9 @@ const App = {
     navigate(route) {
         this.currentRoute = route;
 
+        // Immediately reset scroll position to top across all containers
+        this.resetScrollToTop();
+
         // Synchronize active class in sidebar
         document.querySelectorAll('.nav-item').forEach(item => {
             if (item.getAttribute('data-route') === route) {
@@ -441,7 +523,7 @@ const App = {
         // If the user's role does not have permission for this route/module, show 403 Forbidden!
         if (!window.AuthRBAC.canAccessRoute(route)) {
             viewport.innerHTML = this.renderForbidden(route);
-            viewport.scrollTop = 0;
+            this.resetScrollToTop();
             return;
         }
 
@@ -509,8 +591,8 @@ const App = {
                 viewport.innerHTML = this.renderDashboard();
         }
 
-        // Scroll to top of viewport
-        viewport.scrollTop = 0;
+        // Enforce guaranteed scroll reset to top (0, 0)
+        this.resetScrollToTop();
     },
 
     // 403 Forbidden Access Denied Screen (Strict Enforcement)
@@ -769,7 +851,9 @@ const App = {
     // 2. TEACHER DASHBOARD
     renderTeacherDashboard() {
         const user = window.AuthRBAC.currentUser;
-        const liveClass = window.LmsData.virtualClasses[0];
+        const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.hostId === user.id && (vc.isLive || vc.status === 'LIVE'))
+                       || (window.LmsData.virtualClasses || []).find(vc => vc.isLive || vc.status === 'LIVE')
+                       || (window.LmsData.virtualClasses || [])[0];
 
         return `
             <!-- TEACHER WELCOME -->
@@ -955,7 +1039,10 @@ const App = {
     // 3. STUDENT DASHBOARD
     renderStudentDashboard() {
         const user = window.AuthRBAC.currentUser;
-        const liveClass = window.LmsData.virtualClasses[0];
+        const studentClass = user.classId || 'cls_dawra_a';
+        const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.classId === studentClass && (vc.isLive || vc.status === 'LIVE'))
+                       || (window.LmsData.virtualClasses || []).find(vc => vc.classId === studentClass)
+                       || (window.LmsData.virtualClasses || [])[0];
 
         return `
             <!-- STUDENT WELCOME -->

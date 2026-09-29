@@ -261,6 +261,10 @@ const AuthRBAC = {
         return this.currentUser?.role === 'STUDENT';
     },
 
+    isSuperAdmin() {
+        return this.currentUser?.role === 'SUPER_ADMIN';
+    },
+
     isAdmin() {
         return this.currentUser?.role === 'SUPER_ADMIN' || this.currentUser?.role === 'ACADEMIC_ADMIN';
     },
