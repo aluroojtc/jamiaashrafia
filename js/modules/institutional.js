@@ -5,7 +5,7 @@
 
 const InstitutionalModule = {
     render() {
-        const inst = window.LmsData.institution;
+        const inst = window.LmsData.institution || {};
         return `
             <div class="view-header">
                 <div class="view-title-group">
@@ -137,20 +137,20 @@ const InstitutionalModule = {
                             </tr>
                         </thead>
                         <tbody>
-                            ${inst.branches.map(b => `
+                            ${(inst.branches || []).map(b => `
                                 <tr>
                                     <td>
                                         <div style="font-weight: 700; color: var(--primary-950);">${b.name}</div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">${b.code} Campus</div>
                                     </td>
-                                    <td><i class="fas fa-map-marker-alt" style="color: var(--danger); margin-right: 6px;"></i>${b.location}</td>
+                                    <td><i class="fas fa-map-marker-alt" style="color: var(--danger); margin-right: 6px;"></i>${b.location || [b.address, b.city].filter(Boolean).join(', ')}</td>
                                     <td>
                                         ${b.isWomens ? 
                                             '<span class="status-pill warning"><i class="fas fa-female"></i> Women\'s Campus</span>' : 
                                             '<span class="status-pill info"><i class="fas fa-university"></i> Main Academic</span>'}
                                     </td>
                                     <td>${b.established}</td>
-                                    <td><strong>${b.students.toLocaleString()}</strong> Students</td>
+                                    <td><strong>${Number(b.students || 0).toLocaleString()}</strong> Students</td>
                                     <td><span class="status-pill success"><i class="fas fa-check-circle"></i> Connected to LMS</span></td>
                                 </tr>
                             `).join('')}
@@ -181,6 +181,26 @@ const InstitutionalModule = {
                 </div>
             </div>
         `;
+    },
+
+    async fetchLiveBranches() {
+        try {
+            const res = await fetch('/api/branches');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.branches && window.LmsData) {
+                if (!window.LmsData.institution) window.LmsData.institution = {};
+                window.LmsData.institution.branches = data.branches;
+                if (window.DataStore) window.DataStore.save(window.LmsData);
+
+                const viewport = document.getElementById('main-content-viewport');
+                if (viewport && window.App && window.App.currentRoute === 'heritage') {
+                    viewport.innerHTML = this.render();
+                }
+            }
+        } catch (err) {
+            console.warn('[Institutional] Could not load live branches:', err);
+        }
     }
 };
 

@@ -743,10 +743,69 @@
             });
         }
 
+        async function loadEadmMasterData() {
+            try {
+                const [progRes, branchRes] = await Promise.all([
+                    fetch('/api/programs').catch(() => null),
+                    fetch('/api/branches').catch(() => null)
+                ]);
+
+                if (progRes && progRes.ok) {
+                    const data = await progRes.json();
+                    if (data && data.programs && data.programs.length > 0) {
+                        const progSelect = document.getElementById('eadm-program');
+                        if (progSelect) {
+                            const curVal = progSelect.value;
+                            progSelect.innerHTML = data.programs.map(p => 
+                                `<option value="${p.id}">${p.name} (${p.urduName || p.code})</option>`
+                            ).join('');
+                            if (curVal && data.programs.some(p => p.id === curVal)) {
+                                progSelect.value = curVal;
+                            }
+                        }
+                    }
+                }
+
+                if (branchRes && branchRes.ok) {
+                    const data = await branchRes.json();
+                    if (data && data.branches && data.branches.length > 0) {
+                        const branchSelect = document.getElementById('eadm-branch');
+                        if (branchSelect) {
+                            const curVal = branchSelect.value;
+                            branchSelect.innerHTML = data.branches.map(b => 
+                                `<option value="${b.id}">${b.name} - ${b.city || 'Lahore'}</option>`
+                            ).join('');
+                            if (curVal && data.branches.some(b => b.id === curVal)) {
+                                branchSelect.value = curVal;
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('Could not load master data from API:', err);
+            }
+        }
+
+        // Pristine wizard markup, captured on first open so a new applicant gets a fresh
+        // form after the previous submission replaced it with the success screen.
+        let eadmPristineHtml = null;
+
         function openEAdmissionModal() {
+            const body = document.getElementById('eadmission-modal-body');
+            const footer = document.getElementById('eadmission-modal-footer');
+            const title = document.getElementById('eadmission-modal-title');
+            if (!eadmPristineHtml) {
+                eadmPristineHtml = { body: body.innerHTML, footer: footer.innerHTML, title: title.innerHTML };
+            } else if (!document.getElementById('eadmission-form')) {
+                body.innerHTML = eadmPristineHtml.body;
+                footer.innerHTML = eadmPristineHtml.footer;
+                title.innerHTML = eadmPristineHtml.title;
+            }
+
             currentWizStep = 1;
             resetWizUI();
             populateEadmCountries();
+            loadEadmMasterData();
             handleEadmStudentTypeChange('LOCAL');
             const localRadio = document.getElementById('eadm-type-local');
             if (localRadio) localRadio.checked = true;
@@ -863,7 +922,7 @@
             }
         }
 
-        function submitEAdmissionForm() {
+        async function submitEAdmissionForm() {
             const terms = document.getElementById('eadm-terms').checked;
             if (!terms) {
                 showToast("Please accept the code of conduct declaration to proceed.", "warning");
@@ -884,50 +943,84 @@
             const branchId = document.getElementById('eadm-branch').value;
             const hostel = document.getElementById('eadm-hostel').checked;
 
-            if (!window.LmsData) {
-                window.LmsData = window.DataStore ? window.DataStore.get() : { admissions: [] };
+            const nextBtn = document.getElementById('btn-wiz-next');
+            const prevBtn = document.getElementById('btn-wiz-prev');
+            const originalNextHtml = nextBtn ? nextBtn.innerHTML : 'Submit Application';
+
+            // Prevent accidental double submission
+            if (nextBtn) {
+                nextBtn.disabled = true;
+                nextBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Submitting to Server...`;
             }
-            if (!window.LmsData.admissions) {
-                window.LmsData.admissions = [];
+            if (prevBtn) {
+                prevBtn.style.pointerEvents = 'none';
+                prevBtn.style.opacity = '0.5';
             }
 
-            const newAppNo = `ASH-ADM-2024-${String(window.LmsData.admissions.length + 96).padStart(3, '0')}`;
-            
-            const newRecord = {
-                id: `adm_${Date.now()}`,
-                applicationNo: newAppNo,
+            const payload = {
                 studentType: studentType,
                 name: name,
                 fatherName: father,
                 cnic: cnic,
                 passport: passport,
                 country: country,
-                phone: phone || (studentType === 'LOCAL' ? "+92 300 0000000" : "+1 555 0000"),
-                email: email || "applicant@jamiaashrafia.org",
+                phone: phone,
+                email: email,
                 programId: programId,
                 branchId: branchId,
                 hostelRequired: hostel,
                 previousMadrasa: prev || "None",
-                hafizStatus: hafiz,
-                status: "APPLIED",
-                interviewDate: null,
-                interviewScore: null,
-                allottedRollNo: null,
-                appliedAt: new Date().toISOString().split('T')[0]
+                hafizStatus: hafiz
             };
 
-            window.LmsData.admissions.unshift(newRecord);
-            window.DataStore.save(window.LmsData);
+            try {
+                const response = await fetch('/api/admissions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-            // Synchronize with backend API if server is reachable
-            fetch('/api/admissions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newRecord)
-            }).catch(() => {/* Offline fallback graceful */});
+                const result = await response.json().catch(() => ({}));
 
-            // Display Confirmation Screen inside modal
-            renderAdmissionSuccessScreen(newRecord);
+                if (!response.ok || !result.success) {
+                    const errorMsg = result.error || "Failed to submit admission application. Please try again.";
+                    showToast(errorMsg, "danger");
+                    
+                    if (nextBtn) {
+                        nextBtn.disabled = false;
+                        nextBtn.innerHTML = originalNextHtml;
+                    }
+                    if (prevBtn) {
+                        prevBtn.style.pointerEvents = 'auto';
+                        prevBtn.style.opacity = '1';
+                    }
+                    return;
+                }
+
+                // Backend database transaction confirmed
+                const record = result.record;
+
+                // Sync local cache if present
+                if (window.LmsData && window.LmsData.admissions) {
+                    window.LmsData.admissions.unshift(record);
+                    if (window.DataStore) window.DataStore.save(window.LmsData);
+                }
+
+                showToast("Admission application registered successfully!", "success");
+                renderAdmissionSuccessScreen(record);
+
+            } catch (err) {
+                console.error("Admission submission network error:", err);
+                showToast("Connection error: Unable to reach LMS server. Please check your connection.", "danger");
+                if (nextBtn) {
+                    nextBtn.disabled = false;
+                    nextBtn.innerHTML = originalNextHtml;
+                }
+                if (prevBtn) {
+                    prevBtn.style.pointerEvents = 'auto';
+                    prevBtn.style.opacity = '1';
+                }
+            }
         }
 
         function renderAdmissionSuccessScreen(record) {

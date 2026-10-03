@@ -9,10 +9,95 @@ const AdmissionsModule = {
     activeStatusFilter: 'ALL',
     activeCategoryFilter: 'ALL',
     searchQuery: '',
+    liveAdmissions: null,
+    isLoading: false,
+    hasInitialFetched: false,
+
+    async fetchLiveAdmissions() {
+        if (this.isLoading) return;
+        this.isLoading = true;
+        try {
+            const role = window.AuthRBAC ? window.AuthRBAC.getRole() : 'ACADEMIC_ADMIN';
+            const params = new URLSearchParams();
+            if (this.activeCategoryFilter && this.activeCategoryFilter !== 'ALL') {
+                params.set('studentType', this.activeCategoryFilter);
+            }
+            if (this.activeStatusFilter && this.activeStatusFilter !== 'ALL') {
+                params.set('status', this.activeStatusFilter);
+            }
+            if (this.searchQuery && this.searchQuery.trim()) {
+                params.set('search', this.searchQuery.trim());
+            }
+
+            const res = await fetch('/api/admissions?' + params.toString(), {
+                headers: {
+                    'X-User-Role': role,
+                    'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
+                }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data && Array.isArray(data.admissions)) {
+                    this.liveAdmissions = data.admissions;
+                    if (window.LmsData) {
+                        window.LmsData.admissions = data.admissions;
+                        if (window.DataStore && typeof window.DataStore.save === 'function') {
+                            window.DataStore.save(window.LmsData);
+                        }
+                    }
+                }
+            } else if (res.status === 403) {
+                console.warn('[Admissions] 403 Forbidden: User role is not authorized to fetch admissions registry.');
+            } else {
+                throw new Error(`HTTP ${res.status}`);
+            }
+        } catch (err) {
+            console.warn('[Admissions] Network/Server fetch error:', err.message);
+            App.showToast(`Could not load admissions from the database (${err.message}). Showing cached data only — make sure the LMS Node server is running.`, "danger");
+        } finally {
+            this.isLoading = false;
+            const viewport = document.getElementById('main-content-viewport');
+            if (viewport && window.App && window.App.currentRoute === 'admissions') {
+                viewport.innerHTML = this.render();
+            }
+        }
+    },
+
+    async syncAdmissionToBackend(item) {
+        try {
+            const role = window.AuthRBAC ? window.AuthRBAC.getRole() : 'ACADEMIC_ADMIN';
+            const id = item.id || item.applicationNo;
+            const res = await fetch(`/api/admissions/${encodeURIComponent(id)}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-Role': role,
+                    'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
+                },
+                body: JSON.stringify(item)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return true;
+        } catch (e) {
+            console.warn('[Admissions] syncAdmissionToBackend warning:', e);
+            App.showToast(`Application ${item.applicationNo} was NOT saved to the database (${e.message}). Click "Sync Database" to reload the real status.`, "danger");
+            return false;
+        }
+    },
 
     render() {
         const canApprove = window.AuthRBAC.can("admissions:approve");
-        const admissions = window.LmsData.admissions || [];
+
+        // Trigger asynchronous background fetch from database if not yet loaded
+        if (!this.hasInitialFetched) {
+            this.hasInitialFetched = true;
+            setTimeout(() => this.fetchLiveAdmissions(), 10);
+        }
+
+        const admissions = (this.liveAdmissions !== null) 
+            ? this.liveAdmissions 
+            : (window.LmsData?.admissions || []);
 
         // Apply filters
         let filtered = admissions;
@@ -62,6 +147,9 @@ const AdmissionsModule = {
                     <p>Admissions portal for Dars-e-Nizami, Takhassusat, Hifz, candidate verification, interviews, and scholar onboarding</p>
                 </div>
                 <div class="view-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.fetchLiveAdmissions()" title="Fetch latest applications from MySQL database">
+                        <i class="fas fa-sync-alt ${this.isLoading ? 'fa-spin' : ''}"></i> Sync Database
+                    </button>
                     <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.exportAdmissionsCSV()">
                         <i class="fas fa-file-export"></i> Export Wifaq List
                     </button>
@@ -73,6 +161,7 @@ const AdmissionsModule = {
 
             <!-- ADMISSION METRICS -->
             <div class="metrics-grid">
+
                 <div class="metric-card gold">
                     <div class="metric-icon-box" style="background: rgba(217, 119, 6, 0.2); color: var(--gold-400);"><i class="fas fa-file-signature"></i></div>
                     <div class="metric-content">
@@ -186,21 +275,25 @@ const AdmissionsModule = {
 
     filterByStage(stage) {
         this.activeStatusFilter = stage;
+        this.fetchLiveAdmissions();
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) viewport.innerHTML = this.render();
     },
 
     setCategoryFilter(cat) {
         this.activeCategoryFilter = cat;
+        this.fetchLiveAdmissions();
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) viewport.innerHTML = this.render();
     },
 
     setSearch(q) {
         this.searchQuery = q;
+        this.fetchLiveAdmissions();
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) viewport.innerHTML = this.render();
     },
+
 
     renderAdmissionsRows(list) {
         if (!list || list.length === 0) {
@@ -364,6 +457,7 @@ const AdmissionsModule = {
 
         const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: 'Dars-e-Nizami' };
         const branch = (window.LmsData.institution?.branches || []).find(b => b.id === item.branchId) || { name: 'Main Campus' };
+        const isIntl = (item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport));
 
         const titleEl = document.getElementById('modal-title-text');
         const bodyEl = document.getElementById('modal-body-container');
@@ -503,6 +597,7 @@ const AdmissionsModule = {
         if (!item) return;
 
         item.status = 'UNDER_REVIEW';
+        this.syncAdmissionToBackend(item);
         window.DataStore.save(window.LmsData);
         App.showToast(`Application ${item.applicationNo} marked as Under Review`, "info");
 
@@ -511,6 +606,7 @@ const AdmissionsModule = {
             viewport.innerHTML = this.render();
         }
     },
+
 
     // =========================================================================
     // INTERVIEW SCHEDULING
@@ -575,6 +671,7 @@ const AdmissionsModule = {
             const time = document.getElementById('interview-time').value;
             item.status = 'INTERVIEW_SCHEDULED';
             item.interviewDate = time.replace('T', ' ');
+            this.syncAdmissionToBackend(item);
             window.DataStore.save(window.LmsData);
             App.closeModal();
             App.showToast(`Academic interview scheduled for ${item.name}!`, "gold");
@@ -585,6 +682,7 @@ const AdmissionsModule = {
             }
         }
     },
+
 
     // =========================================================================
     // INTERVIEW EVALUATION & SCORING MODAL
@@ -679,6 +777,7 @@ const AdmissionsModule = {
             item.rejectionReason = remarks || 'Interview score below required threshold';
         }
 
+        this.syncAdmissionToBackend(item);
         window.DataStore.save(window.LmsData);
         App.closeModal();
 
@@ -706,6 +805,7 @@ const AdmissionsModule = {
             item.status = 'APPROVED';
             item.interviewScore = 90.0;
             item.committeeRemarks = 'Fast-track approved based on exceptional previous Wifaq sanad records.';
+            this.syncAdmissionToBackend(item);
             window.DataStore.save(window.LmsData);
             App.showToast(`Candidate ${item.name} Approved! Ready for enrollment.`, "success");
             
@@ -845,6 +945,7 @@ const AdmissionsModule = {
         item.status = 'ENROLLED';
         item.allottedRollNo = rollNo;
         item.enrolledAt = new Date().toISOString();
+        this.syncAdmissionToBackend(item);
 
         // 2. Create Active Student User in DataStore
         const newStudentUserId = `u_student_${Date.now()}`;

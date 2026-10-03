@@ -78,9 +78,19 @@ const NotificationsModule = {
     },
 
     toggleRead(id) {
-        const notif = window.LmsData.notifications.find(n => n.id === id);
+        const notif = (window.LmsData.notifications || []).find(n => n.id === id);
         if (notif) {
             notif.isRead = !notif.isRead;
+            const role = window.AuthRBAC ? window.AuthRBAC.getRole() : '';
+            fetch('/api/notifications/read', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-Role': role,
+                    'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
+                },
+                body: JSON.stringify({ id: id })
+            }).catch(() => {});
             window.DataStore.save(window.LmsData);
             window.App.updateNotificationBadge();
             window.App.navigate('notifications');
@@ -88,12 +98,23 @@ const NotificationsModule = {
     },
 
     markAllAsRead() {
-        window.LmsData.notifications.forEach(n => n.isRead = true);
+        (window.LmsData.notifications || []).forEach(n => n.isRead = true);
+        const role = window.AuthRBAC ? window.AuthRBAC.getRole() : '';
+        fetch('/api/notifications/read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-Role': role,
+                'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
+            },
+            body: JSON.stringify({ markAll: true })
+        }).catch(() => {});
         window.DataStore.save(window.LmsData);
         window.App.updateNotificationBadge();
         window.App.showToast("All notifications marked as read", "info");
         window.App.navigate('notifications');
     },
+
 
     openBroadcastModal() {
         const modalBody = document.getElementById('modal-body-container');

@@ -6,6 +6,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const db = require('./database/db');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.resolve(__dirname);
@@ -365,240 +366,695 @@ const server = http.createServer((req, res) => {
     }
 
     // =========================================================================
-    // API: ADMISSIONS MANAGEMENT (LOCAL & INTERNATIONAL ADMISSIONS SUPPORT)
+    // API: ACADEMIC MASTER DATA (PHASE 1: MYSQL / MARIADB BACKED)
     // =========================================================================
 
-    // GET /api/admissions (Retrieves admissions with optional category & status filtering)
+    // GET /api/branches (Retrieves all institutional branches from MySQL)
+    if (pathname === '/api/branches' && req.method === 'GET') {
+        (async () => {
+            try {
+                const [rows] = await db.query(
+                    `SELECT 
+                        id, code, name, urdu_name AS urduName, 
+                        address, city, is_womens_branch AS isWomens,
+                        contact_phone AS contactPhone, contact_email AS contactEmail,
+                        established_year AS established, student_count AS students,
+                        created_at AS createdAt
+                    FROM branches
+                    ORDER BY established_year ASC, code ASC`
+                );
+                rows.forEach(r => { r.isWomens = !!r.isWomens; });
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    status: 'success',
+                    count: rows.length,
+                    branches: rows
+                }));
+            } catch (err) {
+                console.error('[DB] GET /api/branches Error:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Database query failed for branches' }));
+            }
+        })();
+        return;
+    }
+
+    // GET /api/departments (Retrieves academic departments from MySQL)
+    if (pathname === '/api/departments' && req.method === 'GET') {
+        (async () => {
+            try {
+                const [rows] = await db.query(
+                    `SELECT 
+                        id, code, name, urdu_name AS urduName,
+                        description, hod_id AS hodId, created_at AS createdAt
+                    FROM departments
+                    ORDER BY code ASC`
+                );
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    status: 'success',
+                    count: rows.length,
+                    departments: rows
+                }));
+            } catch (err) {
+                console.error('[DB] GET /api/departments Error:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Database query failed for departments' }));
+            }
+        })();
+        return;
+    }
+
+    // GET /api/programs (Retrieves academic programs with department details from MySQL)
+    if (pathname === '/api/programs' && req.method === 'GET') {
+        (async () => {
+            try {
+                const [rows] = await db.query(
+                    `SELECT 
+                        p.id, p.code, p.name, p.urdu_name AS urduName,
+                        p.duration_years AS durationYears, p.duration_years AS years,
+                        p.wifaq_equivalence AS wifaqEquivalence,
+                        p.description, p.department_id AS departmentId,
+                        d.name AS departmentName, d.urdu_name AS departmentUrduName,
+                        p.created_at AS createdAt
+                    FROM academic_programs p
+                    JOIN departments d ON p.department_id = d.id
+                    ORDER BY p.duration_years DESC, p.code ASC`
+                );
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    status: 'success',
+                    count: rows.length,
+                    programs: rows
+                }));
+            } catch (err) {
+                console.error('[DB] GET /api/programs Error:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Database query failed for programs' }));
+            }
+        })();
+        return;
+    }
+
+    // GET /api/sessions (Retrieves academic sessions from MySQL)
+    if (pathname === '/api/sessions' && req.method === 'GET') {
+        (async () => {
+            try {
+                const [rows] = await db.query(
+                    `SELECT 
+                        id, name, 
+                        DATE_FORMAT(start_date, '%Y-%m-%d') AS startDate,
+                        DATE_FORMAT(end_date, '%Y-%m-%d') AS endDate,
+                        is_current AS isCurrent,
+                        created_at AS createdAt
+                    FROM academic_sessions
+                    ORDER BY start_date DESC`
+                );
+                rows.forEach(r => { r.isCurrent = !!r.isCurrent; });
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    status: 'success',
+                    count: rows.length,
+                    sessions: rows
+                }));
+            } catch (err) {
+                console.error('[DB] GET /api/sessions Error:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Database query failed for sessions' }));
+            }
+        })();
+        return;
+    }
+
+    // =========================================================================
+    // API: ADMISSIONS MANAGEMENT (DATABASE-BACKED: MYSQL / MARIADB)
+    // =========================================================================
+
+    // GET /api/admissions (Protected: Retrieves admissions from database with category, status & search filtering)
     if (pathname === '/api/admissions' && req.method === 'GET') {
+        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
+        if (userRole !== 'SUPER_ADMIN' && userRole !== 'ACADEMIC_ADMIN') {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                error: '403 Forbidden', 
+                message: 'Access Denied: Only Super Admin and Academic Nazim can access the admissions registry.' 
+            }));
+            return;
+        }
+
         const studentTypeFilter = parsedUrl.searchParams.get('studentType');
         const statusFilter = parsedUrl.searchParams.get('status');
         const search = parsedUrl.searchParams.get('search');
 
-        let filtered = systemAdmissions;
-        if (studentTypeFilter && studentTypeFilter !== 'ALL') {
-            filtered = filtered.filter(a => a.studentType === studentTypeFilter);
-        }
-        if (statusFilter && statusFilter !== 'ALL') {
-            filtered = filtered.filter(a => a.status === statusFilter);
-        }
-        if (search) {
-            const q = search.toLowerCase();
-            filtered = filtered.filter(a => 
-                (a.name && a.name.toLowerCase().includes(q)) ||
-                (a.applicationNo && a.applicationNo.toLowerCase().includes(q)) ||
-                (a.cnic && a.cnic.includes(q)) ||
-                (a.passport && a.passport.toLowerCase().includes(q)) ||
-                (a.country && a.country.toLowerCase().includes(q))
-            );
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            count: filtered.length,
-            admissions: filtered
-        }));
-        return;
-    }
-
-    // GET /api/admissions/:id
-    if (pathname.startsWith('/api/admissions/') && req.method === 'GET') {
-        const appId = pathname.replace('/api/admissions/', '').trim();
-        const record = systemAdmissions.find(a => a.id === appId || a.applicationNo === appId);
-        if (!record) {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Admission application not found' }));
-            return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'success', admission: record }));
-        return;
-    }
-
-    // POST /api/admissions (New applicant registration)
-    if (pathname === '/api/admissions' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
+        (async () => {
             try {
-                const data = JSON.parse(body);
-                const studentType = (data.studentType || 'LOCAL').toUpperCase();
-                const name = (data.name || '').trim();
-                const fatherName = (data.fatherName || '').trim();
-                const phone = (data.phone || '').trim();
+                let sql = `
+                    SELECT 
+                        id, 
+                        application_no AS applicationNo, 
+                        student_type AS studentType,
+                        branch_id AS branchId, 
+                        program_id AS programId, 
+                        candidate_name AS name,
+                        father_name AS fatherName, 
+                        guardian_contact AS guardianContact,
+                        email, 
+                        phone, 
+                        cnic_bform AS cnic, 
+                        passport_number AS passport,
+                        country, 
+                        previous_madrasa AS previousMadrasa, 
+                        hafiz_status AS hafizStatus, 
+                        hostel_required AS hostelRequired, 
+                        status,
+                        DATE_FORMAT(interview_date, '%Y-%m-%d %H:%i') AS interviewDate,
+                        interview_score AS interviewScore, 
+                        allotted_roll_number AS allottedRollNo,
+                        DATE_FORMAT(created_at, '%Y-%m-%d') AS appliedAt,
+                        created_at AS createdAt
+                    FROM student_admissions 
+                    WHERE 1=1
+                `;
+                const params = [];
 
-                if (!name || !fatherName || !phone) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Candidate name, father name, and phone number are required' }));
-                    return;
+                if (studentTypeFilter && studentTypeFilter !== 'ALL') {
+                    sql += ' AND student_type = ?';
+                    params.push(studentTypeFilter);
+                }
+                if (statusFilter && statusFilter !== 'ALL') {
+                    sql += ' AND status = ?';
+                    params.push(statusFilter);
+                }
+                if (search && search.trim()) {
+                    sql += ' AND (candidate_name LIKE ? OR application_no LIKE ? OR cnic_bform LIKE ? OR passport_number LIKE ? OR country LIKE ?)';
+                    const term = `%${search.trim()}%`;
+                    params.push(term, term, term, term, term);
                 }
 
-                let cnic = '';
-                let passport = '';
-                let country = 'Pakistan';
+                sql += ' ORDER BY created_at DESC';
 
-                if (studentType === 'LOCAL') {
-                    cnic = (data.cnic || '').trim();
-                    const cnicDigits = cnic.replace(/\D/g, '');
-                    if (!cnic || cnicDigits.length !== 13) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ 
-                            error: 'Invalid CNIC: Pakistani Local students must provide a valid 13-digit CNIC / B-Form number.' 
-                        }));
-                        return;
-                    }
-                    country = 'Pakistan';
-                } else if (studentType === 'INTERNATIONAL') {
-                    passport = (data.passport || '').trim();
-                    country = (data.country || '').trim();
-
-                    if (!passport || passport.length < 3) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ 
-                            error: 'Invalid Passport: International students must provide a valid Passport Number (minimum 3 characters).' 
-                        }));
-                        return;
-                    }
-                    if (!country) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ 
-                            error: 'Country of residence is required for International students.' 
-                        }));
-                        return;
-                    }
-                } else {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Invalid studentType. Must be LOCAL or INTERNATIONAL.' }));
-                    return;
-                }
-
-                const newId = data.id || ('adm_' + Date.now());
-                const appNo = data.applicationNo || ('ASH-ADM-2024-' + String(systemAdmissions.length + 95).padStart(3, '0'));
-
-                const newRecord = {
-                    id: newId,
-                    applicationNo: appNo,
-                    studentType: studentType,
-                    name: name,
-                    fatherName: fatherName,
-                    cnic: cnic,
-                    passport: passport,
-                    country: country,
-                    phone: phone,
-                    email: data.email || 'student@ashrafia.org',
-                    programId: data.programId || 'p1',
-                    branchId: data.branchId || 'b1',
-                    hostelRequired: !!data.hostelRequired,
-                    previousMadrasa: data.previousMadrasa || 'None',
-                    hafizStatus: !!data.hafizStatus,
-                    status: data.status || 'APPLIED',
-                    interviewDate: data.interviewDate || null,
-                    interviewScore: data.interviewScore || null,
-                    allottedRollNo: data.allottedRollNo || null,
-                    appliedAt: data.appliedAt || new Date().toISOString().split('T')[0],
-                    createdAt: new Date().toISOString()
-                };
-
-                systemAdmissions.unshift(newRecord);
-
-                res.writeHead(201, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'success',
-                    message: 'Admission application registered successfully on server.',
-                    record: newRecord
-                }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid application payload' }));
-            }
-        });
-        return;
-    }
-
-    // PUT /api/admissions/:id or POST /api/admissions/update (Admin updates admission details)
-    if ((pathname.startsWith('/api/admissions/') && (req.method === 'PUT' || req.method === 'PATCH')) ||
-        (pathname === '/api/admissions/update' && req.method === 'POST')) {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const appId = pathname.startsWith('/api/admissions/') 
-                    ? pathname.replace('/api/admissions/', '').trim()
-                    : (data.id || data.applicationNo);
-
-                const existingIndex = systemAdmissions.findIndex(a => a.id === appId || a.applicationNo === appId);
-                if (existingIndex === -1) {
-                    res.writeHead(404, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Admission application not found' }));
-                    return;
-                }
-
-                const existing = systemAdmissions[existingIndex];
-                const studentType = (data.studentType || existing.studentType || 'LOCAL').toUpperCase();
-
-                let cnic = existing.cnic;
-                let passport = existing.passport;
-                let country = existing.country;
-
-                if (studentType === 'LOCAL') {
-                    if (data.cnic !== undefined) {
-                        cnic = data.cnic.trim();
-                        const cnicDigits = cnic.replace(/\D/g, '');
-                        if (!cnic || cnicDigits.length !== 13) {
-                            res.writeHead(400, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ error: 'CNIC must contain 13 digits for Local students.' }));
-                            return;
-                        }
-                    }
-                    passport = '';
-                    country = 'Pakistan';
-                } else if (studentType === 'INTERNATIONAL') {
-                    if (data.passport !== undefined) {
-                        passport = data.passport.trim();
-                        if (!passport || passport.length < 3) {
-                            res.writeHead(400, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ error: 'Passport must be at least 3 characters for International students.' }));
-                            return;
-                        }
-                    }
-                    if (data.country !== undefined) {
-                        country = data.country.trim();
-                        if (!country) {
-                            res.writeHead(400, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ error: 'Country of residence is required for International students.' }));
-                            return;
-                        }
-                    }
-                    cnic = '';
-                }
-
-                const updated = {
-                    ...existing,
-                    ...data,
-                    studentType: studentType,
-                    cnic: cnic,
-                    passport: passport,
-                    country: country,
-                    updatedAt: new Date().toISOString()
-                };
-
-                systemAdmissions[existingIndex] = updated;
+                const [rows] = await db.query(sql, params);
+                rows.forEach(r => {
+                    r.hafizStatus = !!r.hafizStatus;
+                    r.hostelRequired = !!r.hostelRequired;
+                    if (r.interviewScore !== null) r.interviewScore = Number(r.interviewScore);
+                });
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     status: 'success',
-                    message: 'Admission application updated successfully on server.',
-                    record: updated
+                    count: rows.length,
+                    admissions: rows
                 }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid update payload' }));
+            } catch (err) {
+                console.error('[DB] GET /api/admissions Error:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    error: 'Database query failed', 
+                    message: 'Could not retrieve admissions from database: ' + err.message 
+                }));
             }
+        })();
+        return;
+    }
+
+    // GET /api/admissions/:id (Protected: Retrieves a single admission from database)
+    if (pathname.startsWith('/api/admissions/') && req.method === 'GET') {
+        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
+        if (userRole !== 'SUPER_ADMIN' && userRole !== 'ACADEMIC_ADMIN') {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: '403 Forbidden', message: 'Access Denied.' }));
+            return;
+        }
+
+        const appId = pathname.replace('/api/admissions/', '').trim();
+        (async () => {
+            try {
+                const [rows] = await db.query(
+                    `SELECT 
+                        id, application_no AS applicationNo, student_type AS studentType,
+                        branch_id AS branchId, program_id AS programId, candidate_name AS name,
+                        father_name AS fatherName, guardian_contact AS guardianContact,
+                        email, phone, cnic_bform AS cnic, passport_number AS passport,
+                        country, previous_madrasa AS previousMadrasa, 
+                        hafiz_status AS hafizStatus, hostel_required AS hostelRequired, status,
+                        DATE_FORMAT(interview_date, '%Y-%m-%d %H:%i') AS interviewDate,
+                        interview_score AS interviewScore, allotted_roll_number AS allottedRollNo,
+                        DATE_FORMAT(created_at, '%Y-%m-%d') AS appliedAt,
+                        created_at AS createdAt
+                    FROM student_admissions 
+                    WHERE id = ? OR application_no = ? LIMIT 1`,
+                    [appId, appId]
+                );
+
+                if (!rows || rows.length === 0) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Admission application not found in database' }));
+                    return;
+                }
+
+                const record = rows[0];
+                record.hafizStatus = !!record.hafizStatus;
+                record.hostelRequired = !!record.hostelRequired;
+                if (record.interviewScore !== null) record.interviewScore = Number(record.interviewScore);
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'success', admission: record }));
+            } catch (err) {
+                console.error('[DB] GET /api/admissions/:id Error:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Database query failed' }));
+            }
+        })();
+        return;
+    }
+
+    // POST /api/admissions (Public: Online Student Registration with Transaction & Duplicate Check)
+    if (pathname === '/api/admissions' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            (async () => {
+                let conn = null;
+                try {
+                    const data = JSON.parse(body);
+                    const studentType = (data.studentType || 'LOCAL').toUpperCase();
+                    const name = (data.name || '').trim();
+                    const fatherName = (data.fatherName || '').trim();
+                    const phone = (data.phone || '').trim();
+                    const email = (data.email || 'applicant@jamiaashrafia.org').trim();
+                    const branchId = data.branchId || 'b1';
+                    const programId = data.programId || 'p1';
+                    const hostel = !!data.hostelRequired;
+                    const prevMadrasa = (data.previousMadrasa || 'None').trim();
+                    const hafiz = !!data.hafizStatus;
+
+                    if (!name || !fatherName || !phone) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, status: 'error', error: 'Candidate name, father name, and phone number are required.' }));
+                        return;
+                    }
+
+                    let cnic = null;
+                    let passport = null;
+                    let country = 'Pakistan';
+
+                    if (studentType === 'LOCAL') {
+                        const rawCnic = (data.cnic || '').trim();
+                        const cnicDigits = rawCnic.replace(/\D/g, '');
+                        if (!rawCnic || cnicDigits.length !== 13) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ 
+                                success: false,
+                                status: 'error',
+                                error: 'Invalid CNIC: Pakistani Local students must provide a valid 13-digit CNIC / B-Form number.' 
+                            }));
+                            return;
+                        }
+                        cnic = rawCnic;
+                        country = 'Pakistan';
+                    } else if (studentType === 'INTERNATIONAL') {
+                        passport = (data.passport || '').trim();
+                        country = (data.country || '').trim();
+
+                        if (!passport || passport.length < 3) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ 
+                                success: false,
+                                status: 'error',
+                                error: 'Invalid Passport: International students must provide a valid Passport Number (minimum 3 characters).' 
+                            }));
+                            return;
+                        }
+                        if (!country) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ 
+                                success: false,
+                                status: 'error',
+                                error: 'Country of residence is required for International students.' 
+                            }));
+                            return;
+                        }
+                    } else {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, status: 'error', error: 'Invalid studentType. Must be LOCAL or INTERNATIONAL.' }));
+                        return;
+                    }
+
+                    // 1. Duplicate Application Check in Database
+                    if (studentType === 'LOCAL') {
+                        const [dupLocal] = await db.query(
+                            `SELECT id, application_no AS applicationNo, status FROM student_admissions 
+                             WHERE cnic_bform = ? AND status IN ('APPLIED', 'UNDER_REVIEW', 'INTERVIEW_SCHEDULED') LIMIT 1`,
+                            [cnic]
+                        );
+                        if (dupLocal && dupLocal.length > 0) {
+                            res.writeHead(409, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ 
+                                success: false,
+                                status: 'error',
+                                error: `An admission application for this CNIC (${cnic}) is already active and under review (Application No: ${dupLocal[0].applicationNo}). Duplicate submission rejected.` 
+                            }));
+                            return;
+                        }
+                    } else {
+                        const [dupIntl] = await db.query(
+                            `SELECT id, application_no AS applicationNo, status FROM student_admissions 
+                             WHERE passport_number = ? AND status IN ('APPLIED', 'UNDER_REVIEW', 'INTERVIEW_SCHEDULED') LIMIT 1`,
+                            [passport]
+                        );
+                        if (dupIntl && dupIntl.length > 0) {
+                            res.writeHead(409, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ 
+                                success: false,
+                                status: 'error',
+                                error: `An admission application for this Passport Number (${passport}) is already active and under review (Application No: ${dupIntl[0].applicationNo}). Duplicate submission rejected.` 
+                            }));
+                            return;
+                        }
+                    }
+
+                    // 2. Generate unique application number and record ID
+                    const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM student_admissions`);
+                    const nextSeq = (countRows && countRows[0] ? countRows[0].total : 0) + 96;
+                    const appNo = `ASH-ADM-2024-${String(nextSeq).padStart(3, '0')}`;
+                    const newId = `adm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+                    // 3. Execute Database Transaction (Admission Insert + Admin Notification Insert)
+                    conn = await db.getConnection();
+                    await conn.beginTransaction();
+
+                    await conn.execute(
+                        `INSERT INTO student_admissions (
+                            id, application_no, student_type, branch_id, program_id,
+                            candidate_name, father_name, guardian_contact, email, phone,
+                            cnic_bform, passport_number, country, previous_madrasa,
+                            hafiz_status, hostel_required, status, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED', NOW(), NOW())`,
+                        [
+                            newId, appNo, studentType, branchId, programId,
+                            name, fatherName, phone, email, phone,
+                            cnic, passport, country, prevMadrasa,
+                            hafiz ? 1 : 0, hostel ? 1 : 0
+                        ]
+                    );
+
+                    // Insert Admin Notification into notifications table
+                    const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                    const notifTitle = `New Student Admission: ${name}`;
+                    const idDoc = studentType === 'LOCAL' ? `CNIC ${cnic}` : `Passport ${passport} (${country})`;
+                    const notifMsg = `Candidate ${name} s/o ${fatherName} (${idDoc}) submitted an admission application (${appNo}). Status: APPLIED.`;
+
+                    await conn.execute(
+                        `INSERT INTO notifications (
+                            id, sender_id, target_role, title, message, category, is_read, created_at
+                        ) VALUES (?, NULL, 'ACADEMIC_ADMIN', ?, ?, 'ADMISSION', 0, NOW())`,
+                        [notifId, notifTitle, notifMsg]
+                    );
+
+                    await conn.commit();
+                    conn.release();
+                    conn = null;
+
+                    const newRecord = {
+                        id: newId,
+                        applicationNo: appNo,
+                        studentType: studentType,
+                        name: name,
+                        fatherName: fatherName,
+                        cnic: cnic,
+                        passport: passport,
+                        country: country,
+                        phone: phone,
+                        email: email,
+                        programId: programId,
+                        branchId: branchId,
+                        hostelRequired: hostel,
+                        previousMadrasa: prevMadrasa,
+                        hafizStatus: hafiz,
+                        status: 'APPLIED',
+                        interviewDate: null,
+                        interviewScore: null,
+                        allottedRollNo: null,
+                        appliedAt: new Date().toISOString().split('T')[0],
+                        createdAt: new Date().toISOString()
+                    };
+
+                    res.writeHead(201, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        success: true,
+                        status: 'success',
+                        message: 'Admission application registered successfully in database.',
+                        record: newRecord
+                    }));
+                } catch (err) {
+                    if (conn) {
+                        try { await conn.rollback(); } catch (rbErr) {}
+                        conn.release();
+                    }
+                    console.error('[DB] POST /api/admissions Error:', err);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ 
+                        success: false,
+                        status: 'error',
+                        error: 'Registration failed due to a database error. Please verify your details and try again.' 
+                    }));
+                }
+            })();
         });
         return;
     }
+
+    // PUT /api/admissions/:id or POST /api/admissions/update (Admin updates admission details in database)
+    if ((pathname.startsWith('/api/admissions/') && (req.method === 'PUT' || req.method === 'PATCH')) ||
+        (pathname === '/api/admissions/update' && req.method === 'POST')) {
+        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
+        if (userRole !== 'SUPER_ADMIN' && userRole !== 'ACADEMIC_ADMIN') {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: '403 Forbidden', message: 'Access Denied.' }));
+            return;
+        }
+
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            (async () => {
+                try {
+                    const data = JSON.parse(body);
+                    const appId = pathname.startsWith('/api/admissions/') 
+                        ? pathname.replace('/api/admissions/', '').trim()
+                        : (data.id || data.applicationNo);
+
+                    const [rows] = await db.query(
+                        `SELECT * FROM student_admissions WHERE id = ? OR application_no = ? LIMIT 1`,
+                        [appId, appId]
+                    );
+
+                    if (!rows || rows.length === 0) {
+                        res.writeHead(404, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Admission application not found in database.' }));
+                        return;
+                    }
+
+                    const existing = rows[0];
+                    const studentType = (data.studentType || existing.student_type || 'LOCAL').toUpperCase();
+                    let cnic = existing.cnic_bform;
+                    let passport = existing.passport_number;
+                    let country = existing.country;
+
+                    if (studentType === 'LOCAL') {
+                        if (data.cnic !== undefined) cnic = data.cnic.trim();
+                        passport = null;
+                        country = 'Pakistan';
+                    } else if (studentType === 'INTERNATIONAL') {
+                        if (data.passport !== undefined) passport = data.passport.trim();
+                        if (data.country !== undefined) country = data.country.trim();
+                        cnic = null;
+                    }
+
+                    const candidateName = data.name !== undefined ? data.name.trim() : existing.candidate_name;
+                    const fatherName = data.fatherName !== undefined ? data.fatherName.trim() : existing.father_name;
+                    const phone = data.phone !== undefined ? data.phone.trim() : existing.phone;
+                    const email = data.email !== undefined ? data.email.trim() : existing.email;
+                    const programId = data.programId !== undefined ? data.programId : existing.program_id;
+                    const branchId = data.branchId !== undefined ? data.branchId : existing.branch_id;
+                    const hostel = data.hostelRequired !== undefined ? (data.hostelRequired ? 1 : 0) : existing.hostel_required;
+                    const hafiz = data.hafizStatus !== undefined ? (data.hafizStatus ? 1 : 0) : existing.hafiz_status;
+                    const prev = data.previousMadrasa !== undefined ? data.previousMadrasa : existing.previous_madrasa;
+                    const status = data.status !== undefined ? data.status : existing.status;
+                    const interviewDate = data.interviewDate !== undefined ? data.interviewDate : existing.interview_date;
+                    const interviewScore = data.interviewScore !== undefined ? data.interviewScore : existing.interview_score;
+                    const allottedRollNo = data.allottedRollNo !== undefined ? data.allottedRollNo : existing.allotted_roll_number;
+
+                    await db.query(
+                        `UPDATE student_admissions SET
+                            student_type = ?,
+                            candidate_name = ?,
+                            father_name = ?,
+                            phone = ?,
+                            email = ?,
+                            cnic_bform = ?,
+                            passport_number = ?,
+                            country = ?,
+                            program_id = ?,
+                            branch_id = ?,
+                            hostel_required = ?,
+                            hafiz_status = ?,
+                            previous_madrasa = ?,
+                            status = ?,
+                            interview_date = ?,
+                            interview_score = ?,
+                            allotted_roll_number = ?,
+                            updated_at = NOW()
+                        WHERE id = ? OR application_no = ?`,
+                        [
+                            studentType, candidateName, fatherName, phone, email,
+                            cnic, passport, country, programId, branchId,
+                            hostel, hafiz, prev, status,
+                            interviewDate || null, interviewScore || null, allottedRollNo || null,
+                            appId, appId
+                        ]
+                    );
+
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        success: true,
+                        status: 'success',
+                        message: 'Admission application updated successfully in database.',
+                        record: {
+                            id: existing.id,
+                            applicationNo: existing.application_no,
+                            status: status,
+                            name: candidateName,
+                            fatherName: fatherName,
+                            studentType: studentType,
+                            allottedRollNo: allottedRollNo
+                        }
+                    }));
+                } catch (err) {
+                    console.error('[DB] PUT /api/admissions Error:', err);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, status: 'error', error: 'Database update failed: ' + err.message }));
+                }
+            })();
+        });
+        return;
+    }
+
+    // =========================================================================
+    // API: NOTIFICATIONS SYSTEM (DATABASE-BACKED: MYSQL / MARIADB)
+    // =========================================================================
+
+    // GET /api/notifications (Protected: Retrieves notifications for authenticated administrative user)
+    if (pathname === '/api/notifications' && req.method === 'GET') {
+        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
+        if (!userRole) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: '401 Unauthorized', message: 'Authentication required.' }));
+            return;
+        }
+
+        (async () => {
+            try {
+                let sql = `
+                    SELECT 
+                        id, 
+                        sender_id AS senderId, 
+                        target_role AS targetRole, 
+                        title, 
+                        message, 
+                        category, 
+                        is_read AS isRead,
+                        DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS time,
+                        created_at AS createdAt
+                    FROM notifications
+                `;
+                const params = [];
+
+                if (userRole === 'SUPER_ADMIN') {
+                    // Super Admin (Hazrat Mohtamim) can oversee all institutional broadcasts and admissions
+                    sql += ' WHERE target_role IN (?, ?, ?, ?) OR target_role IS NULL';
+                    params.push('SUPER_ADMIN', 'ACADEMIC_ADMIN', 'TEACHER', 'ALL');
+                } else if (userRole === 'ACADEMIC_ADMIN') {
+                    sql += ' WHERE target_role IN (?, ?) OR target_role IS NULL';
+                    params.push('ACADEMIC_ADMIN', 'ALL');
+                } else {
+                    sql += ' WHERE target_role IN (?, ?) OR target_role IS NULL';
+                    params.push(userRole, 'ALL');
+                }
+
+                sql += ' ORDER BY created_at DESC LIMIT 50';
+
+                const [rows] = await db.query(sql, params);
+                rows.forEach(r => {
+                    r.isRead = !!r.isRead;
+                    r.sender = r.targetRole === 'ACADEMIC_ADMIN' ? 'Online Admissions Portal' : 'Jamia Ashrafia Admin';
+                });
+
+                const unreadCount = rows.filter(r => !r.isRead).length;
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'success',
+                    unreadCount: unreadCount,
+                    notifications: rows
+                }));
+            } catch (err) {
+                console.error('[DB] GET /api/notifications Error:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to retrieve notifications from database' }));
+            }
+        })();
+        return;
+    }
+
+    // POST /api/notifications/read (Protected: Marks single notification or all as read in database)
+    if (pathname === '/api/notifications/read' && req.method === 'POST') {
+        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
+        if (!userRole) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: '401 Unauthorized' }));
+            return;
+        }
+
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            (async () => {
+                try {
+                    const data = body ? JSON.parse(body) : {};
+                    const notifId = data.id || data.notificationId;
+
+                    if (notifId) {
+                        await db.query(`UPDATE notifications SET is_read = 1 WHERE id = ?`, [notifId]);
+                    } else if (data.markAll) {
+                        if (userRole === 'SUPER_ADMIN') {
+                            await db.query(`UPDATE notifications SET is_read = 1`);
+                        } else {
+                            await db.query(`UPDATE notifications SET is_read = 1 WHERE target_role IN (?, 'ALL')`, [userRole]);
+                        }
+                    }
+
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, status: 'success', message: 'Notification read state updated.' }));
+                } catch (err) {
+                    console.error('[DB] POST /api/notifications/read Error:', err);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, status: 'error', error: 'Database update failed' }));
+                }
+            })();
+        });
+        return;
+    }
+
 
     // =========================================================================
     // API: ATTENDANCE & CHECK-IN SYSTEM
@@ -1439,4 +1895,6 @@ server.listen(PORT, () => {
     console.log(` Default Landing URL: http://localhost:${PORT}/ (Login Required)`);
     console.log(` Institutional Heritage: Est. 1947 | Ferozepur Road`);
     console.log(`=======================================================`);
+    db.testConnection();
 });
+

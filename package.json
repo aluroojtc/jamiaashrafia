@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node test_lms_flow.js",
+    "dbcheck": "node database/dbcheck.js"
   },
   "keywords": [
     "jamia-ashrafia",
@@ -17,5 +19,8 @@
     "webrtc"
   ],
   "author": "Jamia Ashrafia Lahore Academic Computing Cell",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "mysql2": "^3.24.5"
+  }
 }

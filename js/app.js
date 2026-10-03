@@ -107,6 +107,9 @@ const App = {
         this.renderSidebar();
         this.bindEvents();
         this.updateNotificationBadge();
+        // Poll so admins see new admission notifications without reloading the page
+        setInterval(() => this.updateNotificationBadge(), 30000);
+        this.syncMasterData();
         if (window.PrayerTimesService) {
             window.PrayerTimesService.calculateAndRefresh();
         }
@@ -555,10 +558,17 @@ const App = {
                 break;
             case 'heritage':
                 viewport.innerHTML = window.InstitutionalModule.render();
+                if (window.InstitutionalModule && typeof window.InstitutionalModule.fetchLiveBranches === 'function') {
+                    window.InstitutionalModule.fetchLiveBranches();
+                }
                 break;
             case 'admissions':
                 viewport.innerHTML = window.AdmissionsModule.render();
+                if (window.AdmissionsModule && typeof window.AdmissionsModule.fetchLiveAdmissions === 'function') {
+                    window.AdmissionsModule.fetchLiveAdmissions();
+                }
                 break;
+
             case 'classes':
                 viewport.innerHTML = window.ClassesCoursesModule.render();
                 break;
@@ -586,6 +596,7 @@ const App = {
                 break;
             case 'notifications':
                 viewport.innerHTML = window.NotificationsModule.render();
+                this.updateNotificationBadge();
                 break;
             case 'security':
                 viewport.innerHTML = this.renderSecurityDocs();
@@ -1433,14 +1444,48 @@ const App = {
         }, 3500);
     },
 
-    updateNotificationBadge() {
-        const unreadCount = window.LmsData.notifications.filter(n => !n.isRead).length;
+    async updateNotificationBadge() {
+        try {
+            const role = window.AuthRBAC ? window.AuthRBAC.getRole() : '';
+            if (role) {
+                const res = await fetch('/api/notifications', {
+                    headers: {
+                        'X-User-Role': role,
+                        'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
+                    }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && Array.isArray(data.notifications)) {
+                        if (window.LmsData) {
+                            const prevTopId = window.LmsData.notifications?.[0]?.id;
+                            window.LmsData.notifications = data.notifications;
+                            // Show newly arrived notifications if the list is open
+                            const viewport = document.getElementById('main-content-viewport');
+                            if (viewport && this.currentRoute === 'notifications' && data.notifications[0]?.id !== prevTopId) {
+                                viewport.innerHTML = window.NotificationsModule.render();
+                            }
+                        }
+                        const badge = document.getElementById('header-notif-badge');
+                        if (badge) {
+                            badge.textContent = data.unreadCount;
+                            badge.style.display = data.unreadCount > 0 ? 'flex' : 'none';
+                        }
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            // Offline fallback
+        }
+        const unreadCount = (window.LmsData?.notifications || []).filter(n => !n.isRead).length;
         const badge = document.getElementById('header-notif-badge');
         if (badge) {
             badge.textContent = unreadCount;
             badge.style.display = unreadCount > 0 ? 'flex' : 'none';
         }
     },
+
 
     playChime() {
         try {
@@ -1477,6 +1522,52 @@ const App = {
             this.navigate('heritage');
         } else {
             this.showToast(`Searched for "${query}" across Jamia Ashrafia LMS`, "info");
+        }
+    },
+
+    async syncMasterData() {
+        try {
+            const [bRes, pRes, sRes, dRes] = await Promise.all([
+                fetch('/api/branches').catch(() => null),
+                fetch('/api/programs').catch(() => null),
+                fetch('/api/sessions').catch(() => null),
+                fetch('/api/departments').catch(() => null)
+            ]);
+
+            if (bRes && bRes.ok) {
+                const bData = await bRes.json();
+                if (bData && bData.branches && window.LmsData) {
+                    if (!window.LmsData.institution) window.LmsData.institution = {};
+                    window.LmsData.institution.branches = bData.branches;
+                }
+            }
+
+            if (pRes && pRes.ok) {
+                const pData = await pRes.json();
+                if (pData && pData.programs && window.LmsData) {
+                    window.LmsData.programs = pData.programs;
+                }
+            }
+
+            if (sRes && sRes.ok) {
+                const sData = await sRes.json();
+                if (sData && sData.sessions && window.LmsData) {
+                    window.LmsData.sessions = sData.sessions;
+                }
+            }
+
+            if (dRes && dRes.ok) {
+                const dData = await dRes.json();
+                if (dData && dData.departments && window.LmsData) {
+                    window.LmsData.departments = dData.departments;
+                }
+            }
+
+            if (window.DataStore && window.LmsData) {
+                window.DataStore.save(window.LmsData);
+            }
+        } catch (err) {
+            console.warn('[LMS] Could not sync academic master data from server:', err);
         }
     }
 };
