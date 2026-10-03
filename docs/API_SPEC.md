@@ -136,5 +136,5 @@ Records online Zakat or Sadaqah contribution and generates a verified receipt.
 ### WebSocket URL: `wss://live.lms.jamiaashrafia.org/rooms/{meeting_uuid}`
 - **Join Room:** `{ "type": "join", "token": "...", "role": "host"|"participant" }`
 - **Signal Offer / Answer / ICE Candidates:** WebRTC peer exchange.
-- **Whiteboard Stroke Broadcast:** `{ "type": "wb_draw", "x": 120, "y": 80, "color": "#064e3b" }`
+- **Whiteboard Stroke Broadcast:** `{ "type": "wb_draw", "x": 120, "y": 80, "color": "#124855" }`
 - **Host Mute Decree:** `{ "type": "host_mute_all" }`

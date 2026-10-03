@@ -55,16 +55,16 @@ const TimetableModule = {
                         const course = slot.courseId ? window.LmsData.courses.find(c => c.id === slot.courseId) : null;
 
                         return `
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: ${isPrayer ? 'rgba(6, 78, 59, 0.25)' : 'var(--bg-surface-elevated)'}; border: 1px solid ${isPrayer ? 'var(--primary-600)' : 'var(--border-subtle)'}; border-radius: var(--radius-md); flex-wrap: wrap; gap: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: ${isPrayer ? 'var(--primary-50)' : 'var(--bg-surface-elevated)'}; border: 1px solid ${isPrayer ? 'var(--primary-200)' : 'var(--border-subtle)'}; border-radius: var(--radius-md); flex-wrap: wrap; gap: 12px;">
                                 <div style="display: flex; align-items: center; gap: 16px;">
-                                    <div style="width: 44px; height: 44px; border-radius: var(--radius-sm); background: ${isPrayer ? 'rgba(217, 119, 6, 0.25)' : 'rgba(6, 78, 59, 0.3)'}; color: ${isPrayer ? 'var(--gold-300)' : 'var(--primary-400)'}; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                                    <div style="width: 44px; height: 44px; border-radius: var(--radius-sm); background: ${isPrayer ? 'var(--gold-100)' : 'var(--primary-100)'}; color: ${isPrayer ? 'var(--gold-800)' : 'var(--primary-800)'}; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
                                         <i class="${isPrayer ? 'fas fa-mosque' : 'fas fa-book-reader'}"></i>
                                     </div>
                                     <div>
-                                        <div style="font-weight: 700; font-size: 1rem; color: #ffffff;">
+                                        <div style="font-weight: 700; font-size: 1rem; color: var(--primary-950);">
                                             ${isPrayer ? slot.periodName : course?.title}
                                         </div>
-                                        <div style="font-size: 0.8rem; color: var(--gold-300);">
+                                        <div style="font-size: 0.8rem; color: var(--gold-700);">
                                             ${course ? course.urduTitle : 'نماز باجماعت، طعام اور قیلولہ'}
                                         </div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
@@ -93,8 +93,8 @@ const TimetableModule = {
             </div>
 
             <!-- FRIDAY ADVICE NOTE -->
-            <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.2) 0%, rgba(180, 83, 9, 0.15) 100%); border-left: 4px solid var(--gold-400);">
-                <h4 style="color: var(--gold-300); margin-bottom: 6px;"><i class="fas fa-info-circle"></i> Friday (Jumu'ah) Tradition at Jamia Ashrafia</h4>
+            <div class="card" style="background: linear-gradient(135deg, rgba(18, 72, 85, 0.08) 0%, rgba(170, 134, 55, 0.12) 100%); border-left: 4px solid var(--gold-600);">
+                <h4 style="color: var(--gold-800); margin-bottom: 6px;"><i class="fas fa-info-circle"></i> Friday (Jumu'ah) Tradition at Jamia Ashrafia</h4>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7;">
                     In accordance with century-old madrasa practice, Friday is reserved for Quranic recitation (Surah al-Kahf), 
                     preparation for the historic Jumu'ah sermon in the Grand Jamia Mosque led by Hazrat Mohtamim, and personal research revision (Mutala'ah). 

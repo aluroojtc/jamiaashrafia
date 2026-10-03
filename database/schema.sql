@@ -101,7 +101,10 @@ CREATE TABLE users (
     full_name VARCHAR(255) NOT NULL,
     urdu_name VARCHAR(255),
     father_name VARCHAR(255),
-    cnic_bform VARCHAR(30) UNIQUE,
+    student_type VARCHAR(30) DEFAULT 'LOCAL',      -- 'LOCAL' (Pakistani) or 'INTERNATIONAL' (Foreign/Overseas)
+    cnic_bform VARCHAR(30),                         -- For Local Students (Pakistani CNIC / B-Form)
+    passport_number VARCHAR(50),                   -- For International Students (Passport No)
+    country VARCHAR(100) DEFAULT 'Pakistan',       -- Country of Residence / Citizenship
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     phone VARCHAR(50),
@@ -214,6 +217,7 @@ CREATE TABLE enrollments (
 CREATE TABLE student_admissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     application_no VARCHAR(50) UNIQUE NOT NULL,
+    student_type VARCHAR(30) NOT NULL DEFAULT 'LOCAL', -- 'LOCAL' or 'INTERNATIONAL'
     branch_id UUID NOT NULL REFERENCES branches(id),
     program_id UUID NOT NULL REFERENCES academic_programs(id),
     candidate_name VARCHAR(255) NOT NULL,
@@ -221,7 +225,9 @@ CREATE TABLE student_admissions (
     guardian_contact VARCHAR(50) NOT NULL,
     email VARCHAR(255) NOT NULL,
     phone VARCHAR(50) NOT NULL,
-    cnic_bform VARCHAR(30) NOT NULL,
+    cnic_bform VARCHAR(30),                         -- Required for LOCAL students (Pakistani CNIC: XXXXX-XXXXXXX-X)
+    passport_number VARCHAR(50),                    -- Required for INTERNATIONAL students
+    country VARCHAR(100) NOT NULL DEFAULT 'Pakistan',-- Required for INTERNATIONAL students, 'Pakistan' for LOCAL
     date_of_birth DATE NOT NULL,
     previous_madrasa VARCHAR(255),
     hafiz_status BOOLEAN DEFAULT FALSE,
@@ -232,7 +238,11 @@ CREATE TABLE student_admissions (
     reviewer_notes TEXT,
     allotted_roll_number VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_student_identification CHECK (
+        (student_type = 'LOCAL' AND cnic_bform IS NOT NULL) OR
+        (student_type = 'INTERNATIONAL' AND passport_number IS NOT NULL AND country IS NOT NULL)
+    )
 );
 
 -- 13. TIMETABLES & SCHEDULES

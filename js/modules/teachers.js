@@ -80,9 +80,9 @@ const TeachersModule = {
                                     ${teacher.avatar}
                                 </div>
                                 <div style="flex: 1;">
-                                    <div style="font-weight: 700; font-size: 1.05rem; color: #ffffff;">${teacher.name}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-200);">${teacher.urduName || ''}</div>
-                                    <div style="font-size: 0.8rem; color: var(--primary-400); font-weight: 600;">${teacher.designation}</div>
+                                    <div style="font-weight: 700; font-size: 1.05rem; color: var(--primary-950);">${teacher.name}</div>
+                                    <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-700);">${teacher.urduName || ''}</div>
+                                    <div style="font-size: 0.8rem; color: var(--primary-700); font-weight: 600;">${teacher.designation}</div>
                                 </div>
                             </div>
 
@@ -277,14 +277,14 @@ const TeachersModule = {
                     ${teacher.avatar}
                 </div>
                 <div>
-                    <h3 style="color: #ffffff;">${teacher.name}</h3>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.2rem; color: var(--gold-200);">${teacher.urduName || ''}</div>
-                    <div style="color: var(--primary-400); font-weight: 600;">${teacher.designation}</div>
+                    <h3 style="color: var(--primary-950);">${teacher.name}</h3>
+                    <div style="font-family: 'Amiri', serif; font-size: 1.2rem; color: var(--gold-700);">${teacher.urduName || ''}</div>
+                    <div style="color: var(--primary-700); font-weight: 600;">${teacher.designation}</div>
                 </div>
             </div>
 
             <div class="card" style="background: var(--bg-surface-elevated); padding: 16px;">
-                <h4 style="color: var(--gold-300); font-size: 0.9rem; margin-bottom: 8px;">Academic Sanad & Qualifications</h4>
+                <h4 style="color: var(--gold-700); font-size: 0.9rem; margin-bottom: 8px;">Academic Sanad & Qualifications</h4>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7;">
                     Graduate of Jamia Ashrafia Lahore with specialization in Sihah Sitta Hadith studies. 
                     Authorized by senior scholars with continuous transmission (Isnad Muttasil) back to the Holy Prophet ﷺ.

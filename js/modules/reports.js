@@ -205,8 +205,8 @@ const ReportsModule = {
                             <tr>
                                 <td><span class="status-pill primary" style="font-family: monospace;">${s.rollNo || 'N/A'}</span></td>
                                 <td>
-                                    <div style="font-weight: 700; color: #ffffff;">${s.name}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 0.9rem; color: var(--gold-200);">${s.urduName || ''}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${s.name}</div>
+                                    <div style="font-family: 'Amiri', serif; font-size: 0.9rem; color: var(--gold-700);">${s.urduName || ''}</div>
                                 </td>
                                 <td>${s.program || 'Dars-e-Nizami'}</td>
                                 <td style="color: var(--text-muted); font-size: 0.82rem;">${s.hostel || 'Day Scholar'}</td>
@@ -242,8 +242,8 @@ const ReportsModule = {
                         ${teachers.map(t => `
                             <tr>
                                 <td>
-                                    <div style="font-weight: 700; color: #ffffff;">${t.name}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-200);">${t.urduName || ''}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${t.name}</div>
+                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${t.urduName || ''}</div>
                                 </td>
                                 <td><span class="status-pill gold">${t.designation}</span></td>
                                 <td style="color: var(--text-secondary);">${t.specialization}</td>
@@ -280,7 +280,7 @@ const ReportsModule = {
                         ${records.map(r => `
                             <tr>
                                 <td><strong>${r.date}</strong></td>
-                                <td style="font-weight: 700; color: #ffffff;">${r.userName}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${r.userName}</td>
                                 <td><span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}">${r.role}</span></td>
                                 <td style="font-size: 0.82rem; color: var(--text-secondary);">${r.className || 'General'}</td>
                                 <td style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-300)'};">${r.checkInTime || '—'}</td>
@@ -319,8 +319,8 @@ const ReportsModule = {
                         ${courses.map(c => `
                             <tr>
                                 <td><span class="status-pill primary" style="font-family: monospace;">${c.code}</span></td>
-                                <td style="font-weight: 700; color: #ffffff;">${c.title}</td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-200);">${c.urduTitle || ''}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${c.title}</td>
+                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-700);">${c.urduTitle || ''}</td>
                                 <td style="color: var(--text-muted); font-size: 0.82rem;">${c.kitabAuthor}</td>
                                 <td>Year ${c.year}</td>
                                 <td><strong>${c.credits} Credits</strong></td>
@@ -351,7 +351,7 @@ const ReportsModule = {
                     <tbody>
                         ${assignments.map(a => `
                             <tr>
-                                <td style="font-weight: 700; color: #ffffff;">${a.title}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${a.title}</td>
                                 <td>${a.courseId}</td>
                                 <td style="color: var(--text-secondary);">${a.teacherName}</td>
                                 <td>${a.dueDate}</td>
@@ -383,7 +383,7 @@ const ReportsModule = {
                     <tbody>
                         ${exams.map(e => `
                             <tr>
-                                <td style="font-weight: 700; color: #ffffff;">${e.title}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${e.title}</td>
                                 <td>${e.session || '1446 AH'}</td>
                                 <td>${e.examDate || '2026-10-15'}</td>
                                 <td><span class="status-pill warning">40% Minimum</span></td>
@@ -416,7 +416,7 @@ const ReportsModule = {
                         ${admissions.map(a => `
                             <tr>
                                 <td><span class="status-pill primary">${a.formNumber}</span></td>
-                                <td style="font-weight: 700; color: #ffffff;">${a.applicantName}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${a.applicantName}</td>
                                 <td>${a.program}</td>
                                 <td>${a.branch}</td>
                                 <td>${a.appliedDate}</td>
@@ -450,7 +450,7 @@ const ReportsModule = {
                         ${challans.map(c => `
                             <tr>
                                 <td><span class="status-pill primary" style="font-family: monospace;">${c.challanNumber}</span></td>
-                                <td style="font-weight: 700; color: #ffffff;">${c.studentName}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${c.studentName}</td>
                                 <td>${c.monthYear}</td>
                                 <td>PKR ${c.tuitionFee}</td>
                                 <td>PKR ${c.hostelFee}</td>
@@ -485,8 +485,8 @@ const ReportsModule = {
                         ${books.map(b => `
                             <tr>
                                 <td><span class="status-pill primary">${b.accessionNo}</span></td>
-                                <td style="font-weight: 700; color: #ffffff;">${b.title}</td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-200);">${b.arabicTitle || ''}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${b.title}</td>
+                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-700);">${b.arabicTitle || ''}</td>
                                 <td style="color: var(--text-muted);">${b.author}</td>
                                 <td><span class="status-pill gold">${b.category}</span></td>
                                 <td>${b.totalCopies}</td>
@@ -518,7 +518,7 @@ const ReportsModule = {
                     <tbody>
                         ${live.map(v => `
                             <tr>
-                                <td style="font-weight: 700; color: #ffffff;">${v.title}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${v.title}</td>
                                 <td>${v.hostTeacher}</td>
                                 <td>${v.scheduledStart || 'Daily Fajr 06:30 AM'}</td>
                                 <td><code>${v.passcode}</code></td>

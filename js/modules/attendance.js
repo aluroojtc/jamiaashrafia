@@ -156,13 +156,13 @@ const AttendanceModule = {
                             </span>
                             <span style="font-size: 0.82rem; color: var(--text-muted);"><i class="fas fa-calendar-day"></i> Today: ${today} (1446 AH)</span>
                         </div>
-                        <h3 style="font-size: 1.15rem; color: #ffffff; margin-top: 6px;">
+                        <h3 style="font-size: 1.15rem; color: var(--primary-950); margin-top: 6px;">
                             ${isCheckedIn ? `Marked Present at ${record.checkInTime}` : 'Daily Attendance Check-In Required'}
                         </h3>
                         <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
                             ${isCheckedIn ? (
                                 isCheckedOut ? 
-                                `<span style="color: var(--gold-300);"><i class="fas fa-sign-out-alt"></i> Checked Out at ${record.checkOutTime}</span>` : 
+                                `<span style="color: var(--gold-700);"><i class="fas fa-sign-out-alt"></i> Checked Out at ${record.checkOutTime}</span>` : 
                                 `<span>Active Session: In Campus (${record.session || 'Academic Dars'})</span>`
                             ) : (
                                 `Attendance is not marked on login. Please click Check In to record your attendance.`
@@ -350,7 +350,7 @@ const AttendanceModule = {
                             ${filtered.length > 0 ? filtered.map(r => `
                                 <tr>
                                     <td>
-                                        <div style="font-weight: 700; color: #ffffff;">${r.userName}</div>
+                                        <div style="font-weight: 700; color: var(--primary-950);">${r.userName}</div>
                                     </td>
                                     <td>
                                         <span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}" style="font-size: 0.72rem;">${r.role}</span>
@@ -359,11 +359,11 @@ const AttendanceModule = {
                                     <td style="color: var(--text-secondary); font-size: 0.82rem;">
                                         ${r.className || 'General'}
                                     </td>
-                                    <td style="font-size: 0.82rem; color: #ffffff;">
+                                    <td style="font-size: 0.82rem; color: var(--text-primary);">
                                         ${r.date}
                                     </td>
                                     <td>
-                                        <strong style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-300)'};">${r.checkInTime || '—'}</strong>
+                                        <strong style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-700)'};">${r.checkInTime || '—'}</strong>
                                     </td>
                                     <td>
                                         <span style="color: var(--text-muted); font-size: 0.82rem;">${r.checkOutTime || 'In Session'}</span>

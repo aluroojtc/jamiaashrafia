@@ -14,7 +14,7 @@ const RolesModule = {
             return `
                 <div class="card" style="border: 2px solid var(--danger); text-align: center; padding: 48px 24px;">
                     <i class="fas fa-lock" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
-                    <h2 style="color: #ffffff; margin-bottom: 8px;">403 - Administrative Access Required</h2>
+                    <h2 style="color: var(--primary-950); margin-bottom: 8px;">403 - Administrative Access Required</h2>
                     <p style="color: var(--text-secondary); max-width: 500px; margin: 0 auto 20px;">
                         Only the Super Admin (Mohtamim) has authorization to inspect and configure institutional roles for Jamia Ashrafia LMS.
                     </p>
@@ -98,11 +98,11 @@ const RolesModule = {
             <!-- ARCHITECTURE BANNER -->
             <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.12) 100%); border-left: 4px solid var(--gold-400); margin-bottom: 24px;">
                 <div style="display: flex; gap: 16px; align-items: center;">
-                    <div style="font-size: 2rem; color: var(--gold-400);"><i class="fas fa-shield-alt"></i></div>
+                    <div style="font-size: 2rem; color: var(--gold-600);"><i class="fas fa-shield-alt"></i></div>
                     <div>
-                        <h4 style="color: #ffffff; margin-bottom: 4px;">Dynamic Institutional Roles Active</h4>
+                        <h4 style="color: var(--primary-950); margin-bottom: 4px;">Dynamic Institutional Roles Active</h4>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
-                            <strong>System Protection:</strong> The <strong>Super Admin (Mohtamim)</strong> role is permanently protected at the system level with full root access (<code style="color: var(--gold-300);">*</code>) and is hidden from configuration. All configurable institutional roles are listed below. Creating a new role here will automatically make it available for permission assignment under <strong>Users & Permissions &rarr; Permissions</strong>.
+                            <strong>System Protection:</strong> The <strong>Super Admin (Mohtamim)</strong> role is permanently protected at the system level with full root access (<code style="color: var(--gold-700); font-weight: 700;">*</code>) and is hidden from configuration. All configurable institutional roles are listed below. Creating a new role here will automatically make it available for permission assignment under <strong>Users & Permissions &rarr; Permissions</strong>.
                         </p>
                     </div>
                 </div>
@@ -134,16 +134,16 @@ const RolesModule = {
                                 return `
                                     <tr>
                                         <td>
-                                            <div style="font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
-                                                <i class="fas fa-id-badge" style="color: var(--gold-400);"></i>
+                                            <div style="font-weight: 700; color: var(--primary-950); display: flex; align-items: center; gap: 8px;">
+                                                <i class="fas fa-id-badge" style="color: var(--gold-600);"></i>
                                                 ${r.name || r.title}
                                             </div>
-                                            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-300); margin-top: 2px;">
+                                            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700); margin-top: 2px;">
                                                 ${r.urduTitle || ''}
                                             </div>
                                         </td>
                                         <td>
-                                            <code style="background: rgba(0,0,0,0.3); padding: 3px 8px; border-radius: 4px; color: var(--primary-300); font-weight: 700;">
+                                            <code style="background: var(--primary-50); border: 1px solid var(--primary-200); padding: 3px 8px; border-radius: 4px; color: var(--primary-800); font-weight: 700; font-family: monospace;">
                                                 ${r.id}
                                             </code>
                                         </td>
@@ -156,7 +156,7 @@ const RolesModule = {
                                             ${r.description || 'Institutional access role.'}
                                         </td>
                                         <td style="text-align: center;">
-                                            <span style="display: inline-block; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.06); font-weight: 700; color: #ffffff;">
+                                            <span style="display: inline-block; padding: 4px 10px; border-radius: 20px; background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); font-weight: 700; color: var(--text-primary);">
                                                 ${count} Users
                                             </span>
                                         </td>
@@ -205,13 +205,13 @@ const RolesModule = {
             <form id="form-add-role" onsubmit="RolesModule.handleAddRoleSubmit(event)">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Role Name (English) *
                         </label>
                         <input type="text" id="role-name-input" class="form-control" placeholder="e.g. Library Nazim" required>
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Role Identifier Key *
                         </label>
                         <input type="text" id="role-id-input" class="form-control" placeholder="e.g. LIBRARIAN" style="text-transform: uppercase;" required>
@@ -221,13 +221,13 @@ const RolesModule = {
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Urdu Title (منصب / کردار)
                         </label>
                         <input type="text" id="role-urdu-input" class="form-control" placeholder="e.g. ناظم کتب خانہ" style="font-family: 'Amiri', serif;">
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Visual Badge Style
                         </label>
                         <select id="role-badge-input" class="form-control">
@@ -241,7 +241,7 @@ const RolesModule = {
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Role Scope & Description
                     </label>
                     <textarea id="role-desc-input" class="form-control" rows="3" placeholder="Describe the responsibilities and scope of this role within Jamia Ashrafia LMS..."></textarea>
@@ -348,13 +348,13 @@ const RolesModule = {
             <form id="form-edit-role" onsubmit="RolesModule.handleEditRoleSubmit(event, '${roleId}')">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Role Name (English) *
                         </label>
                         <input type="text" id="edit-role-name" class="form-control" value="${role.name || role.title || ''}" required>
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Role Identifier Key
                         </label>
                         <input type="text" class="form-control" value="${role.id}" disabled style="opacity: 0.7;">
@@ -364,13 +364,13 @@ const RolesModule = {
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Urdu Title (منصب / کردار)
                         </label>
                         <input type="text" id="edit-role-urdu" class="form-control" value="${role.urduTitle || ''}" style="font-family: 'Amiri', serif;">
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Visual Badge Style
                         </label>
                         <select id="edit-role-badge" class="form-control">
@@ -384,7 +384,7 @@ const RolesModule = {
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Role Scope & Description
                     </label>
                     <textarea id="edit-role-desc" class="form-control" rows="3">${role.description || ''}</textarea>
@@ -451,7 +451,7 @@ const RolesModule = {
 
         modalContainer.innerHTML = `
             <div style="padding: 10px 0;">
-                <p style="color: #ffffff; font-size: 1rem; margin-bottom: 12px;">
+                <p style="color: var(--text-primary); font-size: 1rem; margin-bottom: 12px;">
                     Are you sure you want to permanently delete the custom role <strong>"${role.name}"</strong> (<code>${role.id}</code>)?
                 </p>
                 <p style="color: var(--text-muted); font-size: 0.85rem;">

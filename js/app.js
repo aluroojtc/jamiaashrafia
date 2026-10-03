@@ -107,6 +107,9 @@ const App = {
         this.renderSidebar();
         this.bindEvents();
         this.updateNotificationBadge();
+        if (window.PrayerTimesService) {
+            window.PrayerTimesService.calculateAndRefresh();
+        }
 
         // Support direct hash navigation on initial page load
         const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
@@ -611,13 +614,13 @@ const App = {
                 <div class="status-pill danger" style="margin-bottom: 12px; font-weight: 700; letter-spacing: 0.05em;">
                     HTTP 403 • ACCESS FORBIDDEN
                 </div>
-                <h1 style="color: #ffffff; font-size: 1.85rem; margin-bottom: 6px;">403 - Permission Denied (غیر مصرح به)</h1>
-                <div style="font-family: 'Amiri', serif; font-size: 1.35rem; color: var(--gold-200); margin-bottom: 18px;">
+                <h1 style="color: var(--primary-950); font-size: 1.85rem; margin-bottom: 6px;">403 - Permission Denied (غیر مصرح به)</h1>
+                <div style="font-family: 'Amiri', serif; font-size: 1.35rem; color: var(--gold-700); margin-bottom: 18px;">
                     عذراً! لا تملك الصلاحية للوصول إلى هذا القسم
                 </div>
 
                 <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; margin-bottom: 22px;">
-                    Your authenticated role (<strong style="color: var(--gold-300);">${roleDef.title}</strong>) 
+                    Your authenticated role (<strong style="color: var(--gold-600);">${roleDef.title}</strong>) 
                     does not have permission to access the <strong>${modMeta.title}</strong> module 
                     (<code>#${route}</code>).
                 </p>
@@ -753,14 +756,14 @@ const App = {
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
                 <!-- Left: Live Class Alert Box & Highlights -->
                 <div>
-                    <div class="card" style="border: 2px solid var(--gold-400); background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(180, 83, 9, 0.2) 100%);">
+                    <div class="card" style="border: 2px solid var(--primary-200); background: linear-gradient(135deg, var(--primary-50) 0%, var(--gold-50) 100%);">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                             <div>
                                 <span class="status-pill danger" style="animation: pulse 1.5s infinite;"><i class="fas fa-circle"></i> Live Video Room Active</span>
-                                <h3 style="font-size: 1.15rem; color: #ffffff; margin-top: 6px;">${liveClass.title}</h3>
-                                <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-200);">${liveClass.urduTitle}</div>
+                                <h3 style="font-size: 1.15rem; color: var(--text-primary); margin-top: 6px;">${liveClass.title}</h3>
+                                <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-700);">${liveClass.urduTitle}</div>
                             </div>
-                            <button class="btn btn-gold" onclick="App.navigate('virtual-class')">
+                            <button class="btn btn-primary" onclick="App.navigate('virtual-class')">
                                 <i class="fas fa-sign-in-alt"></i> Join Room Now
                             </button>
                         </div>
@@ -780,14 +783,14 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 12px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Fajr Dars: Sahih al-Bukhari (Hall Imam Bukhari)</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Fajr Dars: Sahih al-Bukhari (Hall Imam Bukhari)</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Qari Arshad Ubaid • 06:30 AM - 08:00 AM</div>
                                 </div>
                                 <span class="status-pill success">Completed</span>
                             </div>
                             <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Fiqh Session: Al-Hidayah (Room 201)</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Fiqh Session: Al-Hidayah (Room 201)</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Mufti Ahmadur Rahman • 10:15 AM - 11:45 AM</div>
                                 </div>
                                 <span class="status-pill info">In Progress</span>
@@ -837,7 +840,7 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
                             ${window.LmsData.notifications.slice(0, 3).map(n => `
                                 <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid var(--gold-400);">
-                                    <div style="font-weight: 700; color: #ffffff;">${n.title}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${n.title}</div>
                                     <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${n.sender} • ${n.time}</div>
                                 </div>
                             `).join('')}
@@ -883,7 +886,7 @@ const App = {
             ${window.AttendanceModule ? window.AttendanceModule.renderDashboardCheckInWidget(user) : ''}
 
             <!-- TEACHER HERO SUMMARY -->
-            <div class="ashrafia-hero-card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.95) 0%, rgba(180, 83, 9, 0.85) 100%);">
+            <div class="ashrafia-hero-card" style="background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 100%);">
                 <div class="ashrafia-hero-content">
                     <div class="ashrafia-hero-badge"><i class="fas fa-book-reader"></i> Faculty Allocation: Dawra-e-Hadith & Hadith Studies</div>
                     <h2 class="ashrafia-hero-title">مسند تدریس - جامعہ اشرفیہ، لاہور</h2>
@@ -956,8 +959,8 @@ const App = {
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                             <div>
                                 <span class="status-pill danger"><i class="fas fa-circle"></i> Live Video Lecture Waiting</span>
-                                <h3 style="color: #ffffff; margin-top: 6px;">${liveClass.title}</h3>
-                                <div style="font-family: 'Amiri', serif; color: var(--gold-200); font-size: 1.1rem;">${liveClass.urduTitle}</div>
+                                <h3 style="color: var(--primary-950); margin-top: 6px;">${liveClass.title}</h3>
+                                <div style="font-family: 'Amiri', serif; color: var(--gold-700); font-size: 1.1rem;">${liveClass.urduTitle}</div>
                             </div>
                             <button class="btn btn-gold" onclick="App.navigate('virtual-class')">
                                 <i class="fas fa-play"></i> Start Lecture Now
@@ -974,14 +977,14 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 12px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Sahih al-Bukhari (Jild 1) - HAD-801</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Sahih al-Bukhari (Jild 1) - HAD-801</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Dawra-e-Hadith • 60 Talaba • Hall Imam Bukhari</div>
                                 </div>
                                 <button class="btn btn-secondary btn-sm" onclick="App.navigate('assignments')">Review Submissions</button>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Sunan al-Tirmidhi (Kitab al-Jana'iz) - HAD-802</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Sunan al-Tirmidhi (Kitab al-Jana'iz) - HAD-802</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Dawra-e-Hadith • 65 Talaba • Room 102</div>
                                 </div>
                                 <button class="btn btn-secondary btn-sm" onclick="App.navigate('timetable')">View Schedule</button>
@@ -1025,7 +1028,7 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
                             ${window.LmsData.notifications.slice(0, 3).map(n => `
                                 <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid var(--primary-500);">
-                                    <div style="font-weight: 700; color: #ffffff;">${n.title}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${n.title}</div>
                                     <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${n.sender} • ${n.time}</div>
                                 </div>
                             `).join('')}
@@ -1141,14 +1144,14 @@ const App = {
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
                 <div>
                     <!-- Active Live Classroom Alert -->
-                    <div class="card" style="border: 2px solid var(--gold-400); background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(180, 83, 9, 0.2) 100%);">
+                    <div class="card" style="border: 2px solid var(--primary-200); background: linear-gradient(135deg, var(--primary-50) 0%, var(--gold-50) 100%);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                             <div>
                                 <span class="status-pill danger" style="animation: pulse 1.5s infinite;"><i class="fas fa-circle"></i> Live Zoom Room Open</span>
-                                <h3 style="color: #ffffff; margin-top: 6px;">${liveClass.title}</h3>
-                                <div style="font-family: 'Amiri', serif; color: var(--gold-200); font-size: 1.15rem;">${liveClass.urduTitle}</div>
+                                <h3 style="color: var(--text-primary); margin-top: 6px;">${liveClass.title}</h3>
+                                <div style="font-family: 'Amiri', serif; color: var(--gold-700); font-size: 1.15rem;">${liveClass.urduTitle}</div>
                             </div>
-                            <button class="btn btn-gold" onclick="App.navigate('virtual-class')">
+                            <button class="btn btn-primary" onclick="App.navigate('virtual-class')">
                                 <i class="fas fa-sign-in-alt"></i> Enter Classroom
                             </button>
                         </div>
@@ -1167,14 +1170,14 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 12px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Sahih al-Bukhari (Jild 1)</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Sahih al-Bukhari (Jild 1)</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Qari Arshad Ubaid • 06:30 AM - 08:00 AM • Hall Imam Bukhari</div>
                                 </div>
                                 <button class="btn btn-secondary btn-sm" onclick="App.navigate('assignments')">Assignments</button>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Al-Hidayah (Fiqh Hanafi)</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Al-Hidayah (Fiqh Hanafi)</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Mufti Ahmadur Rahman • 10:15 AM - 11:45 AM • Room 201</div>
                                 </div>
                                 <button class="btn btn-secondary btn-sm" onclick="App.navigate('timetable')">Timetable</button>
@@ -1215,7 +1218,7 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
                             ${window.LmsData.notifications.slice(0, 3).map(n => `
                                 <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid var(--gold-400);">
-                                    <div style="font-weight: 700; color: #ffffff;">${n.title}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${n.title}</div>
                                     <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${n.sender} • ${n.time}</div>
                                 </div>
                             `).join('')}
@@ -1263,7 +1266,7 @@ const App = {
                         <tbody>
                             <tr>
                                 <td><span class="status-pill gold">SUPER_ADMIN</span></td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-200);">حضرت مہتمم / مجلس شوریٰ</td>
+                                <td style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-700);">حضرت مہتمم / مجلس شوریٰ</td>
                                 <td>Principal Maulana Fazl-ur-Raheem Ashrafi</td>
                                 <td>Full administrative control, financial audits, branch creation, policy decrees, audit log access.</td>
                             </tr>
@@ -1349,30 +1352,30 @@ const App = {
             bodyEl.innerHTML = `
                 <div style="text-align: center; margin-bottom: 20px;">
                     <div class="user-avatar" style="width: 72px; height: 72px; font-size: 1.6rem; margin: 0 auto 12px; border: 2px solid var(--gold-400);">${user.avatar || 'JA'}</div>
-                    <h3 style="color: #ffffff; margin-bottom: 4px;">${user.name}</h3>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--gold-200);">${user.urduName || ''}</div>
+                    <h3 style="color: var(--primary-950); margin-bottom: 4px;">${user.name}</h3>
+                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--gold-700);">${user.urduName || ''}</div>
                     <span class="status-pill ${roleDef.badgeClass || 'gold'}" style="margin-top: 6px;">${roleDef.title}</span>
                 </div>
 
                 <div style="background: var(--bg-surface-elevated); border-radius: var(--radius-sm); padding: 16px; font-size: 0.85rem; line-height: 1.9;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
                         <span style="color: var(--text-muted);"><i class="fas fa-envelope"></i> Official Email:</span>
-                        <strong style="color: #ffffff;">${user.email || 'N/A'}</strong>
+                        <strong style="color: var(--text-primary);">${user.email || 'N/A'}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
                         <span style="color: var(--text-muted);"><i class="fas fa-mosque"></i> Campus / Branch:</span>
-                        <strong style="color: #ffffff;">Main Campus (Ferozepur Road)</strong>
+                        <strong style="color: var(--text-primary);">Main Campus (Ferozepur Road)</strong>
                     </div>
                     ${user.rollNo ? `
                         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
                             <span style="color: var(--text-muted);"><i class="fas fa-id-card"></i> Student Roll Number:</span>
-                            <strong style="color: var(--gold-300);">${user.rollNo}</strong>
+                            <strong style="color: var(--primary-950);">${user.rollNo}</strong>
                         </div>
                     ` : ''}
                     ${user.designation ? `
                         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
                             <span style="color: var(--text-muted);"><i class="fas fa-briefcase"></i> Designation:</span>
-                            <strong style="color: #ffffff;">${user.designation}</strong>
+                            <strong style="color: var(--text-primary);">${user.designation}</strong>
                         </div>
                     ` : ''}
                     <div style="display: flex; justify-content: space-between; padding-top: 8px;">

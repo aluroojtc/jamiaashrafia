@@ -165,6 +165,120 @@ let systemAttendance = [
     }
 ];
 
+// In-memory backend admissions store (seeded with local and international records)
+let systemAdmissions = [
+    {
+        id: "adm_101",
+        applicationNo: "ASH-ADM-2024-089",
+        studentType: "LOCAL",
+        name: "Ahmad Raza Siddiqui",
+        fatherName: "Maulana Muhammad Siddique",
+        cnic: "35201-8934521-3",
+        passport: "",
+        country: "Pakistan",
+        phone: "+92 300 4589211",
+        email: "ahmad.raza@gmail.com",
+        programId: "p1",
+        branchId: "b1",
+        hostelRequired: true,
+        previousMadrasa: "Jamia Farooqia Karachi (Sanawiyyah Passed)",
+        hafizStatus: true,
+        status: "INTERVIEW_SCHEDULED",
+        interviewDate: "2026-10-05 10:00 AM",
+        interviewScore: null,
+        allottedRollNo: null,
+        appliedAt: "2026-09-24"
+    },
+    {
+        id: "adm_102",
+        applicationNo: "ASH-ADM-2024-090",
+        studentType: "LOCAL",
+        name: "Zubair Ahmad Qasmi",
+        fatherName: "Hafiz Abdul Qadir",
+        cnic: "38403-1249872-5",
+        passport: "",
+        country: "Pakistan",
+        phone: "+92 321 7845123",
+        email: "zubair.qasmi@outlook.com",
+        programId: "p2",
+        branchId: "b1",
+        hostelRequired: true,
+        previousMadrasa: "Jamia Ashrafia Lahore (Dawra-e-Hadith Mumtaz)",
+        hafizStatus: true,
+        status: "APPROVED",
+        interviewDate: "2026-09-20 11:30 AM",
+        interviewScore: 94.5,
+        allottedRollNo: "ASH-IFT-018",
+        appliedAt: "2026-09-18"
+    },
+    {
+        id: "adm_103",
+        applicationNo: "ASH-ADM-2024-091",
+        studentType: "LOCAL",
+        name: "Zainab Bint Tariq",
+        fatherName: "Tariq Mahmood",
+        cnic: "35202-6721980-6",
+        passport: "",
+        country: "Pakistan",
+        phone: "+92 333 9812470",
+        email: "zainab.tariq@gmail.com",
+        programId: "p5",
+        branchId: "b2",
+        hostelRequired: false,
+        previousMadrasa: "Madrisatul Faisal Lil Bannat Model Town",
+        hafizStatus: true,
+        status: "ENROLLED",
+        interviewDate: "2026-09-15",
+        interviewScore: 91.0,
+        allottedRollNo: "ASH-B-114",
+        appliedAt: "2026-09-12"
+    },
+    {
+        id: "adm_104",
+        applicationNo: "ASH-ADM-2024-092",
+        studentType: "LOCAL",
+        name: "Abdullah Haroon",
+        fatherName: "Haroon Rashid",
+        cnic: "37405-5544123-1",
+        passport: "",
+        country: "Pakistan",
+        phone: "+92 301 6677889",
+        email: "abdullah.haroon@yahoo.com",
+        programId: "p3",
+        branchId: "b4",
+        hostelRequired: false,
+        previousMadrasa: "Government High School Lahore",
+        hafizStatus: false,
+        status: "UNDER_REVIEW",
+        interviewDate: null,
+        interviewScore: null,
+        allottedRollNo: null,
+        appliedAt: "2026-09-27"
+    },
+    {
+        id: "adm_105",
+        applicationNo: "ASH-ADM-2024-093",
+        studentType: "INTERNATIONAL",
+        name: "Tariq Abdul Majeed",
+        fatherName: "Maulana Abdul Majeed",
+        cnic: "",
+        passport: "GBR-98421054",
+        country: "United Kingdom",
+        phone: "+44 7700 900123",
+        email: "tariq.majeed@gmail.com",
+        programId: "p1",
+        branchId: "b1",
+        hostelRequired: true,
+        previousMadrasa: "Darul Uloom London",
+        hafizStatus: true,
+        status: "APPLIED",
+        interviewDate: null,
+        interviewScore: null,
+        allottedRollNo: null,
+        appliedAt: "2026-09-28"
+    }
+];
+
 const server = http.createServer((req, res) => {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -248,6 +362,242 @@ const server = http.createServer((req, res) => {
             });
             return;
         }
+    }
+
+    // =========================================================================
+    // API: ADMISSIONS MANAGEMENT (LOCAL & INTERNATIONAL ADMISSIONS SUPPORT)
+    // =========================================================================
+
+    // GET /api/admissions (Retrieves admissions with optional category & status filtering)
+    if (pathname === '/api/admissions' && req.method === 'GET') {
+        const studentTypeFilter = parsedUrl.searchParams.get('studentType');
+        const statusFilter = parsedUrl.searchParams.get('status');
+        const search = parsedUrl.searchParams.get('search');
+
+        let filtered = systemAdmissions;
+        if (studentTypeFilter && studentTypeFilter !== 'ALL') {
+            filtered = filtered.filter(a => a.studentType === studentTypeFilter);
+        }
+        if (statusFilter && statusFilter !== 'ALL') {
+            filtered = filtered.filter(a => a.status === statusFilter);
+        }
+        if (search) {
+            const q = search.toLowerCase();
+            filtered = filtered.filter(a => 
+                (a.name && a.name.toLowerCase().includes(q)) ||
+                (a.applicationNo && a.applicationNo.toLowerCase().includes(q)) ||
+                (a.cnic && a.cnic.includes(q)) ||
+                (a.passport && a.passport.toLowerCase().includes(q)) ||
+                (a.country && a.country.toLowerCase().includes(q))
+            );
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: 'success',
+            count: filtered.length,
+            admissions: filtered
+        }));
+        return;
+    }
+
+    // GET /api/admissions/:id
+    if (pathname.startsWith('/api/admissions/') && req.method === 'GET') {
+        const appId = pathname.replace('/api/admissions/', '').trim();
+        const record = systemAdmissions.find(a => a.id === appId || a.applicationNo === appId);
+        if (!record) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Admission application not found' }));
+            return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'success', admission: record }));
+        return;
+    }
+
+    // POST /api/admissions (New applicant registration)
+    if (pathname === '/api/admissions' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                const studentType = (data.studentType || 'LOCAL').toUpperCase();
+                const name = (data.name || '').trim();
+                const fatherName = (data.fatherName || '').trim();
+                const phone = (data.phone || '').trim();
+
+                if (!name || !fatherName || !phone) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Candidate name, father name, and phone number are required' }));
+                    return;
+                }
+
+                let cnic = '';
+                let passport = '';
+                let country = 'Pakistan';
+
+                if (studentType === 'LOCAL') {
+                    cnic = (data.cnic || '').trim();
+                    const cnicDigits = cnic.replace(/\D/g, '');
+                    if (!cnic || cnicDigits.length !== 13) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ 
+                            error: 'Invalid CNIC: Pakistani Local students must provide a valid 13-digit CNIC / B-Form number.' 
+                        }));
+                        return;
+                    }
+                    country = 'Pakistan';
+                } else if (studentType === 'INTERNATIONAL') {
+                    passport = (data.passport || '').trim();
+                    country = (data.country || '').trim();
+
+                    if (!passport || passport.length < 3) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ 
+                            error: 'Invalid Passport: International students must provide a valid Passport Number (minimum 3 characters).' 
+                        }));
+                        return;
+                    }
+                    if (!country) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ 
+                            error: 'Country of residence is required for International students.' 
+                        }));
+                        return;
+                    }
+                } else {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Invalid studentType. Must be LOCAL or INTERNATIONAL.' }));
+                    return;
+                }
+
+                const newId = data.id || ('adm_' + Date.now());
+                const appNo = data.applicationNo || ('ASH-ADM-2024-' + String(systemAdmissions.length + 95).padStart(3, '0'));
+
+                const newRecord = {
+                    id: newId,
+                    applicationNo: appNo,
+                    studentType: studentType,
+                    name: name,
+                    fatherName: fatherName,
+                    cnic: cnic,
+                    passport: passport,
+                    country: country,
+                    phone: phone,
+                    email: data.email || 'student@ashrafia.org',
+                    programId: data.programId || 'p1',
+                    branchId: data.branchId || 'b1',
+                    hostelRequired: !!data.hostelRequired,
+                    previousMadrasa: data.previousMadrasa || 'None',
+                    hafizStatus: !!data.hafizStatus,
+                    status: data.status || 'APPLIED',
+                    interviewDate: data.interviewDate || null,
+                    interviewScore: data.interviewScore || null,
+                    allottedRollNo: data.allottedRollNo || null,
+                    appliedAt: data.appliedAt || new Date().toISOString().split('T')[0],
+                    createdAt: new Date().toISOString()
+                };
+
+                systemAdmissions.unshift(newRecord);
+
+                res.writeHead(201, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'success',
+                    message: 'Admission application registered successfully on server.',
+                    record: newRecord
+                }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid application payload' }));
+            }
+        });
+        return;
+    }
+
+    // PUT /api/admissions/:id or POST /api/admissions/update (Admin updates admission details)
+    if ((pathname.startsWith('/api/admissions/') && (req.method === 'PUT' || req.method === 'PATCH')) ||
+        (pathname === '/api/admissions/update' && req.method === 'POST')) {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                const appId = pathname.startsWith('/api/admissions/') 
+                    ? pathname.replace('/api/admissions/', '').trim()
+                    : (data.id || data.applicationNo);
+
+                const existingIndex = systemAdmissions.findIndex(a => a.id === appId || a.applicationNo === appId);
+                if (existingIndex === -1) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Admission application not found' }));
+                    return;
+                }
+
+                const existing = systemAdmissions[existingIndex];
+                const studentType = (data.studentType || existing.studentType || 'LOCAL').toUpperCase();
+
+                let cnic = existing.cnic;
+                let passport = existing.passport;
+                let country = existing.country;
+
+                if (studentType === 'LOCAL') {
+                    if (data.cnic !== undefined) {
+                        cnic = data.cnic.trim();
+                        const cnicDigits = cnic.replace(/\D/g, '');
+                        if (!cnic || cnicDigits.length !== 13) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: 'CNIC must contain 13 digits for Local students.' }));
+                            return;
+                        }
+                    }
+                    passport = '';
+                    country = 'Pakistan';
+                } else if (studentType === 'INTERNATIONAL') {
+                    if (data.passport !== undefined) {
+                        passport = data.passport.trim();
+                        if (!passport || passport.length < 3) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: 'Passport must be at least 3 characters for International students.' }));
+                            return;
+                        }
+                    }
+                    if (data.country !== undefined) {
+                        country = data.country.trim();
+                        if (!country) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: 'Country of residence is required for International students.' }));
+                            return;
+                        }
+                    }
+                    cnic = '';
+                }
+
+                const updated = {
+                    ...existing,
+                    ...data,
+                    studentType: studentType,
+                    cnic: cnic,
+                    passport: passport,
+                    country: country,
+                    updatedAt: new Date().toISOString()
+                };
+
+                systemAdmissions[existingIndex] = updated;
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'success',
+                    message: 'Admission application updated successfully on server.',
+                    record: updated
+                }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid update payload' }));
+            }
+        });
+        return;
     }
 
     // =========================================================================

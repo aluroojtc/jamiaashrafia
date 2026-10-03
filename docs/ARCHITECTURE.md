@@ -43,7 +43,7 @@ This Cloud Learning Management System (LMS) modernizes Jamia Ashrafia's academic
 ## 3. Core Architectural Components
 
 ### 3.1. Client Layer (Responsive Web Portal)
-- **Design Philosophy:** Tailored Islamic academic aesthetic featuring deep emerald green (`#064e3b`), metallic gold/ochre accents (`#b45309`), clean high-contrast surface elevation, bilingual support (English & Nastaliq Urdu), and zero generic styling.
+- **Design Philosophy:** Tailored Islamic academic aesthetic featuring deep Islamic teal (`#42939f` / `#124855`), antique gold/ochre accents (`#c0a264` / `#aa8637`), clean high-contrast light surface elevation, bilingual support (English & Nastaliq Urdu), and modern institutional branding.
 - **Role-Based Views:**
   - **Super Admin (Mohtamim / Executive Shura):** Institutional KPI dashboards, branch management, financial audits, governance.
   - **Academic Admin (Nazim-e-Taleemat):** Admissions review & enrollment, course curricula, teacher allocations, timetables, examinations & Wifaq grade processing.

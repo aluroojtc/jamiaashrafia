@@ -38,14 +38,14 @@ const ClassesCoursesModule = {
                     const isSelected = cls.id === this.selectedClassId;
                     const teacher = window.LmsData.users.find(u => u.id === cls.teacherId) || { name: "Assigned Scholar" };
                     return `
-                        <div class="card" style="padding: 16px; cursor: pointer; border-color: ${isSelected ? 'var(--gold-400)' : 'var(--border-subtle)'}; background: ${isSelected ? 'rgba(6, 78, 59, 0.25)' : 'var(--bg-surface)'};" onclick="ClassesCoursesModule.selectClass('${cls.id}')">
+                        <div class="card" style="padding: 16px; cursor: pointer; border: ${isSelected ? '2px solid var(--primary-600)' : '1px solid var(--border-subtle)'}; background: ${isSelected ? 'var(--primary-50)' : 'var(--bg-surface)'};" onclick="ClassesCoursesModule.selectClass('${cls.id}')">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                                 <span class="status-pill ${isSelected ? 'gold' : 'info'}" style="font-size: 0.65rem;">Active Class</span>
-                                <span style="font-size: 0.75rem; color: var(--gold-300);"><i class="fas fa-user-friends"></i> ${cls.enrolledCount} Talaba</span>
+                                <span style="font-size: 0.75rem; color: var(--gold-700);"><i class="fas fa-user-friends"></i> ${cls.enrolledCount} Talaba</span>
                             </div>
-                            <h4 style="font-size: 0.95rem; color: #ffffff; margin-bottom: 4px;">${cls.name}</h4>
+                            <h4 style="font-size: 0.95rem; color: var(--primary-950); margin-bottom: 4px;">${cls.name}</h4>
                             <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">${cls.section}</div>
-                            <div style="font-size: 0.78rem; color: var(--primary-400);"><i class="fas fa-chalkboard-teacher"></i> ${teacher.name}</div>
+                            <div style="font-size: 0.78rem; color: var(--primary-700);"><i class="fas fa-chalkboard-teacher"></i> ${teacher.name}</div>
                         </div>
                     `;
                 }).join('')}
@@ -79,16 +79,16 @@ const ClassesCoursesModule = {
                                     return `
                                         <tr>
                                             <td>
-                                                <div style="font-weight: 700; color: #ffffff;">${course.title}</div>
-                                                <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-200);">${course.urduTitle}</div>
+                                                <div style="font-weight: 700; color: var(--primary-950);">${course.title}</div>
+                                                <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${course.urduTitle}</div>
                                                 <div style="font-size: 0.72rem; color: var(--text-muted);">${course.code} • Year ${course.year}</div>
                                             </td>
                                             <td>
                                                 <div style="font-size: 0.82rem; color: var(--text-secondary);">${course.kitabAuthor}</div>
-                                                <div style="font-size: 0.72rem; color: var(--gold-400);">${course.recommendedPub}</div>
+                                                <div style="font-size: 0.72rem; color: var(--gold-700);">${course.recommendedPub}</div>
                                             </td>
                                             <td>
-                                                <div style="font-weight: 600; color: var(--primary-400);">${teacher.name}</div>
+                                                <div style="font-weight: 600; color: var(--primary-700);">${teacher.name}</div>
                                                 <div style="font-size: 0.72rem; color: var(--text-muted);">Senior Faculty</div>
                                             </td>
                                             <td><strong>${course.credits}</strong> Hrs/Wk</td>
@@ -117,8 +117,8 @@ const ClassesCoursesModule = {
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <div class="user-avatar" style="width: 36px; height: 36px;">${s.avatar}</div>
                                     <div>
-                                        <div style="font-weight: 600; font-size: 0.85rem; color: #ffffff;">${s.name}</div>
-                                        <div style="font-size: 0.72rem; color: var(--gold-300);">${s.rollNo}</div>
+                                        <div style="font-weight: 600; font-size: 0.85rem; color: var(--primary-950);">${s.name}</div>
+                                        <div style="font-size: 0.72rem; color: var(--gold-700);">${s.rollNo}</div>
                                     </div>
                                 </div>
                                 <span class="status-pill success" style="font-size: 0.65rem;">Active</span>
@@ -145,13 +145,13 @@ const ClassesCoursesModule = {
         modalTitle.innerHTML = `<i class="fas fa-book-open" style="color: var(--gold-400);"></i> Detailed Syllabus: ${course.title}`;
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
-                <div style="font-family: 'Amiri', serif; font-size: 1.4rem; color: var(--gold-300); text-align: right;">${course.urduTitle}</div>
+                <div style="font-family: 'Amiri', serif; font-size: 1.4rem; color: var(--gold-700); text-align: right;">${course.urduTitle}</div>
                 <div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px;"><strong>Author:</strong> ${course.kitabAuthor}</div>
                 <div style="font-size: 0.85rem; color: var(--text-muted);"><strong>Prescribed Edition:</strong> ${course.recommendedPub}</div>
             </div>
 
             <div class="card" style="background: var(--bg-surface-elevated); padding: 16px; margin-bottom: 14px;">
-                <h4 style="color: #ffffff; font-size: 0.95rem; margin-bottom: 8px;"><i class="fas fa-list-ol"></i> Term Breakdown & Chapters</h4>
+                <h4 style="color: var(--primary-950); font-size: 0.95rem; margin-bottom: 8px;"><i class="fas fa-list-ol"></i> Term Breakdown & Chapters</h4>
                 <ul style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.8;">
                     <li><strong>Term 1 (Shashmahi):</strong> Hadith 1 to Hadith 350 - Kitab Bad' al-Wahy, Kitab al-Iman, Kitab al-Ilm with Asanid analysis and translation of Gharib al-Lughah.</li>
                     <li><strong>Term 2 (Salana):</strong> Kitab as-Salah, Kitab al-Jana'iz, Kitab az-Zakah - Legal deduction according to Imam Abu Hanifah and comparative study of Aimmah Arba'ah.</li>

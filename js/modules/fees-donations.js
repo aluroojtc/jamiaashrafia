@@ -103,14 +103,14 @@ const FeesDonationsModule = {
                                 ${challans.map(ch => `
                                     <tr>
                                         <td>
-                                            <div style="font-weight: 700; color: #ffffff;">${ch.studentName}</div>
-                                            <div style="font-family: monospace; font-size: 0.8rem; color: var(--gold-300);">${ch.challanNumber}</div>
+                                            <div style="font-weight: 700; color: var(--primary-950);">${ch.studentName}</div>
+                                            <div style="font-family: monospace; font-size: 0.8rem; color: var(--gold-700);">${ch.challanNumber}</div>
                                             <div style="font-size: 0.72rem; color: var(--text-muted);">${ch.rollNo}</div>
                                         </td>
                                         <td>
                                             <div style="font-weight: 600;">${ch.class}</div>
                                             <div style="font-size: 0.75rem; color: var(--text-muted);">${ch.billingMonth}</div>
-                                            <div style="font-size: 0.72rem; color: #f87171;">Due: ${ch.dueDate}</div>
+                                            <div style="font-size: 0.72rem; color: var(--danger); font-weight: 600;">Due: ${ch.dueDate}</div>
                                         </td>
                                         <td style="font-size: 0.8rem;">
                                             <div>Tuition: PKR ${ch.tuitionFee} (Free Waqf)</div>
@@ -124,7 +124,7 @@ const FeesDonationsModule = {
                                             ` : '<span style="color: var(--text-muted); font-size: 0.75rem;">None</span>'}
                                         </td>
                                         <td>
-                                            <div style="font-size: 1.1rem; font-weight: 800; color: #ffffff;">
+                                            <div style="font-size: 1.1rem; font-weight: 800; color: var(--primary-950);">
                                                 PKR ${ch.netPayable.toLocaleString()}
                                             </div>
                                         </td>
@@ -176,10 +176,10 @@ const FeesDonationsModule = {
                                 ${donations.map(don => `
                                     <tr>
                                         <td>
-                                            <div style="font-weight: 700; color: #ffffff;">
+                                            <div style="font-weight: 700; color: var(--primary-950);">
                                                 ${don.isAnonymous ? '<i class="fas fa-user-secret" style="color: var(--text-muted);"></i> Anonymous Muhsin' : don.donorName}
                                             </div>
-                                            <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-300);">${don.receiptNo}</div>
+                                            <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-700);">${don.receiptNo}</div>
                                         </td>
                                         <td>
                                             <span class="status-pill ${don.donationType === 'ZAKAT' ? 'gold' : 'info'}">
@@ -188,11 +188,11 @@ const FeesDonationsModule = {
                                         </td>
                                         <td style="font-size: 0.85rem; color: var(--text-secondary);">${don.purpose}</td>
                                         <td>
-                                            <strong style="font-size: 1.05rem; color: #ffffff;">PKR ${don.amount.toLocaleString()}</strong>
+                                            <strong style="font-size: 1.05rem; color: var(--primary-950);">PKR ${don.amount.toLocaleString()}</strong>
                                         </td>
                                         <td style="font-size: 0.78rem;">
                                             <div><i class="fas fa-calendar-day"></i> ${don.receivedAt}</div>
-                                            <div style="color: var(--primary-400);">${don.paymentChannel}</div>
+                                            <div style="color: var(--primary-700);">${don.paymentChannel}</div>
                                         </td>
                                         <td>
                                             <button class="btn btn-secondary btn-sm" onclick="FeesDonationsModule.printDonationReceipt('${don.id}')">
@@ -248,10 +248,10 @@ const FeesDonationsModule = {
             <div class="challan-part">
                 <div class="challan-part-title">${partName}</div>
                 <div class="challan-head">
-                    <img src="assets/images/crest.jpg" style="width: 32px; height: 32px; border-radius: 50%; margin: 0 auto 4px;">
+                    <img src="assets/images/logo.png" style="width: 36px; height: 36px; object-fit: contain; margin: 0 auto 4px;">
                     <h3>JAMIA ASHRAFIA LAHORE</h3>
                     <p>Ferozepur Road Campus • Est. 1947</p>
-                    <p style="font-weight: 700; color: #064e3b; margin-top: 2px;">Account No: 0142-7901452203</p>
+                    <p style="font-weight: 700; color: var(--primary-800); margin-top: 2px;">Account No: 0142-7901452203</p>
                 </div>
 
                 <div class="challan-barcode">
@@ -270,7 +270,7 @@ const FeesDonationsModule = {
                     <tr><td>Tuition (Dars-e-Nizami)</td><td style="text-align: right;">PKR 0.00</td></tr>
                     <tr><td>Hostel Accommodation</td><td style="text-align: right;">PKR ${ch.hostelMessFee}</td></tr>
                     <tr><td>Wifaq Examination Fee</td><td style="text-align: right;">PKR ${ch.examFee}</td></tr>
-                    ${ch.scholarshipWaiver > 0 ? `<tr><td style="color: #064e3b;">Waqf Scholarship</td><td style="text-align: right; color: #064e3b;">-PKR ${ch.scholarshipWaiver}</td></tr>` : ''}
+                    ${ch.scholarshipWaiver > 0 ? `<tr><td style="color: var(--primary-700);">Waqf Scholarship</td><td style="text-align: right; color: var(--primary-700);">-PKR ${ch.scholarshipWaiver}</td></tr>` : ''}
                     <tr><td>Net Payable</td><td style="text-align: right;">PKR ${ch.netPayable}</td></tr>
                 </table>
 
@@ -439,16 +439,16 @@ const FeesDonationsModule = {
         
         modalTitle.innerHTML = `<i class="fas fa-receipt" style="color: var(--gold-400);"></i> Official Donation Receipt`;
         modalBody.innerHTML = `
-            <div style="background: #ffffff; color: #111827; border: 3px double #064e3b; border-radius: 8px; padding: 24px; font-family: 'Inter', sans-serif;">
-                <div style="text-align: center; border-bottom: 2px solid #064e3b; padding-bottom: 12px; margin-bottom: 16px;">
-                    <img src="assets/images/crest.jpg" style="width: 50px; height: 50px; border-radius: 50%; margin: 0 auto 6px;">
-                    <h2 style="color: #064e3b; font-size: 1.25rem; font-weight: 800;">JAMIA ASHRAFIA LAHORE</h2>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: #b45309;">جامعہ اشرفیہ، لاہور - مالیاتی شعبہ و بیت المال</div>
-                    <div style="font-size: 0.75rem; color: #4b5563;">Main Campus: Ferozepur Road, Lahore • Reg. Society No: 1947/LHR</div>
+            <div style="background: #ffffff; color: var(--text-primary); border: 3px double var(--primary-800); border-radius: 8px; padding: 24px; font-family: 'Inter', sans-serif;">
+                <div style="text-align: center; border-bottom: 2px solid var(--primary-800); padding-bottom: 12px; margin-bottom: 16px;">
+                    <img src="assets/images/logo.png" style="width: 52px; height: 52px; object-fit: contain; margin: 0 auto 6px;">
+                    <h2 style="color: var(--primary-900); font-size: 1.25rem; font-weight: 800;">JAMIA ASHRAFIA LAHORE</h2>
+                    <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-600);">جامعہ اشرفیہ، لاہور - مالیاتی شعبہ و بیت المال</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Main Campus: Ferozepur Road, Lahore • Reg. Society No: 1947/LHR</div>
                 </div>
 
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 16px;">
-                    <div><strong>Receipt No:</strong> <span style="color: #b45309; font-weight: 700;">${don.receiptNo}</span></div>
+                    <div><strong>Receipt No:</strong> <span style="color: var(--primary-700); font-weight: 700;">${don.receiptNo}</span></div>
                     <div><strong>Date:</strong> ${don.receivedAt}</div>
                 </div>
 
@@ -457,7 +457,7 @@ const FeesDonationsModule = {
                     <div>Category: <strong>${don.donationType}</strong></div>
                     <div>Purpose: <em>${don.purpose}</em></div>
                     <div>Payment Channel: ${don.paymentChannel}</div>
-                    <div style="margin-top: 10px; font-size: 1.2rem; font-weight: 800; color: #064e3b; background: #ecfdf5; padding: 8px 14px; border-radius: 6px; display: inline-block;">
+                    <div style="margin-top: 10px; font-size: 1.2rem; font-weight: 800; color: var(--primary-800); background: var(--primary-50); border: 1px solid var(--primary-100); padding: 8px 14px; border-radius: 6px; display: inline-block;">
                         Amount: PKR ${don.amount.toLocaleString()} Only
                     </div>
                 </div>

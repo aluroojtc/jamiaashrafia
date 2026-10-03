@@ -6,6 +6,23 @@
 
 const STORAGE_KEY = 'JAMIA_ASHRAFIA_LMS_DATA_V1';
 
+// Global Comprehensive World Countries List for International Student Admissions
+const WORLD_COUNTRIES = [
+    "Afghanistan", "Albania", "Algeria", "Argentina", "Australia", "Austria", "Azerbaijan",
+    "Bahrain", "Bangladesh", "Belgium", "Bosnia and Herzegovina", "Brazil", "Brunei", "Bulgaria",
+    "Canada", "China", "Cyprus", "Czech Republic", "Denmark", "Egypt", "Fiji", "Finland",
+    "France", "Georgia", "Germany", "Ghana", "Greece", "Hong Kong", "Hungary", "India",
+    "Indonesia", "Iran", "Iraq", "Ireland", "Italy", "Japan", "Jordan", "Kazakhstan",
+    "Kenya", "Kuwait", "Kyrgyzstan", "Lebanon", "Libya", "Malaysia", "Maldives", "Mauritius",
+    "Mexico", "Morocco", "Nepal", "Netherlands", "New Zealand", "Nigeria", "Norway", "Oman",
+    "Pakistan", "Palestine", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia",
+    "Saudi Arabia", "Singapore", "Somalia", "South Africa", "South Korea", "Spain", "Sri Lanka",
+    "Sudan", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Tunisia",
+    "Turkey", "Turkmenistan", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom",
+    "United States", "Uzbekistan", "Yemen", "Zambia", "Zimbabwe"
+];
+window.WORLD_COUNTRIES = WORLD_COUNTRIES;
+
 const INITIAL_DATA = {
     institution: {
         name: "Jamia Ashrafia Lahore",
@@ -398,9 +415,12 @@ const INITIAL_DATA = {
         {
             id: "adm_101",
             applicationNo: "ASH-ADM-2024-089",
+            studentType: "LOCAL",
             name: "Ahmad Raza Siddiqui",
             fatherName: "Maulana Muhammad Siddique",
             cnic: "35201-8934521-3",
+            passport: "",
+            country: "Pakistan",
             phone: "+92 300 4589211",
             email: "ahmad.raza@gmail.com",
             programId: "p1",
@@ -417,9 +437,12 @@ const INITIAL_DATA = {
         {
             id: "adm_102",
             applicationNo: "ASH-ADM-2024-090",
+            studentType: "LOCAL",
             name: "Zubair Ahmad Qasmi",
             fatherName: "Hafiz Abdul Qadir",
             cnic: "38403-1249872-5",
+            passport: "",
+            country: "Pakistan",
             phone: "+92 321 7845123",
             email: "zubair.qasmi@outlook.com",
             programId: "p2",
@@ -436,9 +459,12 @@ const INITIAL_DATA = {
         {
             id: "adm_103",
             applicationNo: "ASH-ADM-2024-091",
+            studentType: "LOCAL",
             name: "Zainab Bint Tariq",
             fatherName: "Tariq Mahmood",
             cnic: "35202-6721980-6",
+            passport: "",
+            country: "Pakistan",
             phone: "+92 333 9812470",
             email: "zainab.tariq@gmail.com",
             programId: "p5",
@@ -455,9 +481,12 @@ const INITIAL_DATA = {
         {
             id: "adm_104",
             applicationNo: "ASH-ADM-2024-092",
+            studentType: "LOCAL",
             name: "Abdullah Haroon",
             fatherName: "Haroon Rashid",
             cnic: "37405-5544123-1",
+            passport: "",
+            country: "Pakistan",
             phone: "+92 301 6677889",
             email: "abdullah.haroon@yahoo.com",
             programId: "p3",
@@ -470,6 +499,28 @@ const INITIAL_DATA = {
             interviewScore: null,
             allottedRollNo: null,
             appliedAt: "2026-09-27"
+        },
+        {
+            id: "adm_105",
+            applicationNo: "ASH-ADM-2024-093",
+            studentType: "INTERNATIONAL",
+            name: "Tariq Abdul Majeed",
+            fatherName: "Maulana Abdul Majeed",
+            cnic: "",
+            passport: "GBR-98421054",
+            country: "United Kingdom",
+            phone: "+44 7700 900123",
+            email: "tariq.majeed@gmail.com",
+            programId: "p1",
+            branchId: "b1",
+            hostelRequired: true,
+            previousMadrasa: "Darul Uloom London",
+            hafizStatus: true,
+            status: "APPLIED",
+            interviewDate: null,
+            interviewScore: null,
+            allottedRollNo: null,
+            appliedAt: "2026-09-28"
         }
     ],
 
@@ -1477,6 +1528,31 @@ const DataStore = {
                 if (!parsed.virtualClassSettings) {
                     parsed.virtualClassSettings = JSON.parse(JSON.stringify(INITIAL_DATA.virtualClassSettings));
                     dirty = true;
+                }
+
+                // Guarantee admissions items have studentType, country, and seed items
+                if (!parsed.admissions || parsed.admissions.length === 0) {
+                    parsed.admissions = JSON.parse(JSON.stringify(INITIAL_DATA.admissions));
+                    dirty = true;
+                } else {
+                    parsed.admissions.forEach(a => {
+                        if (!a.studentType) {
+                            a.studentType = (a.passport && !a.cnic) ? 'INTERNATIONAL' : 'LOCAL';
+                            dirty = true;
+                        }
+                        if (!a.country) {
+                            a.country = a.studentType === 'INTERNATIONAL' ? (a.country || 'International') : 'Pakistan';
+                            dirty = true;
+                        }
+                    });
+                    // Ensure sample international student adm_105 exists if seed was populated
+                    if (!parsed.admissions.some(a => a.id === 'adm_105')) {
+                        const seedIntl = INITIAL_DATA.admissions.find(a => a.id === 'adm_105');
+                        if (seedIntl) {
+                            parsed.admissions.push(JSON.parse(JSON.stringify(seedIntl)));
+                            dirty = true;
+                        }
+                    }
                 }
 
                 if (dirty) {

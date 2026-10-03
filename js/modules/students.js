@@ -210,12 +210,12 @@ const StudentsModule = {
                                                     ${s.avatar || 'ST'}
                                                 </div>
                                                 <div>
-                                                    <div style="font-weight: 700; color: #ffffff;">
-                                                        <a href="javascript:void(0)" onclick="StudentsModule.viewProfile('${s.id}')" style="color: #ffffff; text-decoration: none;" onmouseover="this.style.color='var(--gold-400)'" onmouseout="this.style.color='#ffffff'">
+                                                    <div style="font-weight: 700; color: var(--primary-950);">
+                                                        <a href="javascript:void(0)" onclick="StudentsModule.viewProfile('${s.id}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--primary-600)'" onmouseout="this.style.color='var(--primary-950)'">
                                                             ${s.name}
                                                         </a>
                                                     </div>
-                                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-200);">${s.urduName || ''}</div>
+                                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${s.urduName || ''}</div>
                                                     <div style="font-size: 0.72rem; color: var(--text-muted);">${s.email || 'No email set'}</div>
                                                 </div>
                                             </div>
@@ -226,7 +226,7 @@ const StudentsModule = {
                                             </span>
                                         </td>
                                         <td style="color: var(--text-secondary); font-size: 0.85rem;">
-                                            <div style="font-weight: 600; color: #ffffff;">${s.program || 'Dars-e-Nizami'}</div>
+                                            <div style="font-weight: 600; color: var(--primary-950);">${s.program || 'Dars-e-Nizami'}</div>
                                             <span style="font-size: 0.72rem; color: var(--text-muted);">${s.classId || 'cls_dawra_a'}</span>
                                         </td>
                                         <td style="font-size: 0.82rem;">
@@ -287,7 +287,7 @@ const StudentsModule = {
                                 <tr>
                                     <td colspan="8" style="text-align: center; padding: 48px; color: var(--text-muted);">
                                         <i class="fas fa-user-slash" style="font-size: 2.5rem; margin-bottom: 12px; color: var(--text-muted); opacity: 0.5;"></i>
-                                        <div style="font-size: 1.1rem; color: #ffffff; margin-bottom: 6px;">No scholars found</div>
+                                        <div style="font-size: 1.1rem; color: var(--primary-950); margin-bottom: 6px;">No scholars found</div>
                                         <div style="font-size: 0.85rem;">No student records match the active tab and search criteria.</div>
                                     </td>
                                 </tr>
@@ -387,16 +387,16 @@ const StudentsModule = {
                     </div>
                     <div style="flex: 1; min-width: 240px;">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <h3 style="color: #ffffff; margin: 0; font-size: 1.3rem;">${student.name}</h3>
+                            <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem;">${student.name}</h3>
                             <span class="status-pill ${currentStatus === 'ACTIVE' ? 'success' : (isSuspended ? 'danger' : 'gold')}">
                                 <i class="fas ${currentStatus === 'ACTIVE' ? 'fa-check-circle' : 'fa-ban'}"></i> ${currentStatus}
                             </span>
                         </div>
-                        <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-200); margin-top: 2px;">
+                        <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-700); margin-top: 2px;">
                             ${student.urduName || ''}
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 0.82rem; color: var(--text-secondary); flex-wrap: wrap;">
-                            <span><strong>Roll No:</strong> <code style="color: var(--primary-300);">${student.rollNo || 'N/A'}</code></span>
+                            <span><strong>Roll No:</strong> <code style="color: var(--primary-800); font-weight: 700;">${student.rollNo || 'N/A'}</code></span>
                             <span><strong>Program:</strong> ${student.program || 'Dars-e-Nizami'}</span>
                             <span><strong>Class:</strong> ${student.classId || 'Dawra-e-Hadith'}</span>
                         </div>
@@ -511,22 +511,22 @@ const StudentsModule = {
 
                     <!-- LMS FEATURE ACCESS PERMISSIONS -->
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                        <h4 style="color: #ffffff; margin-bottom: 12px;"><i class="fas fa-sliders-h"></i> Scholar LMS Capabilities</h4>
+                        <h4 style="color: var(--primary-950); margin-bottom: 12px;"><i class="fas fa-sliders-h"></i> Scholar LMS Capabilities</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.85rem;">
-                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
-                                <span><i class="fas fa-video" style="color: var(--gold-400); margin-right: 8px;"></i> Live Zoom Dars Access</span>
+                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
+                                <span><i class="fas fa-video" style="color: var(--gold-600); margin-right: 8px;"></i> Live Zoom Dars Access</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
-                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
-                                <span><i class="fas fa-edit" style="color: var(--primary-400); margin-right: 8px;"></i> Assignment Submissions</span>
+                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
+                                <span><i class="fas fa-edit" style="color: var(--primary-600); margin-right: 8px;"></i> Assignment Submissions</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
-                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
                                 <span><i class="fas fa-award" style="color: var(--warning); margin-right: 8px;"></i> Wifaq Online Exam Portal</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
-                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
-                                <span><i class="fas fa-book-reader" style="color: #60a5fa; margin-right: 8px;"></i> Maktaba Library Borrowing</span>
+                            <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
+                                <span><i class="fas fa-book-reader" style="color: #2563eb; margin-right: 8px;"></i> Maktaba Library Borrowing</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
                         </div>
@@ -539,7 +539,7 @@ const StudentsModule = {
             return `
                 <div style="display: flex; flex-direction: column; gap: 16px;">
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.8;">
-                        <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-university"></i> Academic Enrollment Details</h4>
+                        <h4 style="color: var(--gold-600); margin-bottom: 10px;"><i class="fas fa-university"></i> Academic Enrollment Details</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem;">
                             <div>
                                 <div><strong>Enrolled Program:</strong> ${student.program || 'Dars-e-Nizami'}</div>
@@ -547,7 +547,7 @@ const StudentsModule = {
                                 <div><strong>Campus / Branch:</strong> Main Campus (Ferozepur Road, Lahore)</div>
                             </div>
                             <div>
-                                <div><strong>Wifaq Registration No:</strong> <code style="color: var(--gold-300);">${student.wifaqReg || 'W-1445-98210'}</code></div>
+                                <div><strong>Wifaq Registration No:</strong> <code style="color: var(--gold-700); font-weight: 700;">${student.wifaqReg || 'W-1445-98210'}</code></div>
                                 <div><strong>Session:</strong> 1446-1447 AH / 2026</div>
                                 <div><strong>Academic Standing:</strong> <span class="status-pill gold">${student.gpa || 'Mumtaz (88%)'}</span></div>
                             </div>
@@ -555,25 +555,25 @@ const StudentsModule = {
                     </div>
 
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                        <h4 style="color: #ffffff; margin-bottom: 12px;"><i class="fas fa-book-open" style="color: var(--gold-400);"></i> Enrolled Kitabs & Faculty (Session 1446-1447)</h4>
+                        <h4 style="color: var(--primary-950); margin-bottom: 12px;"><i class="fas fa-book-open" style="color: var(--gold-600);"></i> Enrolled Kitabs & Faculty (Session 1446-1447)</h4>
                         <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem;">
-                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Sahih al-Bukhari (HAD-801)</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Sahih al-Bukhari (HAD-801)</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Sheikh-ul-Hadith Qari Arshad Ubaid</div>
                                 </div>
                                 <span class="status-pill success">Mumtaz (88%)</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Sunan al-Tirmidhi (HAD-802)</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Sunan al-Tirmidhi (HAD-802)</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Sheikh-ul-Hadith Qari Arshad Ubaid</div>
                                 </div>
                                 <span class="status-pill success">Mumtaz (85%)</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
                                 <div>
-                                    <div style="font-weight: 700; color: #ffffff;">Al-Hidayah Fiqh (FIQ-701)</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">Al-Hidayah Fiqh (FIQ-701)</div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">Chief Mufti Ahmadur Rahman</div>
                                 </div>
                                 <span class="status-pill gold">Jayyid Jiddan (78%)</span>
@@ -585,13 +585,21 @@ const StudentsModule = {
         }
 
         if (this.activeProfileTab === 'personal') {
+            const isIntl = (student.studentType === 'INTERNATIONAL' || (!student.cnic && student.passport));
             return `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem;">
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-card"></i> Candidate Identity</h4>
                         <div><strong>Full Name:</strong> ${student.name}</div>
                         <div><strong>Father's Name:</strong> ${student.guardianName || student.fatherName || 'Maulana Muhammad'}</div>
-                        <div><strong>CNIC / B-Form:</strong> ${student.cnic || '35201-8934521-3'}</div>
+                        <div><strong>Student Category:</strong> <span class="status-pill ${isIntl ? 'gold' : 'success'}">${isIntl ? '<i class="fas fa-globe-americas"></i> International Student' : '<i class="fas fa-flag"></i> Local Student'}</span></div>
+                        ${isIntl ? `
+                            <div><strong>Passport Number:</strong> <code style="color: var(--gold-300); font-weight: 700;">${student.passport || 'N/A'}</code></div>
+                            <div><strong>Country of Residence:</strong> <strong>${student.country || 'International'}</strong></div>
+                        ` : `
+                            <div><strong>CNIC / B-Form:</strong> <code>${student.cnic || '35201-8934521-3'}</code></div>
+                            <div><strong>Nationality:</strong> Pakistan</div>
+                        `}
                         <div><strong>Date of Birth:</strong> ${student.dob || '2004-05-12'}</div>
                         <div><strong>Hafiz-ul-Quran:</strong> <span class="status-pill success" style="font-size: 0.72rem;">Hafiz Verified</span></div>
                     </div>
@@ -612,7 +620,7 @@ const StudentsModule = {
             return `
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-                        <h4 style="color: #ffffff; margin: 0;"><i class="fas fa-calendar-check" style="color: var(--primary-400);"></i> Attendance Timestamp Records</h4>
+                        <h4 style="color: var(--primary-950); margin: 0;"><i class="fas fa-calendar-check" style="color: var(--primary-600);"></i> Attendance Timestamp Records</h4>
                         <span style="font-size: 0.82rem; color: var(--gold-300);">Overall Attendance: <strong>${student.attendancePct || 92}%</strong></span>
                     </div>
 
@@ -682,7 +690,7 @@ const StudentsModule = {
 
             <!-- ATTENDANCE OVERVIEW -->
             <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 18px;">
-                <h4 style="color: #ffffff; margin-bottom: 10px; display: flex; justify-content: space-between;">
+                <h4 style="color: var(--primary-950); margin-bottom: 10px; display: flex; justify-content: space-between;">
                     <span><i class="fas fa-calendar-check" style="color: var(--primary-400);"></i> Attendance Overview</span>
                     <span style="color: var(--gold-300); font-weight: 700;">${student.attendancePct || 92}% Overall</span>
                 </h4>
@@ -741,16 +749,16 @@ const StudentsModule = {
             bodyEl.innerHTML = `
                 <div style="margin-bottom: 16px;">
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 14px;">
-                        Reset LMS login credentials for scholar <strong>${student.name}</strong> (<code style="color: var(--gold-300);">${student.rollNo}</code>).
+                        Reset LMS login credentials for scholar <strong>${student.name}</strong> (<code style="color: var(--gold-700);">${student.rollNo}</code>).
                     </p>
                     <div style="margin-bottom: 16px;">
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Student Login Email
                         </label>
                         <input type="text" class="form-control" value="${student.email || ''}" disabled style="opacity: 0.8;">
                     </div>
                     <div style="margin-bottom: 16px;">
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             New Password *
                         </label>
                         <div style="display: flex; gap: 8px;">
@@ -800,6 +808,7 @@ const StudentsModule = {
         const student = (window.LmsData.users || []).find(u => u.id === studentId);
         if (!student) return;
 
+        const isIntl = (student.studentType === 'INTERNATIONAL' || (!student.cnic && student.passport));
         const titleEl = document.getElementById('modal-title-text');
         const bodyEl = document.getElementById('modal-body-container');
         const footerEl = document.getElementById('modal-footer-container');
@@ -811,31 +820,85 @@ const StudentsModule = {
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <form id="form-edit-student" onsubmit="StudentsModule.handleEditStudentSubmit(event, '${student.id}')">
+                    <!-- STUDENT TYPE SELECTION -->
+                    <div style="margin-bottom: 14px;">
+                        <label class="form-label" style="font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Category *</span>
+                            <span style="font-size: 0.72rem; color: var(--gold-700);">Identification Routing</span>
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <label id="edit-st-type-local-card" style="display: flex; align-items: center; gap: 8px; padding: 10px; background: ${!isIntl ? 'var(--primary-50)' : 'var(--bg-surface-elevated)'}; border: ${!isIntl ? '2px solid var(--primary-500)' : '1.5px solid var(--border-prominent)'}; border-radius: 8px; cursor: pointer;">
+                                <input type="radio" name="edit_st_student_type" value="LOCAL" ${!isIntl ? 'checked' : ''} onchange="StudentsModule.handleEditStudentTypeChange('LOCAL')" style="accent-color: var(--primary-500);">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.85rem; color: var(--primary-950);"><i class="fas fa-flag" style="color: var(--primary-600);"></i> Local Student</div>
+                                    <div style="font-size: 0.72rem; color: var(--text-secondary);">Pakistani (CNIC / B-Form)</div>
+                                </div>
+                            </label>
+                            <label id="edit-st-type-intl-card" style="display: flex; align-items: center; gap: 8px; padding: 10px; background: ${isIntl ? 'var(--gold-50)' : 'var(--bg-surface-elevated)'}; border: ${isIntl ? '2px solid var(--gold-500)' : '1.5px solid var(--border-prominent)'}; border-radius: 8px; cursor: pointer;">
+                                <input type="radio" name="edit_st_student_type" value="INTERNATIONAL" ${isIntl ? 'checked' : ''} onchange="StudentsModule.handleEditStudentTypeChange('INTERNATIONAL')" style="accent-color: var(--gold-500);">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.85rem; color: var(--primary-950);"><i class="fas fa-globe-americas" style="color: var(--gold-600);"></i> International Student</div>
+                                    <div style="font-size: 0.72rem; color: var(--text-secondary);">Overseas (Passport & Country)</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Candidate Name (English) *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Candidate Name (English) *</label>
                             <input type="text" id="edit-st-name" class="form-control" value="${student.name || ''}" required>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Name in Urdu (طالب علم)</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Name in Urdu (طالب علم)</label>
                             <input type="text" id="edit-st-urdu" class="form-control" value="${student.urduName || ''}" style="font-family: 'Amiri', serif;">
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Father / Guardian Name *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father / Guardian Name *</label>
                             <input type="text" id="edit-st-guardian" class="form-control" value="${student.guardianName || student.fatherName || ''}" required>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Roll Number *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Roll Number *</label>
                             <input type="text" id="edit-st-roll" class="form-control" value="${student.rollNo || ''}" required>
+                        </div>
+                    </div>
+
+                    <!-- IDENTIFICATION FIELDS -->
+                    <div style="margin-bottom: 14px;">
+                        <div id="edit-st-cnic-group" style="display: ${!isIntl ? 'block' : 'none'};">
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>CNIC / B-Form Number *</span>
+                                <span style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">XXXXX-XXXXXXX-X</span>
+                            </label>
+                            <input type="text" id="edit-st-cnic" class="form-control" value="${student.cnic || ''}" placeholder="35201-1234567-1" maxlength="15" ${!isIntl ? 'required' : ''}>
+                        </div>
+                        <div id="edit-st-intl-group" style="display: ${isIntl ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 14px;">
+                            <div>
+                                <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span>Passport Number *</span>
+                                    <span style="font-size: 0.72rem; color: var(--gold-700);">Alphanumeric</span>
+                                </label>
+                                <input type="text" id="edit-st-passport" class="form-control" value="${student.passport || ''}" placeholder="e.g. A12345678" maxlength="30" ${isIntl ? 'required' : ''}>
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span>Country of Residence *</span>
+                                    <span style="font-size: 0.72rem; color: var(--gold-700);">Searchable</span>
+                                </label>
+                                <input type="text" id="edit-st-country" list="edit-st-country-datalist" class="form-control" value="${student.country || (isIntl ? 'United Kingdom' : 'Pakistan')}" placeholder="Select country..." ${isIntl ? 'required' : ''}>
+                                <datalist id="edit-st-country-datalist">
+                                    ${(window.WORLD_COUNTRIES || []).map(c => `<option value="${c}">`).join('')}
+                                </datalist>
+                            </div>
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Academic Program *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Academic Program *</label>
                             <select id="edit-st-program" class="form-control">
                                 <option value="Dawra-e-Hadith (Alimiyyah)" ${student.program?.includes('Dawra') ? 'selected' : ''}>Dawra-e-Hadith (Alimiyyah)</option>
                                 <option value="Aaliyah (Alimiyyah 7th)" ${student.program?.includes('Aaliyah') ? 'selected' : ''}>Aaliyah (Alimiyyah 7th)</option>
@@ -846,7 +909,7 @@ const StudentsModule = {
                             </select>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Class Assignment</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Class Assignment</label>
                             <select id="edit-st-class" class="form-control">
                                 <option value="cls_dawra_a" ${student.classId === 'cls_dawra_a' ? 'selected' : ''}>Dawra-e-Hadith Section A</option>
                                 <option value="cls_dawra_b" ${student.classId === 'cls_dawra_b' ? 'selected' : ''}>Dawra-e-Hadith Section B</option>
@@ -859,11 +922,11 @@ const StudentsModule = {
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Contact Phone / WhatsApp</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Contact Phone / WhatsApp</label>
                             <input type="text" id="edit-st-phone" class="form-control" value="${student.phone || ''}">
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Residence / Hostel</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Residence / Hostel</label>
                             <select id="edit-st-hostel" class="form-control">
                                 <option value="Day Scholar" ${!student.hostel || student.hostel.includes('Day') ? 'selected' : ''}>Day Scholar</option>
                                 <option value="Hostel Block A" ${student.hostel?.includes('Block A') ? 'selected' : ''}>Hostel Block A (Resident)</option>
@@ -884,7 +947,51 @@ const StudentsModule = {
             `;
         }
 
+        // CNIC Masking
+        const cnicInput = document.getElementById('edit-st-cnic');
+        if (cnicInput) {
+            cnicInput.addEventListener('input', function(e) {
+                const typeChecked = document.querySelector('input[name="edit_st_student_type"]:checked')?.value;
+                if (typeChecked !== 'LOCAL') return;
+                let val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                if (val.length > 5 && val.length <= 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5);
+                } else if (val.length > 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5, 12) + '-' + val.slice(12);
+                }
+                e.target.value = val;
+            });
+        }
+
         App.openModal();
+    },
+
+    handleEditStudentTypeChange(type) {
+        const localCard = document.getElementById('edit-st-type-local-card');
+        const intlCard = document.getElementById('edit-st-type-intl-card');
+        const cnicGroup = document.getElementById('edit-st-cnic-group');
+        const intlGroup = document.getElementById('edit-st-intl-group');
+        const cnicInput = document.getElementById('edit-st-cnic');
+        const passportInput = document.getElementById('edit-st-passport');
+        const countryInput = document.getElementById('edit-st-country');
+
+        if (type === 'LOCAL') {
+            if (localCard) { localCard.style.borderColor = 'var(--primary-500)'; localCard.style.background = 'rgba(6, 78, 59, 0.4)'; localCard.style.borderWidth = '2px'; }
+            if (intlCard) { intlCard.style.borderColor = 'var(--border-prominent)'; intlCard.style.background = 'var(--bg-surface-elevated)'; intlCard.style.borderWidth = '1.5px'; }
+            if (cnicGroup) cnicGroup.style.display = 'block';
+            if (intlGroup) intlGroup.style.display = 'none';
+            if (cnicInput) { cnicInput.required = true; cnicInput.setAttribute('required', 'required'); }
+            if (passportInput) { passportInput.required = false; passportInput.removeAttribute('required'); }
+            if (countryInput) { countryInput.required = false; countryInput.removeAttribute('required'); }
+        } else {
+            if (intlCard) { intlCard.style.borderColor = 'var(--gold-400)'; intlCard.style.background = 'rgba(217, 119, 6, 0.2)'; intlCard.style.borderWidth = '2px'; }
+            if (localCard) { localCard.style.borderColor = 'var(--border-prominent)'; localCard.style.background = 'var(--bg-surface-elevated)'; localCard.style.borderWidth = '1.5px'; }
+            if (cnicGroup) cnicGroup.style.display = 'none';
+            if (intlGroup) intlGroup.style.display = 'grid';
+            if (cnicInput) { cnicInput.required = false; cnicInput.removeAttribute('required'); }
+            if (passportInput) { passportInput.required = true; passportInput.setAttribute('required', 'required'); }
+            if (countryInput) { countryInput.required = true; countryInput.setAttribute('required', 'required'); }
+        }
     },
 
     handleEditStudentSubmit(e, studentId) {
@@ -892,14 +999,60 @@ const StudentsModule = {
         const student = (window.LmsData.users || []).find(u => u.id === studentId);
         if (!student) return;
 
-        student.name = document.getElementById('edit-st-name').value.trim();
-        student.urduName = document.getElementById('edit-st-urdu').value.trim();
-        student.guardianName = document.getElementById('edit-st-guardian').value.trim();
-        student.rollNo = document.getElementById('edit-st-roll').value.trim();
-        student.program = document.getElementById('edit-st-program').value;
-        student.classId = document.getElementById('edit-st-class').value;
-        student.phone = document.getElementById('edit-st-phone').value.trim();
-        student.hostel = document.getElementById('edit-st-hostel').value;
+        const studentType = document.querySelector('input[name="edit_st_student_type"]:checked')?.value || 'LOCAL';
+        const name = document.getElementById('edit-st-name').value.trim();
+        const urduName = document.getElementById('edit-st-urdu').value.trim();
+        const guardianName = document.getElementById('edit-st-guardian').value.trim();
+        const rollNo = document.getElementById('edit-st-roll').value.trim();
+        const program = document.getElementById('edit-st-program').value;
+        const classId = document.getElementById('edit-st-class').value;
+        const phone = document.getElementById('edit-st-phone').value.trim();
+        const hostel = document.getElementById('edit-st-hostel').value;
+
+        let cnic = '';
+        let passport = '';
+        let country = 'Pakistan';
+
+        if (studentType === 'LOCAL') {
+            cnic = document.getElementById('edit-st-cnic').value.trim();
+            if (!cnic) {
+                App.showToast("Please enter candidate CNIC Number", "warning");
+                return;
+            }
+            const cnicClean = cnic.replace(/\D/g, '');
+            if (cnicClean.length !== 13) {
+                App.showToast("CNIC / B-Form must contain 13 digits (format: 35201-1234567-1)", "warning");
+                return;
+            }
+        } else {
+            passport = document.getElementById('edit-st-passport').value.trim();
+            country = document.getElementById('edit-st-country').value.trim();
+            if (!passport) {
+                App.showToast("Please enter candidate Passport Number", "warning");
+                return;
+            }
+            if (passport.length < 3) {
+                App.showToast("Passport Number must be at least 3 characters", "warning");
+                return;
+            }
+            if (!country) {
+                App.showToast("Please select candidate's country of residence", "warning");
+                return;
+            }
+        }
+
+        student.studentType = studentType;
+        student.name = name;
+        student.urduName = urduName;
+        student.guardianName = guardianName;
+        student.rollNo = rollNo;
+        student.cnic = cnic;
+        student.passport = passport;
+        student.country = country;
+        student.program = program;
+        student.classId = classId;
+        student.phone = phone;
+        student.hostel = hostel;
 
         window.DataStore.save(window.LmsData);
         App.closeModal();
@@ -909,71 +1062,6 @@ const StudentsModule = {
         if (viewport && App.currentRoute === 'students') {
             viewport.innerHTML = this.render();
         }
-    },
-
-    openMoreActionsModal(studentId) {
-        const student = (window.LmsData.users || []).find(u => u.id === studentId);
-        if (!student) return;
-
-        const titleEl = document.getElementById('modal-title-text');
-        const bodyEl = document.getElementById('modal-body-container');
-        const footerEl = document.getElementById('modal-footer-container');
-
-        if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-tools" style="color: var(--gold-400);"></i> Scholar Actions: ${student.name}`;
-        }
-
-        if (bodyEl) {
-            bodyEl.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;" onclick="App.closeModal(); StudentsModule.viewProfile('${student.id}');">
-                        <i class="fas fa-id-card" style="color: var(--gold-400); width: 24px;"></i>
-                        <div style="text-align: left;">
-                            <div style="font-weight: 700;">Open Profile & Account Hub</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">View complete academic history, credentials, and settings</div>
-                        </div>
-                    </button>
-
-                    <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;" onclick="App.closeModal(); StudentsModule.openResetPasswordModal('${student.id}');">
-                        <i class="fas fa-key" style="color: var(--primary-400); width: 24px;"></i>
-                        <div style="text-align: left;">
-                            <div style="font-weight: 700;">Reset Password</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Assign new credentials for student portal login</div>
-                        </div>
-                    </button>
-
-                    <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;" onclick="App.closeModal(); StudentsModule.viewAttendance('${student.id}');">
-                        <i class="fas fa-calendar-check" style="color: #60a5fa; width: 24px;"></i>
-                        <div style="text-align: left;">
-                            <div style="font-weight: 700;">View Attendance Logs</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Inspect daily check-ins, late arrivals, and absence records</div>
-                        </div>
-                    </button>
-
-                    <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;" onclick="App.closeModal(); StudentsModule.printStudentCard('${student.id}');">
-                        <i class="fas fa-print" style="color: var(--warning); width: 24px;"></i>
-                        <div style="text-align: left;">
-                            <div style="font-weight: 700;">Print Student Identity Card</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Generate official Jamia Ashrafia biometric student card</div>
-                        </div>
-                    </button>
-
-                    <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px 16px;" onclick="App.closeModal(); StudentsModule.testStudentPersona('${student.id}');">
-                        <i class="fas fa-exchange-alt" style="color: var(--primary-300); width: 24px;"></i>
-                        <div style="text-align: left;">
-                            <div style="font-weight: 700;">Log in as Student (Persona Switch)</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">View the student portal exactly as this scholar sees it</div>
-                        </div>
-                    </button>
-                </div>
-            `;
-        }
-
-        if (footerEl) {
-            footerEl.innerHTML = `<button class="btn btn-secondary" onclick="App.closeModal()">Close</button>`;
-        }
-
-        App.openModal();
     },
 
     openDirectEnrollmentModal() {
@@ -990,31 +1078,80 @@ const StudentsModule = {
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <form id="form-direct-enroll" onsubmit="StudentsModule.handleDirectEnrollSubmit(event)">
+                    <!-- STUDENT TYPE SELECTION -->
+                    <div style="margin-bottom: 14px;">
+                        <label class="form-label" style="font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Category *</span>
+                            <span style="font-size: 0.72rem; color: var(--gold-700);">Identification Routing</span>
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <label id="direct-st-type-local-card" style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--primary-50); border: 2px solid var(--primary-500); border-radius: 8px; cursor: pointer;">
+                                <input type="radio" name="direct_st_student_type" value="LOCAL" checked onchange="StudentsModule.handleDirectEnrollTypeChange('LOCAL')" style="accent-color: var(--primary-500);">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.85rem; color: var(--primary-950);"><i class="fas fa-flag" style="color: var(--primary-600);"></i> Local Student</div>
+                                    <div style="font-size: 0.72rem; color: var(--text-secondary);">Pakistani (CNIC / B-Form)</div>
+                                </div>
+                            </label>
+                            <label id="direct-st-type-intl-card" style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg-surface-elevated); border: 1.5px solid var(--border-prominent); border-radius: 8px; cursor: pointer;">
+                                <input type="radio" name="direct_st_student_type" value="INTERNATIONAL" onchange="StudentsModule.handleDirectEnrollTypeChange('INTERNATIONAL')" style="accent-color: var(--gold-500);">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.85rem; color: var(--primary-950);"><i class="fas fa-globe-americas" style="color: var(--gold-600);"></i> International Student</div>
+                                    <div style="font-size: 0.72rem; color: var(--text-secondary);">Overseas (Passport & Country)</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Scholar Name (English) *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Scholar Name (English) *</label>
                             <input type="text" id="direct-st-name" class="form-control" placeholder="e.g. Hafiz Usman Ghani" required>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Father's Name *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father's Name *</label>
                             <input type="text" id="direct-st-father" class="form-control" placeholder="e.g. Maulana Abdul Shakoor" required>
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Allotted Roll Number *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Allotted Roll Number *</label>
                             <input type="text" id="direct-st-roll" class="form-control" value="${nextRollNumber}" required>
                         </div>
+                        <!-- LOCAL CNIC FIELD -->
+                        <div id="direct-st-cnic-group">
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>CNIC / B-Form Number *</span>
+                                <span style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">XXXXX-XXXXXXX-X</span>
+                            </label>
+                            <input type="text" id="direct-st-cnic" class="form-control" placeholder="35201-1234567-1" maxlength="15" required>
+                        </div>
+                    </div>
+
+                    <!-- INTERNATIONAL PASSPORT & COUNTRY FIELDS -->
+                    <div id="direct-st-intl-group" style="display: none; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">CNIC / B-Form Number *</label>
-                            <input type="text" id="direct-st-cnic" class="form-control" placeholder="35201-1234567-1" required>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Passport Number *</span>
+                                <span style="font-size: 0.72rem; color: var(--gold-700);">Alphanumeric</span>
+                            </label>
+                            <input type="text" id="direct-st-passport" class="form-control" placeholder="e.g. A12345678" maxlength="30">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Country of Residence *</span>
+                                <span style="font-size: 0.72rem; color: var(--gold-700);">Searchable</span>
+                            </label>
+                            <input type="text" id="direct-st-country" list="direct-st-country-datalist" class="form-control" placeholder="Search country...">
+                            <datalist id="direct-st-country-datalist">
+                                ${(window.WORLD_COUNTRIES || []).map(c => `<option value="${c}">`).join('')}
+                            </datalist>
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Academic Program *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Academic Program *</label>
                             <select id="direct-st-program" class="form-control">
                                 <option value="Dawra-e-Hadith (Alimiyyah)">Dawra-e-Hadith (Alimiyyah)</option>
                                 <option value="Aaliyah (Alimiyyah 7th)">Aaliyah (Alimiyyah 7th)</option>
@@ -1023,7 +1160,7 @@ const StudentsModule = {
                             </select>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Class Assignment *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Class Assignment *</label>
                             <select id="direct-st-class" class="form-control">
                                 <option value="cls_dawra_a">Dawra-e-Hadith Section A</option>
                                 <option value="cls_dawra_b">Dawra-e-Hadith Section B</option>
@@ -1036,17 +1173,17 @@ const StudentsModule = {
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Student Login Email *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Student Login Email *</label>
                             <input type="email" id="direct-st-email" class="form-control" placeholder="scholar@jamiaashrafia.org" required>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Initial Password *</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Initial Password *</label>
                             <input type="text" id="direct-st-pwd" class="form-control" value="ashrafia123" required>
                         </div>
                     </div>
 
                     <div style="margin-bottom: 14px;">
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 4px;">Hostel Accommodation</label>
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Hostel Accommodation</label>
                         <select id="direct-st-hostel" class="form-control">
                             <option value="Day Scholar">Day Scholar (Non-Resident)</option>
                             <option value="Hostel Block A">Hostel Block A (Resident)</option>
@@ -1066,34 +1203,113 @@ const StudentsModule = {
             `;
         }
 
+        // CNIC Masking
+        const cnicInput = document.getElementById('direct-st-cnic');
+        if (cnicInput) {
+            cnicInput.addEventListener('input', function(e) {
+                const typeChecked = document.querySelector('input[name="direct_st_student_type"]:checked')?.value;
+                if (typeChecked !== 'LOCAL') return;
+                let val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                if (val.length > 5 && val.length <= 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5);
+                } else if (val.length > 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5, 12) + '-' + val.slice(12);
+                }
+                e.target.value = val;
+            });
+        }
+
         App.openModal();
+    },
+
+    handleDirectEnrollTypeChange(type) {
+        const localCard = document.getElementById('direct-st-type-local-card');
+        const intlCard = document.getElementById('direct-st-type-intl-card');
+        const cnicGroup = document.getElementById('direct-st-cnic-group');
+        const intlGroup = document.getElementById('direct-st-intl-group');
+        const cnicInput = document.getElementById('direct-st-cnic');
+        const passportInput = document.getElementById('direct-st-passport');
+        const countryInput = document.getElementById('direct-st-country');
+
+        if (type === 'LOCAL') {
+            if (localCard) { localCard.style.borderColor = 'var(--primary-500)'; localCard.style.background = 'rgba(6, 78, 59, 0.4)'; localCard.style.borderWidth = '2px'; }
+            if (intlCard) { intlCard.style.borderColor = 'var(--border-prominent)'; intlCard.style.background = 'var(--bg-surface-elevated)'; intlCard.style.borderWidth = '1.5px'; }
+            if (cnicGroup) cnicGroup.style.display = 'block';
+            if (intlGroup) intlGroup.style.display = 'none';
+            if (cnicInput) { cnicInput.required = true; cnicInput.setAttribute('required', 'required'); }
+            if (passportInput) { passportInput.required = false; passportInput.removeAttribute('required'); }
+            if (countryInput) { countryInput.required = false; countryInput.removeAttribute('required'); }
+        } else {
+            if (intlCard) { intlCard.style.borderColor = 'var(--gold-400)'; intlCard.style.background = 'rgba(217, 119, 6, 0.2)'; intlCard.style.borderWidth = '2px'; }
+            if (localCard) { localCard.style.borderColor = 'var(--border-prominent)'; localCard.style.background = 'var(--bg-surface-elevated)'; localCard.style.borderWidth = '1.5px'; }
+            if (cnicGroup) cnicGroup.style.display = 'none';
+            if (intlGroup) intlGroup.style.display = 'grid';
+            if (cnicInput) { cnicInput.required = false; cnicInput.removeAttribute('required'); }
+            if (passportInput) { passportInput.required = true; passportInput.setAttribute('required', 'required'); }
+            if (countryInput) { countryInput.required = true; countryInput.setAttribute('required', 'required'); }
+        }
     },
 
     handleDirectEnrollSubmit(e) {
         e.preventDefault();
+        const studentType = document.querySelector('input[name="direct_st_student_type"]:checked')?.value || 'LOCAL';
         const name = document.getElementById('direct-st-name').value.trim();
         const father = document.getElementById('direct-st-father').value.trim();
         const rollNo = document.getElementById('direct-st-roll').value.trim();
-        const cnic = document.getElementById('direct-st-cnic').value.trim();
         const program = document.getElementById('direct-st-program').value;
         const classId = document.getElementById('direct-st-class').value;
         const email = document.getElementById('direct-st-email').value.trim();
         const pwd = document.getElementById('direct-st-pwd').value.trim();
         const hostel = document.getElementById('direct-st-hostel').value;
 
+        let cnic = '';
+        let passport = '';
+        let country = 'Pakistan';
+
+        if (studentType === 'LOCAL') {
+            cnic = document.getElementById('direct-st-cnic').value.trim();
+            if (!cnic) {
+                App.showToast("Please enter candidate CNIC Number", "warning");
+                return;
+            }
+            const cnicClean = cnic.replace(/\D/g, '');
+            if (cnicClean.length !== 13) {
+                App.showToast("CNIC / B-Form must contain 13 digits (format: 35201-1234567-1)", "warning");
+                return;
+            }
+        } else {
+            passport = document.getElementById('direct-st-passport').value.trim();
+            country = document.getElementById('direct-st-country').value.trim();
+            if (!passport) {
+                App.showToast("Please enter candidate Passport Number", "warning");
+                return;
+            }
+            if (passport.length < 3) {
+                App.showToast("Passport Number must be at least 3 characters", "warning");
+                return;
+            }
+            if (!country) {
+                App.showToast("Please select candidate's country of residence", "warning");
+                return;
+            }
+        }
+
         const newStudent = {
             id: `u_stud_${Date.now()}`,
             name: name,
             urduName: name,
             role: "STUDENT",
+            studentType: studentType,
+            country: country,
             rollNo: rollNo,
             classId: classId,
             program: program,
             branchId: "b1",
             email: email,
             password: pwd,
-            phone: "+92 300 0000000",
+            phone: studentType === 'LOCAL' ? "+92 300 0000000" : "+1 555 0000",
             cnic: cnic,
+            passport: passport,
             guardianName: father,
             hostel: hostel,
             status: "ACTIVE",
@@ -1199,43 +1415,49 @@ const StudentsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-id-card" style="color: var(--primary-400);"></i> Digital Student Identity Card`;
+            titleEl.innerHTML = `<i class="fas fa-id-card" style="color: var(--primary-600);"></i> Digital Student Identity Card`;
         }
 
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <div style="display: flex; justify-content: center; padding: 10px;">
-                    <div style="width: 380px; background: linear-gradient(135deg, #022018 0%, #064e3b 100%); border: 2px solid var(--gold-400); border-radius: 12px; padding: 20px; color: #ffffff; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;">
+                    <div class="student-id-card-wrap" style="width: 390px; background: #ffffff; border: 2px solid var(--primary-700); border-radius: 14px; padding: 22px; color: var(--text-primary); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); position: relative; overflow: hidden;">
                         <!-- Card Header -->
-                        <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; margin-bottom: 14px;">
-                            <img src="assets/images/crest.jpg" style="width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--gold-400);">
+                        <div style="display: flex; align-items: center; gap: 12px; border-bottom: 2px solid var(--primary-100); padding-bottom: 12px; margin-bottom: 14px;">
+                            <img src="assets/images/logo.png" style="width: 48px; height: 48px; object-fit: contain;">
                             <div>
-                                <div style="font-weight: 800; font-size: 0.95rem; color: #ffffff;">JAMIA ASHRAFIA LAHORE</div>
-                                <div style="font-family: 'Amiri', serif; font-size: 0.85rem; color: var(--gold-200);">جامعہ اشرفیہ، لاہور - علم اور تقویٰ</div>
+                                <div style="font-weight: 800; font-size: 1rem; color: var(--primary-950); letter-spacing: 0.5px;">JAMIA ASHRAFIA LAHORE</div>
+                                <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700); font-weight: 700;">جامعہ اشرفیہ، لاہور - علم اور تقویٰ</div>
+                                <div style="font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">Student Identity Card</div>
                             </div>
                         </div>
 
                         <!-- Card Body -->
-                        <div style="display: flex; gap: 16px;">
-                            <div style="width: 80px; height: 95px; background: #111a1e; border: 1px solid var(--gold-400); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--gold-300);">
+                        <div style="display: flex; gap: 16px; align-items: center;">
+                            <div style="width: 88px; height: 105px; background: var(--primary-50); border: 1.5px solid var(--primary-600); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; color: var(--primary-700); flex-shrink: 0;">
                                 <i class="fas fa-user-graduate"></i>
+                                <span style="font-size: 0.65rem; color: var(--primary-800); font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Photo</span>
                             </div>
-                            <div style="flex: 1; font-size: 0.82rem; line-height: 1.6;">
-                                <div><strong>Name:</strong> ${student.name}</div>
-                                <div><strong>Roll No:</strong> <span style="color: var(--gold-300); font-weight: 700;">${student.rollNo || 'N/A'}</span></div>
-                                <div><strong>Program:</strong> ${student.program || 'Dars-e-Nizami'}</div>
-                                <div><strong>Class:</strong> ${student.classId || 'Dawra-e-Hadith'}</div>
-                                <div><strong>Residence:</strong> ${student.hostel || 'Day Scholar'}</div>
+                            <div style="flex: 1; font-size: 0.84rem; line-height: 1.65; color: var(--text-primary);">
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${student.name}</strong></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${student.rollNo || 'N/A'}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Program:</span> <span style="font-weight: 600;">${student.program || 'Dars-e-Nizami'}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Class:</span> <span style="font-weight: 600;">${student.classId || 'Dawra-e-Hadith'}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Residence:</span> <span style="font-weight: 600;">${student.hostel || 'Day Scholar'}</span></div>
                             </div>
                         </div>
 
                         <!-- Card Footer & Barcode -->
-                        <div style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px; display: flex; align-items: center; justify-content: space-between;">
-                            <div style="font-family: monospace; font-size: 0.72rem; letter-spacing: 2px; color: var(--gold-200);">
-                                ||| | |||| | |||||| || |
+                        <div style="margin-top: 14px; border-top: 1px dashed var(--border-prominent); padding-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 2px; color: var(--primary-950); font-weight: 700;">
+                                    ||| | |||| | |||||| || |
+                                </div>
+                                <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${student.id || 'JAL-ST-CARD'}</div>
                             </div>
-                            <div style="font-size: 0.65rem; color: #cbd5e1; text-align: right;">
-                                Valid Session: 1446-1447 AH<br>Authorized Signatory
+                            <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: right; line-height: 1.35;">
+                                <div>Valid Session: <strong>1446-1447 AH</strong></div>
+                                <div style="color: var(--gold-700); font-weight: 700; margin-top: 2px;">Authorized Signatory</div>
                             </div>
                         </div>
                     </div>

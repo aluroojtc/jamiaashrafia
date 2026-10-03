@@ -98,12 +98,12 @@ const LibraryModule = {
                         <span class="status-pill gold" style="font-size: 0.68rem;">${b.category}</span>
                         <span style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">${b.accessionNo}</span>
                     </div>
-                    <h3 style="font-size: 1.05rem; color: #ffffff; margin-bottom: 4px;">${b.title}</h3>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--gold-200); margin-bottom: 8px;">${b.arabicTitle}</div>
+                    <h3 style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">${b.title}</h3>
+                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--gold-700); margin-bottom: 8px;">${b.arabicTitle}</div>
                     
                     <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 14px;">
-                        <div><i class="fas fa-feather-alt" style="color: var(--primary-400); width: 16px;"></i> <strong>Author:</strong> ${b.author}</div>
-                        <div><i class="fas fa-print" style="color: var(--gold-400); width: 16px;"></i> <strong>Publisher:</strong> ${b.publisher} (${b.publicationYear})</div>
+                        <div><i class="fas fa-feather-alt" style="color: var(--primary-700); width: 16px;"></i> <strong>Author:</strong> ${b.author}</div>
+                        <div><i class="fas fa-print" style="color: var(--gold-700); width: 16px;"></i> <strong>Publisher:</strong> ${b.publisher} (${b.publicationYear})</div>
                         <div><i class="fas fa-map-pin" style="color: var(--danger); width: 16px;"></i> <strong>Location:</strong> ${b.rackLocation}</div>
                     </div>
                 </div>

@@ -47,19 +47,19 @@ const NotificationsModule = {
                         else if (n.category === 'FEE') { icon = 'fas fa-file-invoice-dollar'; pillClass = 'warning'; }
 
                         return `
-                            <div style="display: flex; align-items: flex-start; gap: 16px; padding: 16px; background: ${n.isRead ? 'var(--bg-surface-elevated)' : 'rgba(6, 78, 59, 0.2)'}; border: 1px solid ${n.isRead ? 'var(--border-subtle)' : 'var(--primary-600)'}; border-radius: var(--radius-sm); transition: all var(--transition-fast);">
-                                <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-prominent); display: flex; align-items: center; justify-content: center; color: var(--gold-300); font-size: 1.1rem; flex-shrink: 0;">
+                            <div style="display: flex; align-items: flex-start; gap: 16px; padding: 16px; background: ${n.isRead ? 'var(--bg-surface-elevated)' : 'var(--primary-50)'}; border: 1px solid ${n.isRead ? 'var(--border-subtle)' : 'var(--primary-300)'}; border-radius: var(--radius-sm); transition: all var(--transition-fast);">
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-surface); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--gold-700); font-size: 1.1rem; flex-shrink: 0;">
                                     <i class="${icon}"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                         <div style="display: flex; align-items: center; gap: 8px;">
-                                            <span style="font-weight: 700; font-size: 0.95rem; color: #ffffff;">${n.title}</span>
+                                            <span style="font-weight: 700; font-size: 0.95rem; color: var(--primary-950);">${n.title}</span>
                                             <span class="status-pill ${pillClass}" style="font-size: 0.65rem;">${n.badge || n.category}</span>
                                         </div>
                                         <span style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-clock"></i> ${n.time}</span>
                                     </div>
-                                    <div style="font-size: 0.78rem; color: var(--primary-400); font-weight: 600; margin-bottom: 4px;">
+                                    <div style="font-size: 0.78rem; color: var(--primary-700); font-weight: 600; margin-bottom: 4px;">
                                         <i class="fas fa-paper-plane"></i> From: ${n.sender}
                                     </div>
                                     <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">

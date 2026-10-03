@@ -41,15 +41,15 @@ const ExamsModule = {
                         <div class="card" style="border-left: 4px solid var(--gold-400);">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                                 <span class="status-pill gold" style="font-size: 0.7rem;">${ex.examType}</span>
-                                <span style="font-size: 0.75rem; color: var(--gold-300);"><i class="fas fa-clock"></i> ${ex.durationMinutes} Minutes</span>
+                                <span style="font-size: 0.75rem; color: var(--gold-700);"><i class="fas fa-clock"></i> ${ex.durationMinutes} Minutes</span>
                             </div>
-                            <h3 style="font-size: 1.05rem; color: #ffffff; margin-bottom: 4px;">${ex.title}</h3>
-                            <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-200); margin-bottom: 12px;">${ex.urduTitle}</div>
+                            <h3 style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">${ex.title}</h3>
+                            <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-700); margin-bottom: 12px;">${ex.urduTitle}</div>
                             
                             <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
-                                <div><i class="fas fa-calendar-alt" style="color: var(--primary-400); width: 18px;"></i> <strong>Exam Date:</strong> ${ex.examDate} (${ex.startTime})</div>
-                                <div><i class="fas fa-book" style="color: var(--primary-400); width: 18px;"></i> <strong>Course:</strong> ${course.title}</div>
-                                <div><i class="fas fa-check-circle" style="color: var(--primary-400); width: 18px;"></i> <strong>Passing Marks:</strong> ${ex.passingMarks} / ${ex.totalMarks} (Wifaq Standard)</div>
+                                <div><i class="fas fa-calendar-alt" style="color: var(--primary-700); width: 18px;"></i> <strong>Exam Date:</strong> ${ex.examDate} (${ex.startTime})</div>
+                                <div><i class="fas fa-book" style="color: var(--primary-700); width: 18px;"></i> <strong>Course:</strong> ${course.title}</div>
+                                <div><i class="fas fa-check-circle" style="color: var(--primary-700); width: 18px;"></i> <strong>Passing Marks:</strong> ${ex.passingMarks} / ${ex.totalMarks} (Wifaq Standard)</div>
                             </div>
 
                             <div style="display: flex; gap: 8px;">
@@ -94,15 +94,15 @@ const ExamsModule = {
                                 return `
                                     <tr>
                                         <td>
-                                            <div style="font-weight: 700; color: #ffffff;">${res.studentName}</div>
-                                            <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-300);">${res.rollNo}</div>
+                                            <div style="font-weight: 700; color: var(--primary-950);">${res.studentName}</div>
+                                            <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-700);">${res.rollNo}</div>
                                         </td>
                                         <td>
                                             <div style="font-weight: 600;">${exam.title}</div>
                                             <div style="font-size: 0.72rem; color: var(--text-muted);">${res.sanadNumber}</div>
                                         </td>
                                         <td>
-                                            <strong style="font-size: 1.1rem; color: #ffffff;">${res.marksObtained}</strong> / 100
+                                            <strong style="font-size: 1.1rem; color: var(--primary-950);">${res.marksObtained}</strong> / 100
                                         </td>
                                         <td>
                                             <span class="status-pill gold" style="font-weight: 700;">
@@ -195,8 +195,8 @@ const ExamsModule = {
             </div>
 
             <div class="card" style="background: var(--bg-surface-elevated); padding: 14px; margin-bottom: 16px;">
-                <h4 style="color: var(--gold-300); margin-bottom: 6px;">Question 1 (Compulsory):</h4>
-                <p style="font-family: 'Amiri', serif; font-size: 1.15rem; color: #ffffff; direction: rtl; line-height: 1.9;">
+                <h4 style="color: var(--gold-700); margin-bottom: 6px;">Question 1 (Compulsory):</h4>
+                <p style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--primary-950); direction: rtl; line-height: 1.9;">
                     قال الإمام البخاري رحمه الله: حَدَّثَنَا الحُمَيْدِيُّ، قَالَ: حَدَّثَنَا سُفْيَانُ... اشرح هذا السند والمتن مبيناً أوجه الاستدلال الفقهي عند أئمة الحنفية.
                 </p>
             </div>
@@ -240,14 +240,14 @@ const ExamsModule = {
             <div class="sanad-certificate">
                 <div class="sanad-inner-border">
                     <div class="sanad-bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
-                    <img src="assets/images/crest.jpg" style="width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 10px; border: 2px solid #b45309;">
+                    <img src="assets/images/logo.png" style="width: 72px; height: 72px; object-fit: contain; margin: 0 auto 10px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.15));">
                     <div class="sanad-title-urdu">جامعہ اشرفیہ، لاہور - پاکستان</div>
                     <div class="sanad-title-eng">Ashrafia Islamic University Lahore (Est. 1947)</div>
                     <div style="font-size: 0.85rem; color: #4b5563; margin-bottom: 16px;">
                         Affiliated with Wifaq-ul-Madaris Al-Arabia Pakistan • Recognized by Higher Education Commission (HEC)
                     </div>
 
-                    <div style="font-family: 'Amiri', serif; font-size: 1.3rem; color: #064e3b; margin-bottom: 14px; font-weight: 700;">
+                    <div style="font-family: 'Amiri', serif; font-size: 1.3rem; color: var(--primary-800); margin-bottom: 14px; font-weight: 700;">
                         شہادۃ العالمیہ فی العلوم الاسلامیہ والعربیہ (سند فضیلت)
                     </div>
 
@@ -273,7 +273,7 @@ const ExamsModule = {
                             <div style="font-size: 0.72rem; color: #64748b;">Principal / Mohtamim</div>
                         </div>
                         <div>
-                            <div style="border: 2px solid #064e3b; border-radius: 50%; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #064e3b; font-weight: 800; margin: 0 auto;">
+                            <div style="border: 2px solid var(--primary-800); border-radius: 50%; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--primary-800); font-weight: 800; margin: 0 auto;">
                                 OFFICIAL<br>SEAL
                             </div>
                         </div>
@@ -305,9 +305,9 @@ const ExamsModule = {
         modalTitle.innerHTML = `<i class="fas fa-file-alt" style="color: var(--gold-400);"></i> Examination Paper: ${ex.title}`;
         modalBody.innerHTML = `
             <div style="background: #ffffff; color: #111827; padding: 24px; border-radius: 6px; font-family: 'Amiri', serif; direction: rtl; line-height: 2.2; border: 1px solid #cbd5e1;">
-                <div style="text-align: center; border-bottom: 2px solid #064e3b; padding-bottom: 10px; margin-bottom: 16px;">
-                    <div style="font-size: 1.4rem; font-weight: 800; color: #064e3b;">جامعہ اشرفیہ، لاہور - امتحانی پرچہ</div>
-                    <div style="font-size: 1.1rem; color: #b45309;">${ex.urduTitle} - امتحان ششماہی 1446 ھ</div>
+                <div style="text-align: center; border-bottom: 2px solid var(--primary-800); padding-bottom: 10px; margin-bottom: 16px;">
+                    <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary-800);">جامعہ اشرفیہ، لاہور - امتحانی پرچہ</div>
+                    <div style="font-size: 1.1rem; color: var(--gold-600);">${ex.urduTitle} - امتحان ششماہی 1446 ھ</div>
                     <div style="font-size: 0.85rem; font-family: 'Inter', sans-serif; direction: ltr; color: #4b5563;">
                         Total Marks: ${ex.totalMarks} • Time Allowed: 3 Hours
                     </div>

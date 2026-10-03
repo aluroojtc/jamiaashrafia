@@ -140,7 +140,7 @@ const InstitutionalModule = {
                             ${inst.branches.map(b => `
                                 <tr>
                                     <td>
-                                        <div style="font-weight: 700; color: #ffffff;">${b.name}</div>
+                                        <div style="font-weight: 700; color: var(--primary-950);">${b.name}</div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">${b.code} Campus</div>
                                     </td>
                                     <td><i class="fas fa-map-marker-alt" style="color: var(--danger); margin-right: 6px;"></i>${b.location}</td>

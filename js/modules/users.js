@@ -29,7 +29,7 @@ const UsersModule = {
             return `
                 <div class="card" style="border: 2px solid var(--danger); text-align: center; padding: 48px 24px;">
                     <i class="fas fa-lock" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
-                    <h2 style="color: #ffffff; margin-bottom: 8px;">403 - Administrative Access Required</h2>
+                    <h2 style="color: var(--primary-950); margin-bottom: 8px;">403 - Administrative Access Required</h2>
                     <p style="color: var(--text-secondary); max-width: 500px; margin: 0 auto 20px;">
                         Only the Super Admin (Mohtamim) has authorization to inspect and manage system user credentials for Jamia Ashrafia LMS.
                     </p>
@@ -88,12 +88,12 @@ const UsersModule = {
                 <div style="display: flex; gap: 14px; align-items: center;">
                     <div style="font-size: 1.6rem; color: var(--primary-400);"><i class="fas fa-shield-alt"></i></div>
                     <div>
-                        <h4 style="color: #ffffff; margin-bottom: 2px; font-size: 0.95rem;">Administrative & Application Users Registry</h4>
+                        <h4 style="color: var(--primary-950); margin-bottom: 2px; font-size: 0.95rem;">Administrative & Application Users Registry</h4>
                         <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">
                             This directory is reserved for application administrators, finance officers, and custom operational accounts. 
                             <strong>Students</strong> and <strong>Teachers</strong> are managed in their dedicated academic portals: 
-                            <a href="#students" style="color: var(--gold-300); font-weight: 600; text-decoration: underline;">Students Management</a> and 
-                            <a href="#teachers" style="color: var(--gold-300); font-weight: 600; text-decoration: underline;">Teachers & Portals</a>.
+                            <a href="#students" style="color: var(--primary-700); font-weight: 600; text-decoration: underline;">Students Management</a> and 
+                            <a href="#teachers" style="color: var(--primary-700); font-weight: 600; text-decoration: underline;">Teachers & Portals</a>.
                         </p>
                     </div>
                 </div>
@@ -106,7 +106,7 @@ const UsersModule = {
                     <div class="metric-content">
                         <span class="metric-label">System Users</span>
                         <span class="metric-value">${totalSystemUsers} Accounts</span>
-                        <span class="metric-hint" style="color: var(--gold-300);">${filtered.length} Displayed</span>
+                        <span class="metric-hint" style="color: var(--gold-600);">${filtered.length} Displayed</span>
                     </div>
                 </div>
 
@@ -222,12 +222,12 @@ const UsersModule = {
                                                     ${u.avatar || u.name.substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <div style="font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 6px;">
+                                                    <div style="font-weight: 700; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
                                                         ${u.name}
                                                         ${isCurrentLoggedIn ? `<span class="badge-pill gold" style="font-size: 0.65rem; padding: 1px 6px;">You</span>` : ''}
                                                     </div>
                                                     ${u.urduName ? `
-                                                        <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-300);">
+                                                        <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">
                                                             ${u.urduName}
                                                         </div>
                                                     ` : ''}
@@ -318,13 +318,13 @@ const UsersModule = {
             <form id="form-add-user" onsubmit="UsersModule.handleAddUserSubmit(event)">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Full Name (English) *
                         </label>
                         <input type="text" id="add-user-name" class="form-control" placeholder="e.g. Maulana Abdul Samad" required>
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Urdu Name (نام شریف)
                         </label>
                         <input type="text" id="add-user-urdu" class="form-control" placeholder="e.g. مولانا عبد الصمد" style="font-family: 'Amiri', serif;">
@@ -333,13 +333,13 @@ const UsersModule = {
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Email Address / Login ID *
                         </label>
                         <input type="email" id="add-user-email" class="form-control" placeholder="e.g. samad@jamiaashrafia.org" required>
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Assigned System Role *
                         </label>
                         <select id="add-user-role" class="form-control" required>
@@ -354,13 +354,13 @@ const UsersModule = {
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Designation / Office Title
                         </label>
                         <input type="text" id="add-user-desig" class="form-control" placeholder="e.g. Assistant Controller / Finance Officer">
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Account Status
                         </label>
                         <select id="add-user-status" class="form-control">
@@ -371,7 +371,7 @@ const UsersModule = {
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Initial Password *
                     </label>
                     <input type="text" id="add-user-pwd" class="form-control" value="ashrafia123" required>
@@ -457,13 +457,13 @@ const UsersModule = {
             <form id="form-edit-user" onsubmit="UsersModule.handleEditUserSubmit(event, '${userId}')">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Full Name (English) *
                         </label>
                         <input type="text" id="edit-user-name" class="form-control" value="${user.name}" required>
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Urdu Name (نام شریف)
                         </label>
                         <input type="text" id="edit-user-urdu" class="form-control" value="${user.urduName || ''}" style="font-family: 'Amiri', serif;">
@@ -472,13 +472,13 @@ const UsersModule = {
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Email Address / Login ID *
                         </label>
                         <input type="email" id="edit-user-email" class="form-control" value="${user.email}" required>
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Assigned System Role *
                         </label>
                         <select id="edit-user-role" class="form-control" required>
@@ -494,13 +494,13 @@ const UsersModule = {
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Designation / Office Title
                         </label>
                         <input type="text" id="edit-user-desig" class="form-control" value="${user.designation || ''}">
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Account Status
                         </label>
                         <select id="edit-user-status" class="form-control">
@@ -573,14 +573,14 @@ const UsersModule = {
         modalTitle.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${user.name}`;
 
         modalContainer.innerHTML = `
-            <div style="margin-bottom: 16px; padding: 12px; background: rgba(0,0,0,0.25); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                <div style="font-weight: 700; color: #ffffff;">${user.name}</div>
-                <div style="font-size: 0.85rem; color: var(--gold-300);">${user.email} &bull; Role: ${user.role}</div>
+            <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-prominent);">
+                <div style="font-weight: 700; color: var(--primary-950);">${user.name}</div>
+                <div style="font-size: 0.85rem; color: var(--gold-700);">${user.email} &bull; Role: ${user.role}</div>
             </div>
 
             <form id="form-reset-password" onsubmit="UsersModule.handleResetPasswordSubmit(event, '${userId}')">
                 <div style="margin-bottom: 16px;">
-                    <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         New Password *
                     </label>
                     <div style="display: flex; gap: 8px;">
@@ -658,10 +658,10 @@ const UsersModule = {
 
         modalContainer.innerHTML = `
             <div style="padding: 10px 0;">
-                <p style="color: #ffffff; font-size: 1rem; margin-bottom: 12px;">
+                <p style="color: var(--text-primary); font-size: 1rem; margin-bottom: 12px;">
                     Are you sure you want to permanently delete system user <strong>"${user.name}"</strong>?
                 </p>
-                <div style="padding: 12px; background: rgba(239, 68, 68, 0.1); border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.85rem; color: #fca5a5;">
+                <div style="padding: 12px; background: rgba(239, 68, 68, 0.08); border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.85rem; color: #7f1d1d;">
                     <div><strong>Email:</strong> ${user.email}</div>
                     <div><strong>Role:</strong> ${user.role}</div>
                     <div><strong>ID:</strong> ${user.id}</div>

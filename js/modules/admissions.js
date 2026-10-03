@@ -7,6 +7,7 @@
 const AdmissionsModule = {
     currentStep: 1,
     activeStatusFilter: 'ALL',
+    activeCategoryFilter: 'ALL',
     searchQuery: '',
 
     render() {
@@ -19,13 +20,23 @@ const AdmissionsModule = {
             filtered = filtered.filter(a => a.status === this.activeStatusFilter);
         }
 
+        if (this.activeCategoryFilter && this.activeCategoryFilter !== 'ALL') {
+            if (this.activeCategoryFilter === 'LOCAL') {
+                filtered = filtered.filter(a => a.studentType === 'LOCAL' || (!a.studentType && !a.passport));
+            } else if (this.activeCategoryFilter === 'INTERNATIONAL') {
+                filtered = filtered.filter(a => a.studentType === 'INTERNATIONAL' || a.passport);
+            }
+        }
+
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase();
             filtered = filtered.filter(a => 
                 (a.name && a.name.toLowerCase().includes(q)) ||
                 (a.applicationNo && a.applicationNo.toLowerCase().includes(q)) ||
                 (a.fatherName && a.fatherName.toLowerCase().includes(q)) ||
-                (a.cnic && a.cnic.includes(q)) ||
+                (a.cnic && a.cnic.toLowerCase().includes(q)) ||
+                (a.passport && a.passport.toLowerCase().includes(q)) ||
+                (a.country && a.country.toLowerCase().includes(q)) ||
                 (a.phone && a.phone.includes(q))
             );
         }
@@ -128,11 +139,20 @@ const AdmissionsModule = {
 
                 <!-- SEARCH AND FILTER CONTROLS -->
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
-                    <div class="search-input-wrap" style="width: 320px; position: relative;">
-                        <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                        <input type="text" class="form-control" placeholder="Search applicant, app no, CNIC, father..." 
-                               value="${this.searchQuery}" oninput="AdmissionsModule.setSearch(this.value)" 
-                               style="padding: 8px 12px 8px 36px; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <div class="search-input-wrap" style="width: 290px; position: relative;">
+                            <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                            <input type="text" class="form-control" placeholder="Search applicant, CNIC, passport..." 
+                                   value="${this.searchQuery}" oninput="AdmissionsModule.setSearch(this.value)" 
+                                   style="padding: 8px 12px 8px 36px; width: 100%;">
+                        </div>
+
+                        <!-- STUDENT TYPE / CATEGORY FILTER -->
+                        <select class="form-control" style="width: 175px; font-size: 0.82rem;" onchange="AdmissionsModule.setCategoryFilter(this.value)">
+                            <option value="ALL" ${this.activeCategoryFilter === 'ALL' ? 'selected' : ''}>All Categories</option>
+                            <option value="LOCAL" ${this.activeCategoryFilter === 'LOCAL' ? 'selected' : ''}>Local (CNIC)</option>
+                            <option value="INTERNATIONAL" ${this.activeCategoryFilter === 'INTERNATIONAL' ? 'selected' : ''}>International (Passport)</option>
+                        </select>
                     </div>
 
                     <div style="font-size: 0.82rem; color: var(--text-muted);">
@@ -146,8 +166,9 @@ const AdmissionsModule = {
                         <thead>
                             <tr>
                                 <th>App No & Candidate</th>
+                                <th>Category</th>
                                 <th>Program & Branch</th>
-                                <th>CNIC / Contact</th>
+                                <th>Identification / Contact</th>
                                 <th>Madrasa Background</th>
                                 <th>Interview / Marks</th>
                                 <th>Status</th>
@@ -169,6 +190,12 @@ const AdmissionsModule = {
         if (viewport) viewport.innerHTML = this.render();
     },
 
+    setCategoryFilter(cat) {
+        this.activeCategoryFilter = cat;
+        const viewport = document.getElementById('main-content-viewport');
+        if (viewport) viewport.innerHTML = this.render();
+    },
+
     setSearch(q) {
         this.searchQuery = q;
         const viewport = document.getElementById('main-content-viewport');
@@ -181,7 +208,7 @@ const AdmissionsModule = {
                 <tr>
                     <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 48px;">
                         <i class="fas fa-folder-open" style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4;"></i>
-                        <div style="font-size: 1.05rem; color: #ffffff; margin-bottom: 4px;">No applications found</div>
+                        <div style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">No applications found</div>
                         <div style="font-size: 0.85rem;">No admission applications match the active pipeline filter.</div>
                     </td>
                 </tr>
@@ -209,16 +236,30 @@ const AdmissionsModule = {
                 statusPill = '<span class="status-pill primary"><i class="fas fa-inbox"></i> Applied</span>';
             }
 
+            const isIntl = (item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport));
             return `
                 <tr>
                     <td>
-                        <div style="font-weight: 700; color: #ffffff;">
-                            <a href="javascript:void(0)" onclick="AdmissionsModule.viewApplication('${item.id}')" style="color: #ffffff; text-decoration: none;" onmouseover="this.style.color='var(--gold-400)'" onmouseout="this.style.color='#ffffff'">
+                        <div style="font-weight: 700; color: var(--primary-950);">
+                            <a href="javascript:void(0)" onclick="AdmissionsModule.viewApplication('${item.id}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--gold-600)'" onmouseout="this.style.color='var(--primary-950)'">
                                 ${item.name}
                             </a>
                         </div>
-                        <div style="font-size: 0.75rem; color: var(--gold-300); font-family: monospace; font-weight: 700;">${item.applicationNo}</div>
+                        <div style="font-size: 0.75rem; color: var(--gold-700); font-family: monospace; font-weight: 700;">${item.applicationNo}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted);">S/O ${item.fatherName}</div>
+                    </td>
+                    <td>
+                        ${isIntl ? `
+                            <span class="status-pill gold" style="font-size: 0.72rem; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-globe-americas"></i> International
+                            </span>
+                            <div style="font-size: 0.72rem; color: var(--gold-700); margin-top: 2px;">${item.country || 'Overseas'}</div>
+                        ` : `
+                            <span class="status-pill info" style="font-size: 0.72rem; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-flag"></i> Local
+                            </span>
+                            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Pakistan</div>
+                        `}
                     </td>
                     <td>
                         <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${prog.name}</div>
@@ -226,8 +267,16 @@ const AdmissionsModule = {
                         ${item.hostelRequired ? '<span class="status-pill danger" style="font-size: 0.65rem; margin-top: 3px;"><i class="fas fa-bed"></i> Hostel Needed</span>' : ''}
                     </td>
                     <td>
-                        <div style="font-family: monospace; font-size: 0.8rem; color: var(--text-primary);">${item.cnic}</div>
-                        <div style="font-size: 0.78rem; color: var(--text-secondary);"><i class="fas fa-phone"></i> ${item.phone}</div>
+                        ${isIntl ? `
+                            <div style="font-family: monospace; font-size: 0.8rem; color: var(--gold-300);" title="Passport Number">
+                                <i class="fas fa-passport" style="font-size: 0.72rem; margin-right: 3px;"></i>${item.passport || 'N/A'}
+                            </div>
+                        ` : `
+                            <div style="font-family: monospace; font-size: 0.8rem; color: var(--text-primary);" title="CNIC / B-Form">
+                                <i class="fas fa-id-card" style="font-size: 0.72rem; margin-right: 3px; color: var(--primary-400);"></i>${item.cnic || 'N/A'}
+                            </div>
+                        `}
+                        <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;"><i class="fas fa-phone"></i> ${item.phone}</div>
                     </td>
                     <td>
                         <div style="font-size: 0.8rem; max-width: 200px;">${item.previousMadrasa || 'Fresh Applicant'}</div>
@@ -249,6 +298,9 @@ const AdmissionsModule = {
                             <!-- VIEW DOSSIER BUTTON -->
                             <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.viewApplication('${item.id}')" title="Inspect Complete Application Dossier">
                                 <i class="fas fa-folder-open"></i> Dossier
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.openEditApplicationModal('${item.id}')" title="Edit Application">
+                                <i class="fas fa-edit"></i> Edit
                             </button>
 
                             <!-- STAGE SPECIFIC ACTIONS -->
@@ -328,10 +380,10 @@ const AdmissionsModule = {
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                         <div>
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <h3 style="color: #ffffff; margin: 0; font-size: 1.25rem;">${item.name}</h3>
+                                <h3 style="color: var(--primary-950); margin: 0; font-size: 1.25rem;">${item.name}</h3>
                                 <span class="status-pill gold" style="font-family: monospace;">${item.applicationNo}</span>
                             </div>
-                            <div style="font-size: 0.85rem; color: var(--gold-300); margin-top: 4px;">
+                            <div style="font-size: 0.85rem; color: var(--gold-700); margin-top: 4px;">
                                 Son of ${item.fatherName}
                             </div>
                             <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
@@ -351,33 +403,40 @@ const AdmissionsModule = {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; font-size: 0.85rem;">
                     <!-- PERSONAL & IDENTITY -->
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
-                        <h4 style="color: var(--primary-300); margin-bottom: 8px;"><i class="fas fa-id-card"></i> Personal Information</h4>
+                        <h4 style="color: var(--primary-950); margin-bottom: 8px;"><i class="fas fa-id-card"></i> Personal Information</h4>
                         <div><strong>Candidate Name:</strong> ${item.name}</div>
                         <div><strong>Father's Name:</strong> ${item.fatherName}</div>
-                        <div><strong>CNIC / B-Form:</strong> <code style="color: var(--gold-300);">${item.cnic}</code></div>
+                        <div><strong>Student Category:</strong> ${isIntl ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
+                        ${isIntl ? `
+                            <div><strong>Passport Number:</strong> <code style="color: var(--gold-700); font-weight: 700;">${item.passport || 'N/A'}</code></div>
+                            <div><strong>Country of Residence:</strong> <span style="color: var(--text-primary); font-weight: 600;">${item.country || 'International'}</span></div>
+                        ` : `
+                            <div><strong>CNIC / B-Form:</strong> <code style="color: var(--gold-700); font-weight: 700;">${item.cnic || 'N/A'}</code></div>
+                            <div><strong>Country:</strong> Pakistan</div>
+                        `}
                         <div><strong>Contact Phone:</strong> ${item.phone}</div>
                         <div><strong>Email Address:</strong> ${item.email || 'N/A'}</div>
                     </div>
 
                     <!-- ACADEMIC BACKGROUND -->
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
-                        <h4 style="color: var(--gold-400); margin-bottom: 8px;"><i class="fas fa-university"></i> Educational Background</h4>
+                        <h4 style="color: var(--gold-700); margin-bottom: 8px;"><i class="fas fa-university"></i> Educational Background</h4>
                         <div><strong>Program Sought:</strong> ${prog.name}</div>
                         <div><strong>Previous Madrasa:</strong> ${item.previousMadrasa || 'None'}</div>
                         <div><strong>Hafiz-ul-Quran:</strong> ${item.hafizStatus ? '<span class="status-pill success" style="font-size: 0.7rem;">Verified Hafiz</span>' : 'No'}</div>
                         <div><strong>Hostel Required:</strong> ${item.hostelRequired ? '<span class="status-pill danger" style="font-size: 0.7rem;">Boarding Requested</span>' : 'Day Scholar'}</div>
-                        <div><strong>Allotted Roll No:</strong> <code style="color: var(--primary-300);">${item.allottedRollNo || 'Pending Enrollment'}</code></div>
+                        <div><strong>Allotted Roll No:</strong> <code style="color: var(--primary-700);">${item.allottedRollNo || 'Pending Enrollment'}</code></div>
                     </div>
                 </div>
 
                 <!-- INTERVIEW & COMMITTEE ASSESSMENT -->
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 16px;">
-                    <h4 style="color: #ffffff; margin-bottom: 10px;"><i class="fas fa-user-check" style="color: var(--gold-400);"></i> Admission Committee & Evaluation Record</h4>
+                    <h4 style="color: var(--primary-950); margin-bottom: 10px;"><i class="fas fa-user-check" style="color: var(--gold-600);"></i> Admission Committee & Evaluation Record</h4>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem; line-height: 1.8;">
                         <div>
                             <div><strong>Interview Date & Time:</strong> ${item.interviewDate || 'Not yet scheduled'}</div>
                             <div><strong>Interviewing Board:</strong> Nazim-e-Taleemat & Hadith Faculty Board</div>
-                            <div><strong>Overall Score:</strong> <strong style="color: var(--gold-300);">${item.interviewScore ? item.interviewScore + ' / 100' : 'Pending Evaluation'}</strong></div>
+                            <div><strong>Overall Score:</strong> <strong style="color: var(--gold-700);">${item.interviewScore ? item.interviewScore + ' / 100' : 'Pending Evaluation'}</strong></div>
                         </div>
                         <div>
                             <div><strong>Committee Remarks:</strong> ${item.committeeRemarks || 'Candidate meets baseline prerequisites for testing.'}</div>
@@ -394,6 +453,12 @@ const AdmissionsModule = {
 
         if (footerEl) {
             let actionButtons = `<button class="btn btn-secondary" onclick="App.closeModal()">Close</button>`;
+
+            actionButtons += `
+                <button class="btn btn-secondary" onclick="AdmissionsModule.openEditApplicationModal('${item.id}')">
+                    <i class="fas fa-edit"></i> Edit Details
+                </button>
+            `;
 
             if (item.status === 'APPLIED' || item.status === 'UNDER_REVIEW') {
                 actionButtons += `
@@ -461,8 +526,8 @@ const AdmissionsModule = {
         modalTitle.innerHTML = `<i class="fas fa-calendar-alt" style="color: var(--gold-400);"></i> Schedule Academic Interview`;
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
-                <p style="color: #ffffff; font-size: 0.95rem; margin-bottom: 6px;">
-                    Schedule interview for candidate <strong>${item.name}</strong> (<code style="color: var(--gold-300);">${item.applicationNo}</code>).
+                <p style="color: var(--text-primary); font-size: 0.95rem; margin-bottom: 6px;">
+                    Schedule interview for candidate <strong>${item.name}</strong> (<code style="color: var(--gold-700);">${item.applicationNo}</code>).
                 </p>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
                     Father: ${item.fatherName} &bull; CNIC: ${item.cnic}
@@ -470,21 +535,21 @@ const AdmissionsModule = {
             </div>
 
             <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                     Interview Date & Time *
                 </label>
                 <input type="datetime-local" id="interview-time" class="form-control" value="2026-10-06T10:00" required>
             </div>
 
             <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                     Interviewing Board / Examination Committee
                 </label>
                 <input type="text" id="interview-board" class="form-control" value="Nazim-e-Taleemat & Faculty of Hadith Committee">
             </div>
 
             <div class="form-group">
-                <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                     Campus Venue
                 </label>
                 <select id="interview-venue" class="form-control">
@@ -543,14 +608,14 @@ const AdmissionsModule = {
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Overall Evaluation Score (0 - 100) *
                         </label>
                         <input type="number" id="eval-score" class="form-control" min="0" max="100" value="${item.interviewScore || 88}" required>
                     </div>
 
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Committee Decision *
                         </label>
                         <select id="eval-decision" class="form-control" required>
@@ -561,7 +626,7 @@ const AdmissionsModule = {
                 </div>
 
                 <div style="background: var(--bg-surface-elevated); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle); margin-bottom: 16px;">
-                    <div style="font-size: 0.82rem; font-weight: 700; color: var(--gold-300); margin-bottom: 8px;">Aptitude Rubric Assessment:</div>
+                    <div style="font-size: 0.82rem; font-weight: 700; color: var(--gold-700); margin-bottom: 8px;">Aptitude Rubric Assessment:</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.82rem;">
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" checked style="accent-color: var(--primary-500);"> Quran Recitation & Tajweed
@@ -579,7 +644,7 @@ const AdmissionsModule = {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Committee Remarks / Examination Notes
                     </label>
                     <textarea id="eval-remarks" class="form-control" rows="3" placeholder="Enter notes from the interviewing committee...">${item.committeeRemarks || 'Candidate demonstrates sound foundational knowledge in Arabic and Quranic recitation.'}</textarea>
@@ -674,9 +739,9 @@ const AdmissionsModule = {
                 <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.15) 100%); border-left: 4px solid var(--gold-400); padding: 12px 16px; border-radius: 4px; margin-bottom: 18px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                         <div>
-                            <strong style="color: #ffffff; font-size: 1rem;">${item.name}</strong>
+                            <strong style="color: var(--primary-950); font-size: 1rem;">${item.name}</strong>
                             <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; S/O ${item.fatherName}</span>
-                            <div style="font-size: 0.78rem; color: var(--gold-300);">CNIC: ${item.cnic} &bull; Score: ${item.interviewScore || 90}%</div>
+                            <div style="font-size: 0.78rem; color: var(--gold-700);">CNIC: ${item.cnic} &bull; Score: ${item.interviewScore || 90}%</div>
                         </div>
                         <span class="status-pill success"><i class="fas fa-check"></i> Interview Cleared</span>
                     </div>
@@ -685,14 +750,14 @@ const AdmissionsModule = {
                 <!-- ROLL NUMBER & CLASS PLACEMENT -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Allotted Institutional Roll Number *
                         </label>
-                        <input type="text" id="enroll-roll-no" class="form-control" value="${suggestedRollNo}" required style="font-family: monospace; font-weight: 700; color: var(--gold-300);">
+                        <input type="text" id="enroll-roll-no" class="form-control" value="${suggestedRollNo}" required style="font-family: monospace; font-weight: 700; color: var(--gold-700);">
                     </div>
 
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Academic Class & Section Assignment *
                         </label>
                         <select id="enroll-class" class="form-control" required>
@@ -707,7 +772,7 @@ const AdmissionsModule = {
 
                 <!-- LMS LOGIN CREDENTIALS -->
                 <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 16px;">
-                    <div style="font-weight: 700; color: var(--primary-300); margin-bottom: 10px; font-size: 0.85rem;">
+                    <div style="font-weight: 700; color: var(--primary-950); margin-bottom: 10px; font-size: 0.85rem;">
                         <i class="fas fa-key"></i> Student LMS Portal Login Credentials:
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
@@ -725,7 +790,7 @@ const AdmissionsModule = {
                 <!-- RESIDENCE & HOSTEL -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Residential Placement
                         </label>
                         <select id="enroll-hostel" class="form-control">
@@ -736,7 +801,7 @@ const AdmissionsModule = {
                     </div>
 
                     <div>
-                        <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Tuition & Admission Fee Category
                         </label>
                         <select id="enroll-fee-cat" class="form-control">
@@ -787,11 +852,14 @@ const AdmissionsModule = {
 
         const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: 'Dars-e-Nizami' };
 
+        const isIntlStudent = item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport);
         const newStudentUser = {
             id: newStudentUserId,
             name: item.name,
             urduName: item.name,
             role: "STUDENT",
+            studentType: isIntlStudent ? "INTERNATIONAL" : "LOCAL",
+            country: item.country || (isIntlStudent ? "International" : "Pakistan"),
             rollNo: rollNo,
             classId: classId,
             program: prog.name,
@@ -799,7 +867,8 @@ const AdmissionsModule = {
             email: email,
             password: password,
             phone: item.phone,
-            cnic: item.cnic,
+            cnic: item.cnic || '',
+            passport: item.passport || '',
             guardianName: item.fatherName,
             hostel: hostel,
             status: "ACTIVE",
@@ -849,10 +918,10 @@ const AdmissionsModule = {
 
         modalBody.innerHTML = `
             <div style="text-align: center; padding: 20px 0;">
-                <div style="width: 70px; height: 70px; background: rgba(16, 185, 129, 0.2); color: var(--primary-400); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; margin: 0 auto 16px;">
+                <div style="width: 70px; height: 70px; background: rgba(16, 185, 129, 0.2); color: var(--primary-600); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; margin: 0 auto 16px;">
                     <i class="fas fa-user-check"></i>
                 </div>
-                <h3 style="color: #ffffff; margin-bottom: 6px;">Enrollment Completed Successfully</h3>
+                <h3 style="color: var(--primary-950); margin-bottom: 6px;">Enrollment Completed Successfully</h3>
                 <p style="color: var(--text-secondary); font-size: 0.9rem; max-width: 500px; margin: 0 auto 20px;">
                     Candidate <strong>${studentUser.name}</strong> is now an active scholar of Jamia Ashrafia Lahore.
                 </p>
@@ -860,10 +929,10 @@ const AdmissionsModule = {
                 <!-- CREDENTIALS CARD -->
                 <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 16px; max-width: 480px; margin: 0 auto; text-align: left; line-height: 1.9; font-size: 0.85rem;">
                     <div><strong>Scholar Name:</strong> ${studentUser.name}</div>
-                    <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-300); font-weight: 700; font-size: 0.95rem;">${studentUser.rollNo}</code></div>
+                    <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-700); font-weight: 700; font-size: 0.95rem;">${studentUser.rollNo}</code></div>
                     <div><strong>Class & Section:</strong> ${studentUser.classId}</div>
-                    <div><strong>Portal Login Email:</strong> <code style="color: var(--primary-300);">${studentUser.email}</code></div>
-                    <div><strong>Initial Password:</strong> <code style="color: #60a5fa; font-weight: 700;">${studentUser.password}</code></div>
+                    <div><strong>Portal Login Email:</strong> <code style="color: var(--primary-700);">${studentUser.email}</code></div>
+                    <div><strong>Initial Password:</strong> <code style="color: var(--primary-800); font-weight: 700;">${studentUser.password}</code></div>
                     <div><strong>Account Status:</strong> <span class="status-pill success"><i class="fas fa-check"></i> Active</span></div>
                 </div>
             </div>
@@ -912,7 +981,7 @@ const AdmissionsModule = {
 
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
-                <p style="color: #ffffff; font-size: 0.95rem; margin-bottom: 4px;">
+                <p style="color: var(--text-primary); font-size: 0.95rem; margin-bottom: 4px;">
                     Are you sure you want to mark application <strong>${item.applicationNo}</strong> (${item.name}) as Rejected?
                 </p>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
@@ -920,7 +989,7 @@ const AdmissionsModule = {
                 </div>
 
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Standard Rejection Reason *
                     </label>
                     <select id="reject-reason-select" class="form-control">
@@ -933,7 +1002,7 @@ const AdmissionsModule = {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" style="font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Additional Committee Notes / Remarks
                     </label>
                     <textarea id="reject-notes" class="form-control" rows="3" placeholder="Provide any additional context or rationale..."></textarea>
@@ -1022,6 +1091,34 @@ const AdmissionsModule = {
                 <!-- STEP 1 -->
                 <div id="step-content-1">
                     <div class="form-grid">
+                        <!-- STUDENT TYPE SELECTION -->
+                        <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 4px;">
+                            <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Type / طالب علم کی قسم *</span>
+                                <span style="font-size: 0.72rem; color: var(--gold-700);">Select applicant category</span>
+                            </label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <label id="adm-type-local-card" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--primary-50); border: 2px solid var(--primary-500); border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                    <input type="radio" name="adm_student_type" id="adm-type-local" value="LOCAL" checked onchange="AdmissionsModule.handleStudentTypeChange('LOCAL')" style="width: 17px; height: 17px; accent-color: var(--primary-500);">
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
+                                            <i class="fas fa-flag" style="color: var(--primary-600); font-size: 0.8rem;"></i> Local Student
+                                        </div>
+                                        <div style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 2px;">Pakistani National (CNIC / B-Form)</div>
+                                    </div>
+                                </label>
+                                <label id="adm-type-intl-card" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-surface-elevated); border: 1.5px solid var(--border-prominent); border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                    <input type="radio" name="adm_student_type" id="adm-type-intl" value="INTERNATIONAL" onchange="AdmissionsModule.handleStudentTypeChange('INTERNATIONAL')" style="width: 17px; height: 17px; accent-color: var(--gold-500);">
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
+                                            <i class="fas fa-globe-americas" style="color: var(--gold-600); font-size: 0.8rem;"></i> International Student
+                                        </div>
+                                        <div style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 2px;">Foreign / Overseas (Passport & Country)</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label>Candidate Full Name (English) *</label>
                             <input type="text" id="adm-name" class="form-control" placeholder="e.g. Muhammad Bilal Usmani" required>
@@ -1030,10 +1127,37 @@ const AdmissionsModule = {
                             <label>Father's Name *</label>
                             <input type="text" id="adm-father" class="form-control" placeholder="e.g. Maulana Abdul Rehman" required>
                         </div>
-                        <div class="form-group">
-                            <label>CNIC / B-Form Number *</label>
-                            <input type="text" id="adm-cnic" class="form-control" placeholder="35201-1234567-1" required>
+
+                        <!-- LOCAL: CNIC FIELD -->
+                        <div class="form-group" id="adm-cnic-group">
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>CNIC / B-Form Number *</span>
+                                <span style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">XXXXX-XXXXXXX-X</span>
+                            </label>
+                            <input type="text" id="adm-cnic" class="form-control" placeholder="35201-1234567-1" maxlength="15" required>
                         </div>
+
+                        <!-- INTERNATIONAL: PASSPORT NUMBER FIELD -->
+                        <div class="form-group" id="adm-passport-group" style="display: none;">
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Passport Number *</span>
+                                <span style="font-size: 0.72rem; color: var(--gold-300);">Alphanumeric</span>
+                            </label>
+                            <input type="text" id="adm-passport" class="form-control" placeholder="e.g. A12345678 or L98765432" maxlength="30">
+                        </div>
+
+                        <!-- INTERNATIONAL: CURRENT COUNTRY / RESIDENCE FIELD -->
+                        <div class="form-group" id="adm-country-group" style="display: none;">
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                <span><i class="fas fa-globe" style="color: var(--gold-400); margin-right: 4px;"></i> Current Country / Country of Residence *</span>
+                                <span style="font-size: 0.72rem; color: var(--gold-300);">Searchable</span>
+                            </label>
+                            <input type="text" id="adm-country" list="adm-country-datalist" class="form-control" placeholder="Search or select country..." autocomplete="off">
+                            <datalist id="adm-country-datalist">
+                                ${(window.WORLD_COUNTRIES || []).map(c => `<option value="${c}">`).join('')}
+                            </datalist>
+                        </div>
+
                         <div class="form-group">
                             <label>Date of Birth *</label>
                             <input type="date" id="adm-dob" class="form-control" value="2006-03-15" required>
@@ -1125,17 +1249,124 @@ const AdmissionsModule = {
             <button class="btn btn-gold" id="btn-wiz-next" onclick="AdmissionsModule.nextStep()">Next Step <i class="fas fa-arrow-right"></i></button>
         `;
 
+        // CNIC masking
+        const cnicInput = document.getElementById('adm-cnic');
+        if (cnicInput) {
+            cnicInput.addEventListener('input', function(e) {
+                const typeChecked = document.querySelector('input[name="adm_student_type"]:checked')?.value;
+                if (typeChecked !== 'LOCAL') return;
+                let val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                if (val.length > 5 && val.length <= 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5);
+                } else if (val.length > 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5, 12) + '-' + val.slice(12);
+                }
+                e.target.value = val;
+            });
+        }
+
         App.openModal();
+    },
+
+    handleStudentTypeChange(type) {
+        const localCard = document.getElementById('adm-type-local-card');
+        const intlCard = document.getElementById('adm-type-intl-card');
+        const cnicGroup = document.getElementById('adm-cnic-group');
+        const passportGroup = document.getElementById('adm-passport-group');
+        const countryGroup = document.getElementById('adm-country-group');
+        const cnicInput = document.getElementById('adm-cnic');
+        const passportInput = document.getElementById('adm-passport');
+        const countryInput = document.getElementById('adm-country');
+        const phoneInput = document.getElementById('adm-phone');
+
+        if (type === 'LOCAL') {
+            if (localCard) {
+                localCard.style.borderColor = 'var(--primary-500)';
+                localCard.style.background = 'rgba(6, 78, 59, 0.4)';
+                localCard.style.borderWidth = '2px';
+            }
+            if (intlCard) {
+                intlCard.style.borderColor = 'var(--border-prominent)';
+                intlCard.style.background = 'var(--bg-surface-elevated)';
+                intlCard.style.borderWidth = '1.5px';
+            }
+            if (cnicGroup) cnicGroup.style.display = 'block';
+            if (passportGroup) passportGroup.style.display = 'none';
+            if (countryGroup) countryGroup.style.display = 'none';
+
+            if (cnicInput) { cnicInput.required = true; cnicInput.setAttribute('required', 'required'); }
+            if (passportInput) { passportInput.required = false; passportInput.removeAttribute('required'); }
+            if (countryInput) { countryInput.required = false; countryInput.removeAttribute('required'); }
+            if (phoneInput && (phoneInput.placeholder.includes('+44') || phoneInput.placeholder === '')) {
+                phoneInput.placeholder = '+92 300 1234567';
+            }
+        } else {
+            if (intlCard) {
+                intlCard.style.borderColor = 'var(--gold-400)';
+                intlCard.style.background = 'rgba(217, 119, 6, 0.2)';
+                intlCard.style.borderWidth = '2px';
+            }
+            if (localCard) {
+                localCard.style.borderColor = 'var(--border-prominent)';
+                localCard.style.background = 'var(--bg-surface-elevated)';
+                localCard.style.borderWidth = '1.5px';
+            }
+            if (cnicGroup) cnicGroup.style.display = 'none';
+            if (passportGroup) passportGroup.style.display = 'block';
+            if (countryGroup) countryGroup.style.display = 'block';
+
+            if (cnicInput) { cnicInput.required = false; cnicInput.removeAttribute('required'); }
+            if (passportInput) { passportInput.required = true; passportInput.setAttribute('required', 'required'); }
+            if (countryInput) { countryInput.required = true; countryInput.setAttribute('required', 'required'); }
+            if (phoneInput && phoneInput.placeholder === '+92 300 1234567') {
+                phoneInput.placeholder = 'e.g. +44 7123 456789 or +966 50 123 4567';
+            }
+        }
     },
 
     nextStep() {
         if (this.currentStep === 1) {
             const name = document.getElementById('adm-name').value.trim();
             const father = document.getElementById('adm-father').value.trim();
-            const cnic = document.getElementById('adm-cnic').value.trim();
-            if (!name || !father || !cnic) {
-                App.showToast("Please fill in candidate name, father name, and CNIC/B-Form", "warning");
+            const phone = document.getElementById('adm-phone').value.trim();
+            const studentType = document.querySelector('input[name="adm_student_type"]:checked')?.value || 'LOCAL';
+
+            if (!name || !father || !phone) {
+                App.showToast("Please fill in candidate name, father name, and phone number", "warning");
                 return;
+            }
+
+            if (studentType === 'LOCAL') {
+                const cnic = document.getElementById('adm-cnic').value.trim();
+                if (!cnic) {
+                    App.showToast("Please enter candidate CNIC / B-Form Number", "warning");
+                    document.getElementById('adm-cnic').focus();
+                    return;
+                }
+                const cnicClean = cnic.replace(/\D/g, '');
+                if (cnicClean.length !== 13) {
+                    App.showToast("CNIC / B-Form must contain 13 digits (format: 35201-1234567-1)", "warning");
+                    document.getElementById('adm-cnic').focus();
+                    return;
+                }
+            } else {
+                const passport = document.getElementById('adm-passport').value.trim();
+                const country = document.getElementById('adm-country').value.trim();
+                if (!passport) {
+                    App.showToast("Please enter candidate Passport Number", "warning");
+                    document.getElementById('adm-passport').focus();
+                    return;
+                }
+                if (passport.length < 3) {
+                    App.showToast("Passport Number must be at least 3 characters", "warning");
+                    document.getElementById('adm-passport').focus();
+                    return;
+                }
+                if (!country) {
+                    App.showToast("Please select candidate's current country / country of residence", "warning");
+                    document.getElementById('adm-country').focus();
+                    return;
+                }
             }
         }
 
@@ -1176,9 +1407,12 @@ const AdmissionsModule = {
     },
 
     submitApplication() {
+        const studentType = document.querySelector('input[name="adm_student_type"]:checked')?.value || 'LOCAL';
         const name = document.getElementById('adm-name').value.trim();
         const father = document.getElementById('adm-father').value.trim();
-        const cnic = document.getElementById('adm-cnic').value.trim();
+        const cnic = studentType === 'LOCAL' ? document.getElementById('adm-cnic').value.trim() : '';
+        const passport = studentType === 'INTERNATIONAL' ? document.getElementById('adm-passport').value.trim() : '';
+        const country = studentType === 'INTERNATIONAL' ? document.getElementById('adm-country').value.trim() : 'Pakistan';
         const phone = document.getElementById('adm-phone').value.trim();
         const email = document.getElementById('adm-email').value.trim();
         const prev = document.getElementById('adm-prev-madrasa').value.trim();
@@ -1192,10 +1426,13 @@ const AdmissionsModule = {
         const newRecord = {
             id: `adm_${Date.now()}`,
             applicationNo: newAppNo,
+            studentType: studentType,
             name: name,
             fatherName: father,
             cnic: cnic,
-            phone: phone || "+92 300 0000000",
+            passport: passport,
+            country: country,
+            phone: phone || (studentType === 'LOCAL' ? "+92 300 0000000" : "+1 555 0000"),
             email: email || "student@ashrafia.org",
             programId: programId,
             branchId: branchId,
@@ -1212,8 +1449,310 @@ const AdmissionsModule = {
         if (!window.LmsData.admissions) window.LmsData.admissions = [];
         window.LmsData.admissions.unshift(newRecord);
         window.DataStore.save(window.LmsData);
+
+        // Sync to backend API
+        fetch('/api/admissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newRecord)
+        }).catch(() => {/* Offline fallback */});
+
         App.closeModal();
         App.showToast(`Application ${newAppNo} successfully registered!`, "success");
+
+        const viewport = document.getElementById('main-content-viewport');
+        if (viewport && App.currentRoute === 'admissions') {
+            viewport.innerHTML = this.render();
+        }
+    },
+
+    // =========================================================================
+    // EDIT APPLICATION WORKFLOW
+    // =========================================================================
+    openEditApplicationModal(appId) {
+        const item = (window.LmsData.admissions || []).find(a => a.id === appId);
+        if (!item) return;
+
+        const isIntl = (item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport));
+        const modalBody = document.getElementById('modal-body-container');
+        const modalTitle = document.getElementById('modal-title-text');
+        const modalFooter = document.getElementById('modal-footer-container');
+
+        modalTitle.innerHTML = `<i class="fas fa-edit" style="color: var(--gold-400);"></i> Edit Application: ${item.name} (${item.applicationNo})`;
+        modalBody.innerHTML = `
+            <form id="edit-admission-form" onsubmit="event.preventDefault(); AdmissionsModule.saveEditedApplication('${item.id}')">
+                <div class="form-grid">
+                    <!-- STUDENT TYPE SELECTION -->
+                    <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 6px;">
+                        <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Type / طالب علم کی قسم *</span>
+                            <span style="font-size: 0.72rem; color: var(--gold-700);">Select applicant category</span>
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <label id="edit-adm-type-local-card" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: ${!isIntl ? 'var(--primary-50)' : 'var(--bg-surface-elevated)'}; border: ${!isIntl ? '2px solid var(--primary-500)' : '1.5px solid var(--border-prominent)'}; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                <input type="radio" name="edit_adm_student_type" id="edit-adm-type-local" value="LOCAL" ${!isIntl ? 'checked' : ''} onchange="AdmissionsModule.handleEditStudentTypeChange('LOCAL')" style="width: 17px; height: 17px; accent-color: var(--primary-500);">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.88rem; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
+                                        <i class="fas fa-flag" style="color: var(--primary-600); font-size: 0.8rem;"></i> Local Student
+                                    </div>
+                                    <div style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 2px;">Pakistani National (CNIC / B-Form)</div>
+                                </div>
+                            </label>
+                            <label id="edit-adm-type-intl-card" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: ${isIntl ? 'var(--gold-50)' : 'var(--bg-surface-elevated)'}; border: ${isIntl ? '2px solid var(--gold-500)' : '1.5px solid var(--border-prominent)'}; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                                <input type="radio" name="edit_adm_student_type" id="edit-adm-type-intl" value="INTERNATIONAL" ${isIntl ? 'checked' : ''} onchange="AdmissionsModule.handleEditStudentTypeChange('INTERNATIONAL')" style="width: 17px; height: 17px; accent-color: var(--gold-500);">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.88rem; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
+                                        <i class="fas fa-globe-americas" style="color: var(--gold-600); font-size: 0.8rem;"></i> International Student
+                                    </div>
+                                    <div style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 2px;">Foreign / Overseas (Passport & Country)</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Candidate Full Name (English) *</label>
+                        <input type="text" id="edit-adm-name" class="form-control" value="${item.name || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Father's Name *</label>
+                        <input type="text" id="edit-adm-father" class="form-control" value="${item.fatherName || ''}" required>
+                    </div>
+
+                    <!-- LOCAL: CNIC FIELD -->
+                    <div class="form-group" id="edit-adm-cnic-group" style="display: ${!isIntl ? 'block' : 'none'};">
+                        <label style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>CNIC / B-Form Number *</span>
+                            <span style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">XXXXX-XXXXXXX-X</span>
+                        </label>
+                        <input type="text" id="edit-adm-cnic" class="form-control" value="${item.cnic || ''}" placeholder="35201-1234567-1" maxlength="15" ${!isIntl ? 'required' : ''}>
+                    </div>
+
+                    <!-- INTERNATIONAL: PASSPORT NUMBER FIELD -->
+                    <div class="form-group" id="edit-adm-passport-group" style="display: ${isIntl ? 'block' : 'none'};">
+                        <label style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Passport Number *</span>
+                            <span style="font-size: 0.72rem; color: var(--gold-300);">Alphanumeric</span>
+                        </label>
+                        <input type="text" id="edit-adm-passport" class="form-control" value="${item.passport || ''}" placeholder="e.g. A12345678 or L98765432" maxlength="30" ${isIntl ? 'required' : ''}>
+                    </div>
+
+                    <!-- INTERNATIONAL: CURRENT COUNTRY / RESIDENCE FIELD -->
+                    <div class="form-group" id="edit-adm-country-group" style="display: ${isIntl ? 'block' : 'none'};">
+                        <label style="display: flex; justify-content: space-between; align-items: center;">
+                            <span><i class="fas fa-globe" style="color: var(--gold-400); margin-right: 4px;"></i> Current Country / Country of Residence *</span>
+                            <span style="font-size: 0.72rem; color: var(--gold-300);">Searchable</span>
+                        </label>
+                        <input type="text" id="edit-adm-country" list="edit-adm-country-datalist" class="form-control" value="${item.country || (isIntl ? 'United Kingdom' : 'Pakistan')}" placeholder="Search or select country..." autocomplete="off" ${isIntl ? 'required' : ''}>
+                        <datalist id="edit-adm-country-datalist">
+                            ${(window.WORLD_COUNTRIES || []).map(c => `<option value="${c}">`).join('')}
+                        </datalist>
+                    </div>
+
+                    <div class="form-group">
+                        <label>WhatsApp / Mobile Phone *</label>
+                        <input type="tel" id="edit-adm-phone" class="form-control" value="${item.phone || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="edit-adm-email" class="form-control" value="${item.email || ''}">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Academic Program Sought *</label>
+                        <select id="edit-adm-program" class="form-control" required>
+                            ${(window.LmsData.programs || []).map(p => `
+                                <option value="${p.id}" ${p.id === item.programId ? 'selected' : ''}>${p.name} (${p.urdu})</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Campus / Branch *</label>
+                        <select id="edit-adm-branch" class="form-control" required>
+                            ${(window.LmsData.institution?.branches || []).map(b => `
+                                <option value="${b.id}" ${b.id === item.branchId ? 'selected' : ''}>${b.name} - ${b.location}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Previous Madrasa / School Attended</label>
+                        <input type="text" id="edit-adm-prev-madrasa" class="form-control" value="${item.previousMadrasa || ''}">
+                    </div>
+
+                    <div class="form-group" style="display: flex; align-items: center; gap: 20px; padding-top: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="edit-adm-hafiz" style="width: 18px; height: 18px;" ${item.hafizStatus ? 'checked' : ''}>
+                            <strong>Hafiz-ul-Quran (حافظ قرآن)</strong>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="edit-adm-hostel" style="width: 18px; height: 18px;" ${item.hostelRequired ? 'checked' : ''}>
+                            <strong>Boarding / Hostel Required</strong>
+                        </label>
+                    </div>
+                </div>
+            </form>
+        `;
+
+        modalFooter.innerHTML = `
+            <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+            <button type="button" class="btn btn-gold" onclick="AdmissionsModule.saveEditedApplication('${item.id}')">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        `;
+
+        // CNIC masking on edit input
+        const cnicInput = document.getElementById('edit-adm-cnic');
+        if (cnicInput) {
+            cnicInput.addEventListener('input', function(e) {
+                const typeChecked = document.querySelector('input[name="edit_adm_student_type"]:checked')?.value;
+                if (typeChecked !== 'LOCAL') return;
+                let val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                if (val.length > 5 && val.length <= 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5);
+                } else if (val.length > 12) {
+                    val = val.slice(0, 5) + '-' + val.slice(5, 12) + '-' + val.slice(12);
+                }
+                e.target.value = val;
+            });
+        }
+
+        App.openModal();
+    },
+
+    handleEditStudentTypeChange(type) {
+        const localCard = document.getElementById('edit-adm-type-local-card');
+        const intlCard = document.getElementById('edit-adm-type-intl-card');
+        const cnicGroup = document.getElementById('edit-adm-cnic-group');
+        const passportGroup = document.getElementById('edit-adm-passport-group');
+        const countryGroup = document.getElementById('edit-adm-country-group');
+        const cnicInput = document.getElementById('edit-adm-cnic');
+        const passportInput = document.getElementById('edit-adm-passport');
+        const countryInput = document.getElementById('edit-adm-country');
+
+        if (type === 'LOCAL') {
+            if (localCard) {
+                localCard.style.borderColor = 'var(--primary-500)';
+                localCard.style.background = 'rgba(6, 78, 59, 0.4)';
+                localCard.style.borderWidth = '2px';
+            }
+            if (intlCard) {
+                intlCard.style.borderColor = 'var(--border-prominent)';
+                intlCard.style.background = 'var(--bg-surface-elevated)';
+                intlCard.style.borderWidth = '1.5px';
+            }
+            if (cnicGroup) cnicGroup.style.display = 'block';
+            if (passportGroup) passportGroup.style.display = 'none';
+            if (countryGroup) countryGroup.style.display = 'none';
+
+            if (cnicInput) { cnicInput.required = true; cnicInput.setAttribute('required', 'required'); }
+            if (passportInput) { passportInput.required = false; passportInput.removeAttribute('required'); }
+            if (countryInput) { countryInput.required = false; countryInput.removeAttribute('required'); }
+        } else {
+            if (intlCard) {
+                intlCard.style.borderColor = 'var(--gold-400)';
+                intlCard.style.background = 'rgba(217, 119, 6, 0.2)';
+                intlCard.style.borderWidth = '2px';
+            }
+            if (localCard) {
+                localCard.style.borderColor = 'var(--border-prominent)';
+                localCard.style.background = 'var(--bg-surface-elevated)';
+                localCard.style.borderWidth = '1.5px';
+            }
+            if (cnicGroup) cnicGroup.style.display = 'none';
+            if (passportGroup) passportGroup.style.display = 'block';
+            if (countryGroup) countryGroup.style.display = 'block';
+
+            if (cnicInput) { cnicInput.required = false; cnicInput.removeAttribute('required'); }
+            if (passportInput) { passportInput.required = true; passportInput.setAttribute('required', 'required'); }
+            if (countryInput) { countryInput.required = true; countryInput.setAttribute('required', 'required'); }
+        }
+    },
+
+    saveEditedApplication(appId) {
+        const item = (window.LmsData.admissions || []).find(a => a.id === appId);
+        if (!item) return;
+
+        const studentType = document.querySelector('input[name="edit_adm_student_type"]:checked')?.value || 'LOCAL';
+        const name = document.getElementById('edit-adm-name').value.trim();
+        const father = document.getElementById('edit-adm-father').value.trim();
+        const phone = document.getElementById('edit-adm-phone').value.trim();
+        const email = document.getElementById('edit-adm-email').value.trim();
+        const programId = document.getElementById('edit-adm-program').value;
+        const branchId = document.getElementById('edit-adm-branch').value;
+        const prev = document.getElementById('edit-adm-prev-madrasa').value.trim();
+        const hafiz = document.getElementById('edit-adm-hafiz').checked;
+        const hostel = document.getElementById('edit-adm-hostel').checked;
+
+        if (!name || !father || !phone) {
+            App.showToast("Please fill in candidate name, father name, and phone number", "warning");
+            return;
+        }
+
+        let cnic = '';
+        let passport = '';
+        let country = 'Pakistan';
+
+        if (studentType === 'LOCAL') {
+            cnic = document.getElementById('edit-adm-cnic').value.trim();
+            if (!cnic) {
+                App.showToast("Please enter candidate CNIC / B-Form Number", "warning");
+                document.getElementById('edit-adm-cnic').focus();
+                return;
+            }
+            const cnicClean = cnic.replace(/\D/g, '');
+            if (cnicClean.length !== 13) {
+                App.showToast("CNIC / B-Form must contain 13 digits (format: 35201-1234567-1)", "warning");
+                document.getElementById('edit-adm-cnic').focus();
+                return;
+            }
+        } else {
+            passport = document.getElementById('edit-adm-passport').value.trim();
+            country = document.getElementById('edit-adm-country').value.trim();
+            if (!passport) {
+                App.showToast("Please enter candidate Passport Number", "warning");
+                document.getElementById('edit-adm-passport').focus();
+                return;
+            }
+            if (passport.length < 3) {
+                App.showToast("Passport Number must be at least 3 characters", "warning");
+                document.getElementById('edit-adm-passport').focus();
+                return;
+            }
+            if (!country) {
+                App.showToast("Please select candidate's current country of residence", "warning");
+                document.getElementById('edit-adm-country').focus();
+                return;
+            }
+        }
+
+        // Apply edits to item
+        item.studentType = studentType;
+        item.name = name;
+        item.fatherName = father;
+        item.cnic = cnic;
+        item.passport = passport;
+        item.country = country;
+        item.phone = phone;
+        item.email = email;
+        item.programId = programId;
+        item.branchId = branchId;
+        item.previousMadrasa = prev || "None";
+        item.hafizStatus = hafiz;
+        item.hostelRequired = hostel;
+
+        // Persist
+        window.DataStore.save(window.LmsData);
+
+        // Synchronize with backend API
+        fetch(`/api/admissions/${encodeURIComponent(appId)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item)
+        }).catch(() => {/* Offline fallback */});
+
+        App.closeModal();
+        App.showToast(`Application ${item.applicationNo} updated successfully!`, "success");
 
         const viewport = document.getElementById('main-content-viewport');
         if (viewport && App.currentRoute === 'admissions') {
@@ -1230,40 +1769,52 @@ const AdmissionsModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-id-card" style="color: var(--primary-400);"></i> Digital Student Identity Card`;
+        modalTitle.innerHTML = `<i class="fas fa-id-card" style="color: var(--primary-600);"></i> Digital Student Identity Card`;
         modalBody.innerHTML = `
             <div style="display: flex; justify-content: center; padding: 10px;">
-                <div style="width: 380px; background: linear-gradient(135deg, #022018 0%, #064e3b 100%); border: 2px solid var(--gold-400); border-radius: 12px; padding: 20px; color: #ffffff; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;">
+                <div class="student-id-card-wrap" style="width: 390px; background: #ffffff; border: 2px solid var(--primary-700); border-radius: 14px; padding: 22px; color: var(--text-primary); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); position: relative; overflow: hidden;">
                     <!-- Card Header -->
-                    <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; margin-bottom: 14px;">
-                        <img src="assets/images/crest.jpg" style="width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--gold-400);">
+                    <div style="display: flex; align-items: center; gap: 12px; border-bottom: 2px solid var(--primary-100); padding-bottom: 12px; margin-bottom: 14px;">
+                        <img src="assets/images/logo.png" style="width: 48px; height: 48px; object-fit: contain;">
                         <div>
-                            <div style="font-weight: 800; font-size: 0.95rem; color: #ffffff;">JAMIA ASHRAFIA LAHORE</div>
-                            <div style="font-family: 'Amiri', serif; font-size: 0.85rem; color: var(--gold-200);">جامعہ اشرفیہ، لاہور - علم اور تقویٰ</div>
+                            <div style="font-weight: 800; font-size: 1rem; color: var(--primary-950); letter-spacing: 0.5px;">JAMIA ASHRAFIA LAHORE</div>
+                            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700); font-weight: 700;">جامعہ اشرفیہ، لاہور - علم اور تقویٰ</div>
+                            <div style="font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">Student Identity Card</div>
                         </div>
                     </div>
 
                     <!-- Card Body -->
-                    <div style="display: flex; gap: 16px;">
-                        <div style="width: 80px; height: 95px; background: #111a1e; border: 1px solid var(--gold-400); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--gold-300);">
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <div style="width: 88px; height: 105px; background: var(--primary-50); border: 1.5px solid var(--primary-600); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; color: var(--primary-700); flex-shrink: 0;">
                             <i class="fas fa-user-graduate"></i>
+                            <span style="font-size: 0.65rem; color: var(--primary-800); font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Photo</span>
                         </div>
-                        <div style="flex: 1; font-size: 0.82rem; line-height: 1.6;">
-                            <div><strong>Name:</strong> ${item.name}</div>
-                            <div><strong>Roll No:</strong> <span style="color: var(--gold-300); font-weight: 700;">${item.allottedRollNo || 'ASH-2026-001'}</span></div>
-                            <div><strong>Department:</strong> Dars-e-Nizami</div>
-                            <div><strong>CNIC:</strong> ${item.cnic}</div>
-                            <div><strong>Branch:</strong> Main Ferozepur Rd</div>
+                        <div style="flex: 1; font-size: 0.84rem; line-height: 1.65; color: var(--text-primary);">
+                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${item.name}</strong></div>
+                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${item.allottedRollNo || 'ASH-2026-001'}</span></div>
+                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Department:</span> <span style="font-weight: 600;">Dars-e-Nizami</span></div>
+                            ${(item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport)) ? `
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Passport:</span> <span style="font-weight: 600;">${item.passport}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Country:</span> <span style="font-weight: 600;">${item.country || 'International'}</span></div>
+                            ` : `
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">CNIC:</span> <span style="font-weight: 600;">${item.cnic}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Country:</span> <span style="font-weight: 600;">Pakistan</span></div>
+                            `}
+                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Branch:</span> <span style="font-weight: 600;">Main Ferozepur Rd</span></div>
                         </div>
                     </div>
 
                     <!-- Card Footer & Barcode -->
-                    <div style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px; display: flex; align-items: center; justify-content: space-between;">
-                        <div style="font-family: monospace; font-size: 0.72rem; letter-spacing: 2px; color: var(--gold-200);">
-                            ||| | |||| | |||||| || |
+                    <div style="margin-top: 14px; border-top: 1px dashed var(--border-prominent); padding-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 2px; color: var(--primary-950); font-weight: 700;">
+                                ||| | |||| | |||||| || |
+                            </div>
+                            <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${item.applicationNo || 'JAL-ST-CARD'}</div>
                         </div>
-                        <div style="font-size: 0.65rem; color: #cbd5e1; text-align: right;">
-                            Valid Session: 1446-1447 AH<br>Authorized Signatory
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: right; line-height: 1.35;">
+                            <div>Valid Session: <strong>1446-1447 AH</strong></div>
+                            <div style="color: var(--gold-700); font-weight: 700; margin-top: 2px;">Authorized Signatory</div>
                         </div>
                     </div>
                 </div>
@@ -1274,15 +1825,20 @@ const AdmissionsModule = {
             <button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
             <button class="btn btn-gold" onclick="window.print()"><i class="fas fa-print"></i> Print ID Card</button>
         `;
+
         App.openModal();
     },
 
     exportAdmissionsCSV() {
         const rows = [
-            ["Application No", "Name", "Father Name", "CNIC", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
+            ["Application No", "Category", "Name", "Father Name", "Identification (CNIC/Passport)", "Country", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
         ];
         (window.LmsData.admissions || []).forEach(a => {
-            rows.push([a.applicationNo, a.name, a.fatherName, a.cnic, a.phone, a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
+            const isIntl = (a.studentType === 'INTERNATIONAL' || (!a.cnic && a.passport));
+            const idDoc = isIntl ? (a.passport || 'N/A') : (a.cnic || 'N/A');
+            const country = isIntl ? (a.country || 'International') : 'Pakistan';
+            const cat = isIntl ? 'INTERNATIONAL' : 'LOCAL';
+            rows.push([a.applicationNo, cat, a.name, a.fatherName, idDoc, country, a.phone, a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
         });
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
         const encodedUri = encodeURI(csvContent);

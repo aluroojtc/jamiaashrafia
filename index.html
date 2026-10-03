@@ -13,8 +13,8 @@
         }
     </script>
 
-    <!-- Favicon using Institutional Crest -->
-    <link rel="icon" type="image/jpeg" href="assets/images/crest.jpg">
+    <!-- Favicon using Institutional Logo -->
+    <link rel="icon" type="image/png" href="assets/images/favicon.png?v=3.0">
 
     <!-- Google Fonts: Amiri & Scheherazade for Arabic/Urdu, Outfit & Inter for UI -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,9 +25,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 
     <!-- Design System CSS -->
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/zoom-room.css">
+    <link rel="stylesheet" href="css/main.css?v=4.0">
+    <link rel="stylesheet" href="css/components.css?v=4.1">
+    <link rel="stylesheet" href="css/zoom-room.css?v=4.0">
 </head>
 <body>
 
@@ -36,7 +36,7 @@
         <header class="top-header">
             <!-- Brand & Crest -->
             <div class="brand-section">
-                <img src="assets/images/crest.jpg" alt="Jamia Ashrafia Lahore Crest" class="brand-crest">
+                <img src="assets/images/logo.png?v=3.0" alt="Jamia Ashrafia Lahore Logo" class="brand-crest">
                 <div class="brand-info">
                     <div class="brand-title">
                         JAMIA ASHRAFIA LAHORE
@@ -50,14 +50,26 @@
                 </div>
             </div>
 
-            <!-- Prayer Times Ticker Widget -->
-            <div class="prayer-ticker">
-                <div class="ticker-label"><i class="fas fa-mosque"></i> Prayer Schedule:</div>
-                <div class="prayer-pill">Fajr 04:45 AM</div>
-                <div class="prayer-pill active">Zuhr 12:15 PM</div>
-                <div class="prayer-pill">Asr 04:30 PM</div>
-                <div class="prayer-pill">Maghrib 06:10 PM</div>
-                <div class="prayer-pill">Isha 07:45 PM</div>
+            <!-- Dynamic Location-Aware Prayer Times Ticker Widget -->
+            <div class="prayer-ticker" id="prayer-ticker-widget">
+                <div class="prayer-ticker-heading">
+                    <i class="fas fa-mosque"></i>
+                    <span>Prayer Times</span>
+                </div>
+                <span class="prayer-ticker-divider">|</span>
+                <div class="prayer-location-badge" onclick="PrayerTimesService.openLocationModal()" title="Location: Detecting... Click ☰ for full details">
+                    <i class="fas fa-map-marker-alt location-icon"></i>
+                    <span class="location-city-name">Detecting...</span>
+                    <span class="prayer-badge-divider">|</span>
+                    <i class="fas fa-bars location-menu-icon" title="View details (☰)"></i>
+                </div>
+                <div class="prayer-pills-list">
+                    <div class="prayer-pill"><span class="pill-name">Fajr</span> <span class="pill-time">--:--</span></div>
+                    <div class="prayer-pill active"><span class="pill-name">Zuhr</span> <span class="pill-time">--:--</span></div>
+                    <div class="prayer-pill"><span class="pill-name">Asr</span> <span class="pill-time">--:--</span></div>
+                    <div class="prayer-pill"><span class="pill-name">Maghrib</span> <span class="pill-time">--:--</span></div>
+                    <div class="prayer-pill"><span class="pill-name">Isha</span> <span class="pill-time">--:--</span></div>
+                </div>
             </div>
 
             <!-- Global Search & Role Switcher -->
@@ -87,8 +99,8 @@
                     <!-- User Dropdown Menu -->
                     <div class="user-dropdown-menu" id="header-user-dropdown">
                         <div class="user-dropdown-header">
-                            <div style="font-weight: 700; color: #ffffff;" id="dropdown-user-name">Maulana Fazl-ur-Raheem</div>
-                            <div style="font-size: 0.75rem; color: var(--gold-300);" id="dropdown-user-role">Super Admin (Mohtamim)</div>
+                            <div style="font-weight: 700; color: var(--text-primary);" id="dropdown-user-name">Maulana Fazl-ur-Raheem</div>
+                            <div style="font-size: 0.75rem; color: var(--primary-700);" id="dropdown-user-role">Super Admin (Mohtamim)</div>
                         </div>
                         <div class="dropdown-divider"></div>
                         <button class="dropdown-item" onclick="App.openProfileModal()">
@@ -219,25 +231,26 @@
     <div id="toast-container"></div>
 
     <!-- APPLICATION SCRIPTS -->
-    <script src="js/data.js"></script>
-    <script src="js/auth-rbac.js"></script>
-    <script src="js/modules/permissions.js"></script>
-    <script src="js/modules/institutional.js"></script>
-    <script src="js/modules/admissions.js"></script>
-    <script src="js/modules/classes-courses.js"></script>
-    <script src="js/modules/teachers.js"></script>
-    <script src="js/modules/assignments.js"></script>
-    <script src="js/modules/fees-donations.js"></script>
-    <script src="js/modules/library.js"></script>
-    <script src="js/modules/exams.js"></script>
-    <script src="js/modules/timetable.js"></script>
-    <script src="js/modules/notifications.js"></script>
-    <script src="js/modules/attendance.js"></script>
-    <script src="js/modules/students.js"></script>
-    <script src="js/modules/users.js?v=2"></script>
-    <script src="js/modules/roles.js?v=2"></script>
-    <script src="js/modules/reports.js"></script>
-    <script src="js/modules/virtual-class.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/data.js?v=4.0"></script>
+    <script src="js/auth-rbac.js?v=4.0"></script>
+    <script src="js/modules/permissions.js?v=4.0"></script>
+    <script src="js/modules/institutional.js?v=4.0"></script>
+    <script src="js/modules/admissions.js?v=4.0"></script>
+    <script src="js/modules/classes-courses.js?v=4.0"></script>
+    <script src="js/modules/teachers.js?v=4.0"></script>
+    <script src="js/modules/assignments.js?v=4.0"></script>
+    <script src="js/modules/fees-donations.js?v=4.0"></script>
+    <script src="js/modules/library.js?v=4.0"></script>
+    <script src="js/modules/exams.js?v=4.0"></script>
+    <script src="js/modules/timetable.js?v=4.0"></script>
+    <script src="js/modules/notifications.js?v=4.0"></script>
+    <script src="js/modules/attendance.js?v=4.0"></script>
+    <script src="js/modules/students.js?v=4.0"></script>
+    <script src="js/modules/users.js?v=4.0"></script>
+    <script src="js/modules/roles.js?v=4.0"></script>
+    <script src="js/modules/reports.js?v=4.0"></script>
+    <script src="js/modules/virtual-class.js?v=4.0"></script>
+    <script src="js/modules/prayer-times.js?v=4.0"></script>
+    <script src="js/app.js?v=4.0"></script>
 </body>
 </html>

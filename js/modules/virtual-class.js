@@ -34,7 +34,7 @@ const VirtualClassModule = {
     timerInterval: null,
     wbCtx: null,
     isDrawing: false,
-    currentColor: "#064e3b",
+    currentColor: "#124855",
     currentLineWidth: 3,
     showReactions: false,
 
@@ -123,7 +123,7 @@ const VirtualClassModule = {
                     <span class="badge-pill">${allSessions.length}</span>
                 </button>
                 <button class="vc-tab-btn ${this.currentTab === 'studio' ? 'active' : ''}" onclick="VirtualClassModule.switchTab('studio')">
-                    <i class="fas fa-broadcast-tower"></i> Live Studio Room
+                    <i class="fas fa-video"></i> Live Studio Room
                     ${this.activeSession?.isLive ? `<span class="rec-dot" style="width: 6px; height: 6px;"></span>` : ''}
                 </button>
                 <button class="vc-tab-btn ${this.currentTab === 'recordings' ? 'active' : ''}" onclick="VirtualClassModule.switchTab('recordings')">
@@ -220,11 +220,11 @@ const VirtualClassModule = {
             <div class="vc-stats-grid">
                 <div class="vc-stat-card">
                     <div class="vc-stat-icon green">
-                        <i class="fas fa-broadcast-tower"></i>
+                        <i class="fas fa-tower-broadcast"></i>
                     </div>
                     <div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #ffffff;">${liveRooms} Active</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted, #94a3b8);">Concurrent Live Rooms</div>
+                        <div class="stat-val">${liveRooms} Active</div>
+                        <div class="stat-lbl">Concurrent Live Rooms</div>
                     </div>
                 </div>
                 <div class="vc-stat-card">
@@ -232,17 +232,17 @@ const VirtualClassModule = {
                         <i class="fas fa-calendar-alt"></i>
                     </div>
                     <div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #ffffff;">${upcomingRooms} Scheduled</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted, #94a3b8);">Upcoming Today & Tomorrow</div>
+                        <div class="stat-val">${upcomingRooms} Scheduled</div>
+                        <div class="stat-lbl">Upcoming Today & Tomorrow</div>
                     </div>
                 </div>
                 <div class="vc-stat-card">
                     <div class="vc-stat-icon blue">
-                        <i class="fas fa-users-class"></i>
+                        <i class="fas fa-graduation-cap"></i>
                     </div>
                     <div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #ffffff;">${isStudent ? '1 Enrolled' : '5 Academic'}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted, #94a3b8);">${isStudent ? 'Your Class Section' : 'Assigned Dars Sections'}</div>
+                        <div class="stat-val">${isStudent ? '1 Enrolled' : '5 Academic'}</div>
+                        <div class="stat-lbl">${isStudent ? 'Your Class Section' : 'Assigned Dars Sections'}</div>
                     </div>
                 </div>
                 <div class="vc-stat-card">
@@ -250,17 +250,17 @@ const VirtualClassModule = {
                         <i class="fas fa-cloud-upload-alt"></i>
                     </div>
                     <div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #ffffff;">${settings.usedStorageGB} GB</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted, #94a3b8);">Cloud Storage Used (of ${settings.storageQuotaGB} GB)</div>
+                        <div class="stat-val">${settings.usedStorageGB} GB</div>
+                        <div class="stat-lbl">Cloud Storage Used (of ${settings.storageQuotaGB} GB)</div>
                     </div>
                 </div>
             </div>
 
             <!-- SECURITY / ACCESS CONTROL NOTICE -->
             <div class="vc-security-shield">
-                <i class="fas fa-shield-alt" style="font-size: 1.3rem; color: var(--primary-400);"></i>
+                <i class="fas fa-shield-alt"></i>
                 <div style="flex: 1;">
-                    <strong style="color: #ffffff;">Institutional Security & Class Access Enforcement Active:</strong>
+                    <strong style="color: #991b1b;">Institutional Security & Class Access Enforcement Active:</strong>
                     <span>
                         ${isStudent ? `
                             You are authenticated as <strong>${currentUser.name}</strong> (Enrolled: <em>${studentEnrolledClass}</em>). Backend RBAC strictly prohibits unauthorized entry into other academic sections.
@@ -294,7 +294,8 @@ const VirtualClassModule = {
                     <div style="position: relative;">
                         <input type="text" placeholder="Search class, course or Sheikh..." value="${this.lobbySearch}" 
                                oninput="VirtualClassModule.handleLobbySearch(this.value)"
-                               style="background: var(--bg-surface-elevated, #162026); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1)); padding: 7px 12px 7px 32px; border-radius: 6px; color: #fff; font-size: 0.85rem; width: 260px;">
+                               class="form-control"
+                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px 7px 32px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 270px;">
                         <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </div>
                 </div>
@@ -338,7 +339,7 @@ const VirtualClassModule = {
             <div class="vc-card ${isLive ? 'is-live' : ''}">
                 <div class="vc-card-header">
                     <div style="display: flex; flex-direction: column; gap: 4px;">
-                        <span style="font-size: 0.72rem; font-family: monospace; color: var(--gold-300);">
+                        <span style="font-size: 0.74rem; font-family: monospace; font-weight: 700; color: var(--primary-800);">
                             ${session.meetingUuid}
                         </span>
                         <span class="status-pill ${isEnrolledClass ? 'success' : 'neutral'}" style="font-size: 0.7rem; align-self: flex-start;">
@@ -353,7 +354,7 @@ const VirtualClassModule = {
                     <div class="vc-class-title">${session.title}</div>
                     <div class="vc-class-urdu">${session.urduTitle || ''}</div>
 
-                    <div style="margin-top: auto; padding-top: 10px; border-top: 1px dashed rgba(255, 255, 255, 0.08);">
+                    <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
                         <div class="vc-meta-item">
                             <i class="fas fa-user-tie"></i>
                             <span><strong>Sheikh / Ustad:</strong> ${session.hostTeacher}</span>
@@ -374,9 +375,9 @@ const VirtualClassModule = {
                 </div>
 
                 <div class="vc-card-footer">
-                    <div>
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Passcode:</span>
-                        <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; color: var(--gold-300);">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Passcode:</span>
+                        <code class="vc-passcode-badge">
                             ${session.passcode}
                         </code>
                     </div>
@@ -681,8 +682,8 @@ const VirtualClassModule = {
                                 <button class="wb-tool-btn active" id="wb-tool-pen" onclick="VirtualClassModule.setWbTool('pen')" title="Pen Brush"><i class="fas fa-pen"></i></button>
                                 <button class="wb-tool-btn" id="wb-tool-eraser" onclick="VirtualClassModule.setWbTool('eraser')" title="Eraser"><i class="fas fa-eraser"></i></button>
                                 <div class="wb-color-picker">
-                                    <div class="color-dot active" style="background: #064e3b;" onclick="VirtualClassModule.setColor('#064e3b', this)"></div>
-                                    <div class="color-dot" style="background: #d97706;" onclick="VirtualClassModule.setColor('#d97706', this)"></div>
+                                    <div class="color-dot active" style="background: #124855;" onclick="VirtualClassModule.setColor('#124855', this)"></div>
+                                    <div class="color-dot" style="background: #aa8637;" onclick="VirtualClassModule.setColor('#aa8637', this)"></div>
                                     <div class="color-dot" style="background: #dc2626;" onclick="VirtualClassModule.setColor('#dc2626', this)"></div>
                                     <div class="color-dot" style="background: #2563eb;" onclick="VirtualClassModule.setColor('#2563eb', this)"></div>
                                     <div class="color-dot" style="background: #0f172a;" onclick="VirtualClassModule.setColor('#0f172a', this)"></div>
@@ -898,13 +899,13 @@ const VirtualClassModule = {
 
         return `
             <!-- VAULT OVERVIEW HEADER -->
-            <div style="background: var(--bg-surface, #0f171c); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); border-radius: var(--radius-lg, 12px); padding: 20px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg, 12px); padding: 20px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; box-shadow: var(--shadow-sm);">
                 <div>
-                    <h3 style="color: #ffffff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
-                        <i class="fas fa-video-slash" style="color: var(--gold-400);"></i>
+                    <h3 style="color: var(--primary-950); font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-video-slash" style="color: var(--gold-600);"></i>
                         Sacred Lectures Archive & Cloud Recordings Vault
                     </h3>
-                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
                         Secure cloud storage with automated ${settings.retentionDays}-day retention policy, role-based playback, and encryption.
                     </p>
                 </div>
@@ -924,13 +925,15 @@ const VirtualClassModule = {
                     <div style="position: relative;">
                         <input type="text" placeholder="Search lectures, teachers, topics..." value="${this.recordingSearch}" 
                                oninput="VirtualClassModule.handleRecordingSearch(this.value)"
-                               style="background: var(--bg-surface-elevated, #162026); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1)); padding: 7px 12px 7px 32px; border-radius: 6px; color: #fff; font-size: 0.85rem; width: 280px;">
+                               class="form-control"
+                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px 7px 32px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 280px;">
                         <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </div>
 
                     ${!isStudent ? `
                         <select onchange="VirtualClassModule.handleRecordingClassFilter(this.value)"
-                                style="background: var(--bg-surface-elevated, #162026); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1)); padding: 7px 12px; border-radius: 6px; color: #fff; font-size: 0.85rem;">
+                                class="form-control"
+                                style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem;">
                             <option value="ALL">All Academic Classes</option>
                             <option value="cls_dawra_a" ${this.recordingFilterClass === 'cls_dawra_a' ? 'selected' : ''}>Dawra-e-Hadith (Section A)</option>
                             <option value="cls_ifta" ${this.recordingFilterClass === 'cls_ifta' ? 'selected' : ''}>Takhassus fil-Ifta</option>
@@ -961,13 +964,13 @@ const VirtualClassModule = {
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-                                    <h4 style="color: #ffffff; margin: 0; font-size: 1rem;">${rec.title}</h4>
+                                    <h4 style="color: var(--primary-950); margin: 0; font-size: 1.05rem; font-weight: 700;">${rec.title}</h4>
                                     <span class="status-pill neutral" style="font-size: 0.72rem;">${rec.className}</span>
                                     <span class="vc-retention-pill ${rec.daysRemaining < 15 ? 'warning' : ''}">
                                         <i class="fas fa-hourglass-half"></i> ${rec.daysRemaining} days remaining in vault
                                     </span>
                                 </div>
-                                <div style="font-family: 'Amiri', serif; color: var(--gold-300); font-size: 0.95rem; margin-bottom: 6px;">
+                                <div style="font-family: 'Amiri', serif; color: var(--gold-700); font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
                                     ${rec.urduTitle || ''}
                                 </div>
                                 <div style="display: flex; gap: 16px; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap;">
@@ -1037,13 +1040,13 @@ const VirtualClassModule = {
 
         return `
             <!-- ATTENDANCE OVERVIEW HEADER -->
-            <div style="background: var(--bg-surface, #0f171c); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); border-radius: var(--radius-lg, 12px); padding: 20px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg, 12px); padding: 20px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; box-shadow: var(--shadow-sm);">
                 <div>
-                    <h3 style="color: #ffffff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
-                        <i class="fas fa-clipboard-user" style="color: var(--primary-500);"></i>
+                    <h3 style="color: var(--primary-950); font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-clipboard-user" style="color: var(--primary-600);"></i>
                         Virtual Classroom Attendance Registry
                     </h3>
-                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
                         Real-time digital check-in records automatically registered upon entering Jamia Ashrafia virtual rooms.
                     </p>
                 </div>
@@ -1061,9 +1064,10 @@ const VirtualClassModule = {
             ${!isStudent ? `
                 <div class="vc-filter-toolbar">
                     <div style="display: flex; gap: 10px; align-items: center;">
-                        <span style="font-size: 0.85rem; color: var(--text-muted);">Filter by Class:</span>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Filter by Class:</span>
                         <select onchange="VirtualClassModule.handleAttendanceClassFilter(this.value)"
-                                style="background: var(--bg-surface-elevated, #162026); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1)); padding: 7px 12px; border-radius: 6px; color: #fff; font-size: 0.85rem;">
+                                class="form-control"
+                                style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem;">
                             <option value="ALL">All Academic Classes</option>
                             <option value="cls_dawra_a" ${this.attendanceFilterClass === 'cls_dawra_a' ? 'selected' : ''}>Dawra-e-Hadith (Section A)</option>
                             <option value="cls_ifta" ${this.attendanceFilterClass === 'cls_ifta' ? 'selected' : ''}>Takhassus fil-Ifta</option>
@@ -1071,7 +1075,7 @@ const VirtualClassModule = {
                             <option value="cls_hifz_3" ${this.attendanceFilterClass === 'cls_hifz_3' ? 'selected' : ''}>Hifz-ul-Quran</option>
                         </select>
                     </div>
-                    <div style="font-size: 0.85rem; color: var(--text-muted);">
+                    <div style="font-size: 0.85rem; color: var(--text-secondary);">
                         Total <strong>${virtualAtt.length}</strong> logged check-in entries
                     </div>
                 </div>
@@ -1102,7 +1106,7 @@ const VirtualClassModule = {
                         ` : virtualAtt.map(att => `
                             <tr>
                                 <td>
-                                    <div style="font-weight: 600; color: #ffffff;">${att.userName}</div>
+                                    <div style="font-weight: 700; color: var(--text-primary);">${att.userName}</div>
                                 </td>
                                 <td>
                                     <span class="status-pill ${att.role === 'TEACHER' ? 'gold' : 'neutral'}" style="font-size: 0.72rem;">
@@ -1113,11 +1117,11 @@ const VirtualClassModule = {
                                     </span>
                                 </td>
                                 <td>
-                                    <span style="font-weight: 500;">${att.className || att.classId}</span>
+                                    <span style="font-weight: 600; color: var(--text-primary);">${att.className || att.classId}</span>
                                 </td>
                                 <td>${att.date}</td>
                                 <td>
-                                    <span style="font-family: monospace; color: var(--gold-300);">
+                                    <span style="font-family: monospace; font-weight: 700; color: var(--gold-800);">
                                         <i class="fas fa-clock" style="font-size: 0.72rem;"></i> ${att.checkInTime || '11:00 AM'}
                                     </span>
                                 </td>
@@ -1128,8 +1132,8 @@ const VirtualClassModule = {
                                     </span>
                                 </td>
                                 <td>
-                                    <span style="font-size: 0.75rem; color: var(--primary-400);">
-                                        <i class="fas fa-broadcast-tower"></i> WebRTC Studio
+                                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-700);">
+                                        <i class="fas fa-video" style="color: var(--primary-600); margin-right: 4px;"></i> WebRTC Studio
                                     </span>
                                 </td>
                             </tr>
@@ -1198,17 +1202,17 @@ const VirtualClassModule = {
             <div class="vc-storage-box">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <div>
-                        <h3 style="color: #ffffff; margin-bottom: 2px;">
-                            <i class="fas fa-server" style="color: var(--primary-500);"></i>
+                        <h3 style="color: var(--primary-950); font-weight: 800; margin-bottom: 2px;">
+                            <i class="fas fa-server" style="color: var(--primary-600);"></i>
                             Cloud Recording Storage & Infrastructure Quota
                         </h3>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        <div style="font-size: 0.82rem; color: var(--text-secondary);">
                             Active Storage Provider: <strong>${settings.cloudProvider}</strong>
                         </div>
                     </div>
                     <div style="text-align: right;">
-                        <div style="font-size: 1.4rem; font-weight: 700; color: #ffffff;">${settings.usedStorageGB} GB / ${settings.storageQuotaGB} GB</div>
-                        <div style="font-size: 0.78rem; color: var(--primary-400);">${pctUsed}% Utilized</div>
+                        <div style="font-size: 1.45rem; font-weight: 800; color: var(--primary-950);">${settings.usedStorageGB} GB / ${settings.storageQuotaGB} GB</div>
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary-700);">${pctUsed}% Utilized</div>
                     </div>
                 </div>
 
@@ -1227,12 +1231,12 @@ const VirtualClassModule = {
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; margin-bottom: 24px;">
                 <div class="card">
                     <div class="card-header">
-                        <h3><i class="fas fa-shield-alt" style="color: var(--gold-400);"></i> Automated Retention Policy</h3>
+                        <h3><i class="fas fa-shield-alt" style="color: var(--gold-600);"></i> Automated Retention Policy</h3>
                     </div>
                     <div class="card-body">
                         <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 6px; font-weight: 600;">Recording Lifespan (Retention Cycle):</label>
-                            <select id="retention-days-select" class="form-control" style="width: 100%; padding: 9px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px;">
+                            <label style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-primary);">Recording Lifespan (Retention Cycle):</label>
+                            <select id="retention-days-select" class="form-control" style="width: 100%; padding: 9px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
                                 <option value="30" ${settings.retentionDays === 30 ? 'selected' : ''}>30 Days (Aggressive Purge)</option>
                                 <option value="60" ${settings.retentionDays === 60 ? 'selected' : ''}>60 Days (Bi-monthly Cycle)</option>
                                 <option value="90" ${settings.retentionDays === 90 ? 'selected' : ''}>90 Days (Recommended / Standard Quarter)</option>
@@ -1388,19 +1392,19 @@ const VirtualClassModule = {
                     </div>
                     <div class="modal-body">
                         <div class="form-group" style="margin-bottom: 14px;">
-                            <label style="display: block; font-weight: 600; margin-bottom: 4px;">Lecture Topic (English):</label>
-                            <input type="text" id="sch-title" class="form-control" placeholder="e.g. Sahih al-Bukhari - Kitab al-Ilm" style="width: 100%; padding: 8px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Lecture Topic (English):</label>
+                            <input type="text" id="sch-title" class="form-control" placeholder="e.g. Sahih al-Bukhari - Kitab al-Ilm" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
                         </div>
 
                         <div class="form-group" style="margin-bottom: 14px;">
-                            <label style="display: block; font-weight: 600; margin-bottom: 4px;">Urdu Calligraphic Title:</label>
-                            <input type="text" id="sch-urdu-title" class="form-control" placeholder="درسِ صحیح البخاری شریف" style="width: 100%; padding: 8px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px; font-family: 'Amiri', serif;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Urdu Calligraphic Title:</label>
+                            <input type="text" id="sch-urdu-title" class="form-control" placeholder="درسِ صحیح البخاری شریف" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px; font-family: 'Amiri', serif;">
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                             <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Target Class Section:</label>
-                                <select id="sch-class-id" class="form-control" style="width: 100%; padding: 8px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Target Class Section:</label>
+                                <select id="sch-class-id" class="form-control" style="width: 100%; padding: 8px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
                                     ${classes.map(c => `
                                         <option value="${c.id}">${c.name} - ${c.section}</option>
                                     `).join('')}
@@ -1408,8 +1412,8 @@ const VirtualClassModule = {
                             </div>
 
                             <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Associated Kitab / Course:</label>
-                                <select id="sch-course-id" class="form-control" style="width: 100%; padding: 8px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Associated Kitab / Course:</label>
+                                <select id="sch-course-id" class="form-control" style="width: 100%; padding: 8px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
                                     ${courses.map(co => `
                                         <option value="${co.id}">${co.title}</option>
                                     `).join('')}
@@ -1419,25 +1423,25 @@ const VirtualClassModule = {
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                             <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Scheduled Date & Time:</label>
-                                <input type="text" id="sch-datetime" class="form-control" value="2026-09-29 11:00 AM" style="width: 100%; padding: 8px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Scheduled Date & Time:</label>
+                                <input type="text" id="sch-datetime" class="form-control" value="2026-09-29 11:00 AM" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
                             </div>
 
                             <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Duration (Minutes):</label>
-                                <input type="number" id="sch-duration" class="form-control" value="60" style="width: 100%; padding: 8px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Duration (Minutes):</label>
+                                <input type="number" id="sch-duration" class="form-control" value="60" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
                             </div>
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
                             <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Virtual Studio / Hall:</label>
-                                <input type="text" id="sch-room" class="form-control" value="Hall Imam Bukhari (Virtual Hall)" style="width: 100%; padding: 8px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Virtual Studio / Hall:</label>
+                                <input type="text" id="sch-room" class="form-control" value="Hall Imam Bukhari (Virtual Hall)" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
                             </div>
 
                             <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px;">Session Passcode:</label>
-                                <input type="text" id="sch-passcode" class="form-control" value="ASHRAFIA${Math.floor(1000 + Math.random() * 9000)}" style="width: 100%; padding: 8px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: #fff; border-radius: 6px; font-family: monospace;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Session Passcode:</label>
+                                <input type="text" id="sch-passcode" class="form-control" value="ASHRAFIA${Math.floor(1000 + Math.random() * 9000)}" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px; font-family: monospace; font-weight: 700;">
                             </div>
                         </div>
 
@@ -1804,12 +1808,12 @@ const VirtualClassModule = {
         if (!this.wbCtx) return;
         const canvas = document.getElementById('whiteboard-canvas');
         this.wbCtx.font = "bold 28px 'Amiri', serif";
-        this.wbCtx.fillStyle = "#064e3b";
+        this.wbCtx.fillStyle = "#124855";
         this.wbCtx.textAlign = "center";
         this.wbCtx.fillText("بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", canvas.width / 2, 60);
 
         this.wbCtx.font = "20px 'Amiri', serif";
-        this.wbCtx.fillStyle = "#b45309";
+        this.wbCtx.fillStyle = "#aa8637";
         this.wbCtx.fillText("إنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى (صحیح البخاری: ١)", canvas.width / 2, 110);
         window.App?.showToast("Hadith text inserted on whiteboard", "gold");
     },

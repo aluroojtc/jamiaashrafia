@@ -44,10 +44,10 @@ const AssignmentsModule = {
                             <div>
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                                     <span class="status-pill gold" style="font-size: 0.7rem;">${course.code}</span>
-                                    <span style="font-size: 0.75rem; color: #f87171;"><i class="fas fa-calendar-alt"></i> Due: ${asg.dueDate}</span>
+                                    <span style="font-size: 0.75rem; color: var(--danger); font-weight: 600;"><i class="fas fa-calendar-alt"></i> Due: ${asg.dueDate}</span>
                                 </div>
-                                <h3 style="font-size: 1.05rem; color: #ffffff; margin-bottom: 4px;">${asg.title}</h3>
-                                <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-200); margin-bottom: 10px;">${asg.urduTitle}</div>
+                                <h3 style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">${asg.title}</h3>
+                                <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-700); margin-bottom: 10px;">${asg.urduTitle}</div>
                                 <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
                                     ${asg.description}
                                 </p>
@@ -97,8 +97,8 @@ const AssignmentsModule = {
                                 return `
                                     <tr>
                                         <td>
-                                            <div style="font-weight: 700; color: #ffffff;">${sub.studentName}</div>
-                                            <div style="font-size: 0.75rem; color: var(--gold-300);">${sub.rollNo}</div>
+                                            <div style="font-weight: 700; color: var(--primary-950);">${sub.studentName}</div>
+                                            <div style="font-size: 0.75rem; color: var(--gold-700);">${sub.rollNo}</div>
                                         </td>
                                         <td>
                                             <div style="font-weight: 600;">${asg.title}</div>
@@ -108,7 +108,7 @@ const AssignmentsModule = {
                                             <div style="font-size: 0.8rem; color: var(--text-secondary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
                                                 ${sub.submissionText}
                                             </div>
-                                            <div style="font-size: 0.72rem; color: var(--primary-400); margin-top: 2px;">
+                                            <div style="font-size: 0.72rem; color: var(--primary-700); margin-top: 2px;">
                                                 <i class="fas fa-file-pdf"></i> ${sub.attachmentUrl}
                                             </div>
                                         </td>
@@ -228,7 +228,7 @@ const AssignmentsModule = {
         modalTitle.innerHTML = `<i class="fas fa-upload" style="color: var(--primary-400);"></i> Submit Homework: ${targetAsg.title}`;
         modalBody.innerHTML = `
             <div style="margin-bottom: 14px; background: var(--bg-surface-elevated); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                <div style="font-size: 0.85rem; color: var(--gold-300); font-weight: 600;">Prompt Instructions:</div>
+                <div style="font-size: 0.85rem; color: var(--gold-700); font-weight: 600;">Prompt Instructions:</div>
                 <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">${targetAsg.description}</p>
             </div>
 
@@ -239,8 +239,8 @@ const AssignmentsModule = {
 
             <div class="form-group">
                 <label>Attach PDF or Scanned Manuscript (Optional)</label>
-                <div style="border: 2px dashed var(--border-prominent); padding: 20px; text-align: center; border-radius: var(--radius-sm); cursor: pointer; background: rgba(0,0,0,0.2);">
-                    <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; color: var(--primary-400); margin-bottom: 8px;"></i>
+                <div style="border: 2px dashed var(--border-prominent); padding: 20px; text-align: center; border-radius: var(--radius-sm); cursor: pointer; background: var(--bg-surface-elevated);">
+                    <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; color: var(--primary-700); margin-bottom: 8px;"></i>
                     <div style="font-size: 0.85rem; color: var(--text-primary);">Click or drag files here (PDF, JPG, DOCX)</div>
                     <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">Max size: 25MB • SSL Encrypted Transfer</div>
                 </div>

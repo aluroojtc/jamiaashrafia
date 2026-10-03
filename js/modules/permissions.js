@@ -21,7 +21,7 @@ const PermissionsModule = {
             return `
                 <div class="card" style="border: 2px solid var(--danger); text-align: center; padding: 48px 24px;">
                     <i class="fas fa-lock" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
-                    <h2 style="color: #ffffff; margin-bottom: 8px;">403 - Administrative Access Required</h2>
+                    <h2 style="color: var(--primary-950); margin-bottom: 8px;">403 - Administrative Access Required</h2>
                     <p style="color: var(--text-secondary); max-width: 500px; margin: 0 auto 20px;">
                         Only the Super Admin (Mohtamim) has authorization to inspect and configure role permissions for Jamia Ashrafia LMS.
                     </p>
@@ -123,9 +123,9 @@ const PermissionsModule = {
                 <div style="display: flex; gap: 16px; align-items: center;">
                     <div style="font-size: 2rem; color: var(--gold-400);"><i class="fas fa-shield-alt"></i></div>
                     <div>
-                        <h4 style="color: #ffffff; margin-bottom: 4px;">Dynamic Policy Enforcement Active</h4>
+                        <h4 style="color: var(--primary-950); margin-bottom: 4px;">Dynamic Policy Enforcement Active</h4>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
-                            <strong>Root System Protection:</strong> The <strong>Super Admin (Mohtamim)</strong> role has permanent, hard-coded full access (<code style="color: var(--gold-300);">*</code>) handled internally by the system and is omitted from configuration. 
+                            <strong>Root System Protection:</strong> The <strong>Super Admin (Mohtamim)</strong> role has permanent, hard-coded full access (<code style="color: var(--gold-700); font-weight: 700;">*</code>) handled internally by the system and is omitted from configuration. 
                             All <strong>${configurableRoles.length} dynamic institutional roles</strong> below can be assigned granular module permissions. Newly created roles will automatically appear here.
                         </p>
                     </div>
@@ -261,8 +261,8 @@ const PermissionsModule = {
                                             <i class="${mod.icon}"></i>
                                         </td>
                                         <td>
-                                            <div style="font-weight: 700; color: #ffffff;">${mod.title}</div>
-                                            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--text-muted);">${mod.urdu}</div>
+                                            <div style="font-weight: 700; color: var(--primary-950);">${mod.title}</div>
+                                            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700); font-weight: 700;">${mod.urdu}</div>
                                         </td>
                                         <td>
                                             <span class="status-pill" style="font-size: 0.72rem;">${category}</span>
