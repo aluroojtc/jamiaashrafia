@@ -12,6 +12,126 @@ const AdmissionsModule = {
     liveAdmissions: null,
     isLoading: false,
     hasInitialFetched: false,
+    admissionSettings: null,
+
+    // Admissions window (open / closed, session, deadline, registration fee) shared with the public form
+    async loadAdmissionSettings() {
+        try {
+            const res = await fetch('/api/settings/admissions');
+            const data = await res.json();
+            if (data && data.settings) {
+                this.admissionSettings = data.settings;
+                const banner = document.getElementById('admission-window-banner');
+                if (banner) banner.outerHTML = this.renderAdmissionWindowBanner();
+            }
+        } catch (e) {
+            console.warn('[Admissions] Could not load admission settings:', e.message);
+        }
+    },
+
+    renderAdmissionWindowBanner() {
+        const st = this.admissionSettings;
+        const canEdit = window.AuthRBAC.can('admissions:manage') || window.AuthRBAC.isSuperAdmin();
+        if (!st) {
+            return `<div id="admission-window-banner" class="card" style="padding: 12px 16px; color: var(--text-muted); font-size: 0.85rem;"><i class="fas fa-spinner fa-spin"></i> Loading admission window...</div>`;
+        }
+        const open = st.isAcceptingApplications;
+        return `
+            <div id="admission-window-banner" class="card" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-left: 5px solid ${open ? 'var(--success)' : 'var(--danger)'};">
+                <div>
+                    <div style="font-weight: 800; font-size: 1rem; color: ${open ? 'var(--success)' : 'var(--danger)'};">
+                        <i class="fas ${open ? 'fa-door-open' : 'fa-door-closed'}"></i> Admissions ${open ? 'OPEN' : 'CLOSED'}
+                        <span style="font-weight: 600; color: var(--text-secondary); font-size: 0.85rem;">• Session ${Lms.esc(st.session || '')}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 3px;">
+                        ${st.startDate ? `From ${Lms.fmtDate(st.startDate)} ` : ''}${st.deadline ? `until ${Lms.fmtDate(st.deadline)}` : ''} •
+                        Registration fee ${Lms.money(st.registrationFee)} • Admission fee ${Lms.money(st.admissionFee)}
+                        ${st.isOpen && !open ? ' • <strong style="color: var(--danger);">window has ended or not started yet</strong>' : ''}
+                    </div>
+                </div>
+                ${canEdit ? `
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn ${st.isOpen ? 'btn-secondary' : 'btn-primary'} btn-sm" onclick="AdmissionsModule.toggleAdmissions(${!st.isOpen})">
+                            <i class="fas ${st.isOpen ? 'fa-lock' : 'fa-unlock'}"></i> ${st.isOpen ? 'Close Admissions' : 'Open Admissions'}
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.openAdmissionSettingsModal()"><i class="fas fa-cog"></i> Settings</button>
+                    </div>` : ''}
+            </div>`;
+    },
+
+    async saveAdmissionSettingsPayload(payload) {
+        const me = Lms.me();
+        const res = await fetch('/api/settings/admissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-User-Role': me.role, 'X-User-Id': me.id },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+        this.admissionSettings = data.settings;
+        return data.settings;
+    },
+
+    async toggleAdmissions(open) {
+        if (!confirm(open ? 'Open admissions? The public "Apply Online" form on the login page will start accepting applications.' : 'Close admissions? New online applications will be refused until you open them again.')) return;
+        try {
+            const st = await this.saveAdmissionSettingsPayload({ isOpen: open });
+            if (open && st.deadline && st.deadline < Lms.today()) {
+                App.showToast('Admissions switched on, but the deadline has already passed — update it in Settings.', 'warning');
+            } else {
+                App.showToast(open ? 'Admissions are now open' : 'Admissions closed', 'success');
+            }
+            if (open) {
+                Lms.notify({ targetRole: 'ALL', category: 'ADMISSION', title: `Admissions Open: ${st.session}`, message: `${st.message || 'Admissions are open.'} Last date: ${Lms.fmtDate(st.deadline)}.` });
+            }
+        } catch (e) {
+            App.showToast(`Could not update admissions: ${e.message}`, 'error');
+        }
+        if (App.currentRoute === 'admissions') document.getElementById('main-content-viewport').innerHTML = this.render();
+    },
+
+    openAdmissionSettingsModal() {
+        const st = this.admissionSettings || {};
+        Lms.openModal(
+            `<i class="fas fa-cog" style="color: var(--gold-400);"></i> Admission Window Settings`,
+            `<div class="form-grid">
+                <div class="form-group"><label>Status</label>
+                    <select id="as-open" class="form-control"><option value="1" ${st.isOpen ? 'selected' : ''}>Open</option><option value="0" ${!st.isOpen ? 'selected' : ''}>Closed</option></select>
+                </div>
+                <div class="form-group"><label>Academic Session *</label><input type="text" id="as-session" class="form-control" value="${Lms.esc(st.session || '')}"></div>
+                <div class="form-group"><label>Applications From</label><input type="date" id="as-start" class="form-control" value="${Lms.esc(st.startDate || '')}"></div>
+                <div class="form-group"><label>Last Date *</label><input type="date" id="as-deadline" class="form-control" value="${Lms.esc(st.deadline || '')}"></div>
+                <div class="form-group"><label>Registration (Application) Fee (PKR)</label><input type="number" min="0" id="as-regfee" class="form-control" value="${Lms.esc(st.registrationFee || 0)}"></div>
+                <div class="form-group"><label>Admission Fee on Enrollment (PKR)</label><input type="number" min="0" id="as-admfee" class="form-control" value="${Lms.esc(st.admissionFee || 0)}"></div>
+            </div>
+            <div class="form-group"><label>Message shown on the login page while open</label><textarea id="as-msg" class="form-control">${Lms.esc(st.message || '')}</textarea></div>
+            <div class="form-group" style="margin-top: 10px;"><label>Message shown while closed</label><textarea id="as-closed-msg" class="form-control">${Lms.esc(st.closedMessage || '')}</textarea></div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-gold" onclick="AdmissionsModule.saveAdmissionSettings(this)"><i class="fas fa-save"></i> Save Settings</button>`
+        );
+    },
+
+    async saveAdmissionSettings(btn) {
+        const payload = {
+            isOpen: Lms.val('as-open') === '1', session: Lms.val('as-session'), startDate: Lms.val('as-start'), deadline: Lms.val('as-deadline'),
+            registrationFee: Number(Lms.val('as-regfee')) || 0, admissionFee: Number(Lms.val('as-admfee')) || 0,
+            message: Lms.val('as-msg'), closedMessage: Lms.val('as-closed-msg')
+        };
+        if (!payload.session || !payload.deadline) {
+            App.showToast('Session and last date are required', 'warning');
+            return;
+        }
+        if (payload.startDate && payload.startDate > payload.deadline) {
+            App.showToast('Start date must be before the last date', 'warning');
+            return;
+        }
+        await Lms.busy(btn, async () => {
+            await this.saveAdmissionSettingsPayload(payload);
+            App.closeModal();
+            App.showToast('Admission settings saved', 'success');
+            if (App.currentRoute === 'admissions') document.getElementById('main-content-viewport').innerHTML = this.render();
+        });
+    },
 
     async fetchLiveAdmissions() {
         if (this.isLoading) return;
@@ -94,6 +214,7 @@ const AdmissionsModule = {
             this.hasInitialFetched = true;
             setTimeout(() => this.fetchLiveAdmissions(), 10);
         }
+        if (!this.admissionSettings) setTimeout(() => this.loadAdmissionSettings(), 10);
 
         const admissions = (this.liveAdmissions !== null) 
             ? this.liveAdmissions 
@@ -158,6 +279,8 @@ const AdmissionsModule = {
                     </button>
                 </div>
             </div>
+
+            ${this.renderAdmissionWindowBanner()}
 
             <!-- ADMISSION METRICS -->
             <div class="metrics-grid">
@@ -861,11 +984,12 @@ const AdmissionsModule = {
                             Academic Class & Section Assignment *
                         </label>
                         <select id="enroll-class" class="form-control" required>
-                            <option value="cls_dawra_a">Dawra-e-Hadith (Final Year) - Section A</option>
-                            <option value="cls_dawra_b">Dawra-e-Hadith (Final Year) - Section B</option>
-                            <option value="cls_aaliyah">Aaliyah (7th Year)</option>
-                            <option value="cls_ifta">Takhassus fil-Ifta (Postgraduate)</option>
-                            <option value="cls_hifz_3">Hifz-ul-Quran (Daur-e-Kamil)</option>
+                            ${(() => {
+                                const all = window.LmsData.classes || [];
+                                const forProgram = all.filter(c => c.programId === item.programId);
+                                const list = forProgram.length ? forProgram.concat(all.filter(c => c.programId !== item.programId)) : all;
+                                return list.map(c => `<option value="${Lms.esc(c.id)}">${Lms.esc(c.name)} — ${Lms.esc(c.section || '')}${c.programId === item.programId ? '' : ' (other program)'}</option>`).join('');
+                            })()}
                         </select>
                     </div>
                 </div>
@@ -905,10 +1029,16 @@ const AdmissionsModule = {
                             Tuition & Admission Fee Category
                         </label>
                         <select id="enroll-fee-cat" class="form-control">
-                            <option value="STANDARD">Regular Admission Fee (PKR 3,500)</option>
-                            <option value="SCHOLARSHIP">100% Zakat / Need-Based Scholarship</option>
-                            <option value="MERIT_50">50% Merit Concession (Hafiz-ul-Quran)</option>
+                            ${(() => {
+                                const fs = (window.LmsData.feeStructures || []).find(f => f.programId === item.programId) || {};
+                                const amt = (Number(fs.admissionFee) || 0) + (Number(fs.registrationFee) || 0);
+                                return `
+                                    <option value="STANDARD">Regular: Admission + Registration (${Lms.money(amt)})</option>
+                                    <option value="MERIT_50">50% Merit Concession (${Lms.money(Math.round(amt / 2))})</option>
+                                    <option value="SCHOLARSHIP">100% Zakat / Need-Based Scholarship (no fee)</option>`;
+                            })()}
                         </select>
+                        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">A fee challan is issued to the new student automatically from the program's fee structure.</div>
                     </div>
                 </div>
 
@@ -940,6 +1070,21 @@ const AdmissionsModule = {
         const password = document.getElementById('enroll-pwd').value.trim();
         const hostel = document.getElementById('enroll-hostel').value;
         const feeCategory = document.getElementById('enroll-fee-cat').value;
+
+        // Roll numbers and login emails identify the account, so they must be unique
+        const users = window.LmsData.users || [];
+        if (users.some(u => u.rollNo && u.rollNo.toLowerCase() === rollNo.toLowerCase())) {
+            App.showToast(`Roll number ${rollNo} is already assigned to another student`, 'warning');
+            return;
+        }
+        if (users.some(u => u.email && u.email.toLowerCase() === email.toLowerCase())) {
+            App.showToast(`${email} is already used by another account`, 'warning');
+            return;
+        }
+        if (password.length < 6) {
+            App.showToast('Initial password must be at least 6 characters', 'warning');
+            return;
+        }
 
         // 1. Update Application status
         item.status = 'ENROLLED';
@@ -982,21 +1127,27 @@ const AdmissionsModule = {
         if (!window.LmsData.users) window.LmsData.users = [];
         window.LmsData.users.push(newStudentUser);
 
-        // 3. Add Welcome Notification
-        if (!window.LmsData.notifications) window.LmsData.notifications = [];
-        window.LmsData.notifications.unshift({
-            id: `notif_${Date.now()}`,
-            title: `Welcome Scholar: ${item.name}`,
-            urduTitle: `خوش آمدید طالب علم: ${item.name}`,
-            message: `Congratulations! Your admission to ${prog.name} is confirmed. Allotted Scholar Roll No: ${rollNo}.`,
-            targetRole: "STUDENT",
-            targetUserId: newStudentUserId,
-            category: "ACADEMIC",
-            createdAt: new Date().toISOString().split('T')[0]
-        });
+        // 3. Admission + registration fee challan from the program fee structure
+        let feeChallan = null;
+        if (window.FeesDonationsModule) {
+            const waiverPercent = feeCategory === 'SCHOLARSHIP' ? 100 : feeCategory === 'MERIT_50' ? 50 : 0;
+            feeChallan = window.FeesDonationsModule.buildChallan(newStudentUser, 'ADMISSION', {
+                programId: item.programId, includeRegistration: true, waiverPercent,
+                billingMonth: `Admission ${new Date().getFullYear()} (${item.applicationNo})`
+            });
+            if (feeChallan.netPayable > 0 || waiverPercent === 100) {
+                window.LmsData.feeChallans = window.LmsData.feeChallans || [];
+                window.LmsData.feeChallans.unshift(feeChallan);
+            }
+        }
 
-        // 4. Save to Persistent Store
+        // 4. Save to Persistent Store (synced to the server so the student can log in anywhere)
         window.DataStore.save(window.LmsData);
+        window.DataStore.syncNow().then(() => {
+            Lms.notifyUser(newStudentUserId, `Welcome to Jamia Ashrafia, ${item.name}`,
+                `Your admission to ${prog.name} is confirmed. Roll No: ${rollNo}.${feeChallan && feeChallan.netPayable > 0 ? ` Your admission fee challan ${feeChallan.challanNumber} (${Lms.money(feeChallan.netPayable)}) is in Fees & Payments.` : ''}`,
+                'ACADEMIC', 'dashboard');
+        });
         App.closeModal();
 
         // 5. Open Congratulatory Success Modal

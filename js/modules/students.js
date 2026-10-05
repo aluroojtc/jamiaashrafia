@@ -707,6 +707,25 @@ const StudentsModule = {
     // =========================================================================
     // QUICK ACTIONS & MODALS
     // =========================================================================
+    openMoreActionsModal(studentId) {
+        const s = (window.LmsData.users || []).find(u => u.id === studentId);
+        if (!s) return;
+        const action = (icon, label, js) => `
+            <button class="btn btn-secondary" style="justify-content: flex-start; width: 100%;" onclick="App.closeModal(); ${js}">
+                <i class="${icon}" style="width: 18px;"></i> ${label}
+            </button>`;
+        Lms.openModal(
+            `<i class="fas fa-ellipsis-v" style="color: var(--gold-400);"></i> ${Lms.esc(s.name)} (${Lms.esc(s.rollNo || '')})`,
+            `<div style="display: flex; flex-direction: column; gap: 8px;">
+                ${action('fas fa-user-edit', 'Edit student details', `StudentsModule.openEditStudentModal('${s.id}')`)}
+                ${action('fas fa-school', `Change class (current: ${Lms.esc(s.classId ? Lms.className(s.classId) : 'not enrolled')})`, `App.navigate('classes'); setTimeout(() => ClassesCoursesModule.openEnrollModal('${Lms.esc(s.classId || (window.LmsData.classes[0] || {}).id)}'), 50)`)}
+                ${action('fas fa-calendar-check', 'Attendance history', `StudentsModule.viewAttendance('${s.id}')`)}
+                ${window.AuthRBAC.canAccessModule('fees') ? action('fas fa-file-invoice-dollar', 'Issue a fee challan', `App.navigate('fees'); setTimeout(() => { FeesDonationsModule.openGenerateChallanModal(); document.getElementById('gen-target').value = '${s.id}'; }, 50)`) : ''}
+                ${action('fas fa-id-card', 'Print student ID card', `StudentsModule.printStudentCard('${s.id}')`)}
+            </div>`
+        );
+    },
+
     quickToggleStatus(studentId, newStatus) {
         const student = (window.LmsData.users || []).find(u => u.id === studentId);
         if (!student) return;

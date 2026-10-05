@@ -7,6 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const db = require('./database/db');
+const lmsApi = require('./server/lms-api');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.resolve(__dirname);
@@ -47,7 +48,7 @@ let systemRolePermissions = {
         roles: false,
         admissions: false,
         teachers: false,
-        fees: false,
+        fees: true,
         heritage: true,
         permissions: false,
         security: false
@@ -280,7 +281,7 @@ let systemAdmissions = [
     }
 ];
 
-const server = http.createServer((req, res) => {
+function legacyHandler(req, res) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -350,6 +351,8 @@ const server = http.createServer((req, res) => {
                             systemRolePermissions.SUPER_ADMIN[m] = true;
                         });
                     }
+                    lmsApi.saveSetting('rolePermissions', systemRolePermissions)
+                        .catch(err => console.warn('[DB] Could not persist role permissions:', err.message));
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
                         status: 'success',
@@ -1843,6 +1846,13 @@ const server = http.createServer((req, res) => {
     // ROUTING & STATIC FILE SERVING
     // =========================================================================
 
+    // Unknown API endpoints must not fall through to the login page
+    if (pathname.startsWith('/api/')) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+        return;
+    }
+
     // Requirement 1: Default landing page MUST be login.html
     if (pathname === '/' || pathname === '' || pathname === '/login') {
         pathname = '/login.html';
@@ -1887,6 +1897,53 @@ const server = http.createServer((req, res) => {
             res.end(content);
         });
     });
+}
+
+// Paths that may be served as static files. Everything else (source, .env, .git, SQL, archives) stays private.
+const PUBLIC_FILES = new Set(['/index.html', '/login.html']);
+const PUBLIC_DIRS = ['/css/', '/js/', '/assets/', '/uploads/'];
+const INLINE_UPLOAD_EXT = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp3', '.m4a', '.mp4', '.webm', '.txt']);
+
+function isPublicPath(pathname) {
+    if (pathname.split('/').some(seg => seg.startsWith('.'))) return false;
+    return PUBLIC_FILES.has(pathname) || PUBLIC_DIRS.some(d => pathname.startsWith(d));
+}
+
+const server = http.createServer(async (req, res) => {
+    let pathname = '/';
+    try {
+        pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('400 Bad Request');
+        return;
+    }
+
+    if (pathname.startsWith('/api/')) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Role, X-User-Id, X-User-Class, X-File-Name');
+        if (req.method !== 'OPTIONS' && await lmsApi.handle(req, res)) return;
+    } else if (!['/', '', '/login'].includes(pathname) && !isPublicPath(pathname)) {
+        if (path.extname(pathname) || pathname.split('/').some(seg => seg.startsWith('.'))) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end(`404 Not Found: ${pathname}`);
+            return;
+        }
+        // Extension-less app URLs fall back to the login page
+        req.url = '/login';
+    }
+
+    if (pathname.startsWith('/uploads/')) {
+        // Uploaded files: never let the browser treat them as HTML/script
+        // (PDF, images, audio/video and plain text are shown inline; everything else downloads)
+        const ext = path.extname(pathname).toLowerCase();
+        if (!INLINE_UPLOAD_EXT.has(ext)) {
+            res.setHeader('Content-Disposition', `attachment; filename="${path.basename(pathname).replace(/"/g, '')}"`);
+        }
+    }
+
+    legacyHandler(req, res);
 });
 
 server.listen(PORT, () => {
@@ -1895,6 +1952,19 @@ server.listen(PORT, () => {
     console.log(` Default Landing URL: http://localhost:${PORT}/ (Login Required)`);
     console.log(` Institutional Heritage: Est. 1947 | Ferozepur Road`);
     console.log(`=======================================================`);
-    db.testConnection();
+    db.testConnection().then(ok => {
+        if (!ok) return;
+        lmsApi.ensureSchema()
+            .then(() => lmsApi.getSetting('rolePermissions', null))
+            .then(saved => {
+                if (saved) {
+                    Object.keys(saved).forEach(role => {
+                        systemRolePermissions[role] = { ...(systemRolePermissions[role] || {}), ...saved[role] };
+                    });
+                }
+                console.log('[DB] LMS shared record store ready');
+            })
+            .catch(err => console.warn('[DB] LMS schema setup failed:', err.message));
+    });
 });
 

@@ -20,62 +20,16 @@ const VirtualClassModule = {
     recordingSearch: '',
     attendanceFilterClass: 'ALL',
 
-    // WebRTC & Studio State
-    localStream: null,
-    screenStream: null,
-    isMuted: false,
-    isVideoOff: false,
-    isWhiteboardActive: false,
-    isChatActive: false,
-    isParticipantsActive: false,
-    isHandRaised: false,
-    isRecording: true,
-    timerSeconds: 42 * 60 + 15,
-    timerInterval: null,
-    wbCtx: null,
-    isDrawing: false,
-    currentColor: "#124855",
-    currentLineWidth: 3,
-    showReactions: false,
-
-    // In-meeting Chat Store
-    inMeetingChat: [
-        {
-            id: 'c1',
-            sender: 'Qari Arshad Ubaid (Sheikh-ul-Hadith)',
-            isTeacher: true,
-            time: '11:02 AM',
-            text: 'السلام عليكم ورحمة الله وبركاته. Open Sahih al-Bukhari to Chapter 1, Hadith 1. Today we examine the Isnad from Al-Humaydi.'
-        },
-        {
-            id: 'c2',
-            sender: 'Muhammad Talha Usmani',
-            isTeacher: false,
-            time: '11:05 AM',
-            text: 'وعليكم السلام يا شيخنا. Kitab is open on Page 12. Audio and whiteboard are crystal clear.'
-        },
-        {
-            id: 'c3',
-            sender: 'Hafiz Usman Tariq',
-            isTeacher: false,
-            time: '11:08 AM',
-            text: 'جزاك الله خيراً يا أستاذ.'
-        }
-    ],
-
-    // In-meeting Simulated Participant List
-    inMeetingParticipants: [
-        { id: 'u_teacher_1', name: 'Qari Arshad Ubaid', role: 'TEACHER', title: 'Sheikh-ul-Hadith (Host)', isMuted: false, isVideo: true, handRaised: false },
-        { id: 'u_student_1', name: 'Muhammad Talha Usmani', role: 'STUDENT', title: 'ASH-2024-001 (Section A)', isMuted: false, isVideo: false, handRaised: false },
-        { id: 'u_student_2', name: 'Hafiz Usman Tariq', role: 'STUDENT', title: 'ASH-2024-042', isMuted: true, isVideo: false, handRaised: false },
-        { id: 'u_student_6', name: 'Zubair Ahmad Qasmi', role: 'STUDENT', title: 'ASH-IFT-018', isMuted: true, isVideo: false, handRaised: true },
-        { id: 'u_student_8', name: 'Hamza Noor', role: 'STUDENT', title: 'ASH-2024-094', isMuted: true, isVideo: false, handRaised: false }
-    ],
-
     /**
      * Main Module Entry Point
      */
     render() {
+        if (!this._meetingConfigLoaded) {
+            this._meetingConfigLoaded = true;
+            this.loadMeetingConfig().then(() => {
+                if (this.currentTab === 'retention' && window.App?.currentRoute === 'virtual-class') this.switchTab('retention');
+            });
+        }
         const currentUser = window.AuthRBAC?.currentUser || {};
         const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
         const isAdmin = window.AuthRBAC?.isAdmin();
@@ -190,8 +144,9 @@ const VirtualClassModule = {
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
-        const allSessions = window.LmsData?.virtualClasses || [];
-        const studentEnrolledClass = currentUser.classId || 'cls_dawra_a';
+        const myClassIds = Lms.myClassIds();
+        const allSessions = (window.LmsData?.virtualClasses || []).filter(s => isAdmin || myClassIds.includes(s.classId) || s.hostId === currentUser.id);
+        const studentEnrolledClass = currentUser.classId || '';
 
         // Filter sessions by search & status
         let filteredSessions = allSessions.filter(session => {
@@ -241,8 +196,8 @@ const VirtualClassModule = {
                         <i class="fas fa-graduation-cap"></i>
                     </div>
                     <div>
-                        <div class="stat-val">${isStudent ? '1 Enrolled' : '5 Academic'}</div>
-                        <div class="stat-lbl">${isStudent ? 'Your Class Section' : 'Assigned Dars Sections'}</div>
+                        <div class="stat-val">${myClassIds.length} ${isStudent ? 'Enrolled' : 'Class' + (myClassIds.length === 1 ? '' : 'es')}</div>
+                        <div class="stat-lbl">${isStudent ? 'Your Class Section' : 'Sections you can host'}</div>
                     </div>
                 </div>
                 <div class="vc-stat-card">
@@ -263,7 +218,7 @@ const VirtualClassModule = {
                     <strong style="color: #991b1b;">Institutional Security & Class Access Enforcement Active:</strong>
                     <span>
                         ${isStudent ? `
-                            You are authenticated as <strong>${currentUser.name}</strong> (Enrolled: <em>${studentEnrolledClass}</em>). Backend RBAC strictly prohibits unauthorized entry into other academic sections.
+                            You are signed in as <strong>${Lms.esc(currentUser.name)}</strong> (Class: <em>${Lms.esc(studentEnrolledClass ? Lms.className(studentEnrolledClass) : 'not enrolled')}</em>). Only your own class's live sessions can be joined.
                         ` : isTeacher ? `
                             You are instructing as <strong>${currentUser.name}</strong>. You possess host moderation authority over your designated Dars-e-Nizami sections.
                         ` : `
@@ -320,9 +275,9 @@ const VirtualClassModule = {
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
-        const studentClass = currentUser.classId || 'cls_dawra_a';
+        const studentClass = currentUser.classId || '';
         const isEnrolledClass = !isStudent || session.classId === studentClass;
-        const isSessionHost = currentUser.id === session.hostId || isSuperAdmin || isAdmin;
+        const isSessionHost = this.canHost(session);
         const isLive = session.isLive || session.status === 'LIVE';
 
         // Badge determination
@@ -386,8 +341,9 @@ const VirtualClassModule = {
                         ${isLive ? (
                             isEnrolledClass || isSessionHost ? `
                                 <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.enterClassroom('${session.id}')">
-                                    <i class="fas fa-sign-in-alt"></i> ${isSessionHost ? 'Moderate Hall' : 'Join Live Class'}
+                                    <i class="fas fa-sign-in-alt"></i> ${isSessionHost ? 'Open Live Room' : 'Join Live Class'}
                                 </button>
+                                ${isSessionHost ? `<button class="btn btn-secondary btn-sm" title="End this session" onclick="VirtualClassModule.endSession('${session.id}')"><i class="fas fa-stop-circle" style="color: var(--danger);"></i></button>` : ''}
                             ` : `
                                 <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.showRestrictedNotice('${session.className}')" title="Class restricted to enrolled scholars">
                                     <i class="fas fa-lock"></i> Restricted Section
@@ -399,9 +355,7 @@ const VirtualClassModule = {
                                     <i class="fas fa-play"></i> Start Lecture
                                 </button>
                             ` : `
-                                <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copySessionPasscode('${session.passcode}')">
-                                    <i class="fas fa-bell"></i> Remind Me
-                                </button>
+                                <span class="status-pill gold" style="font-size: 0.72rem;"><i class="fas fa-clock"></i> Starts ${Lms.esc(session.scheduledStart || '')}</span>
                             `
                         ) : `
                             <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.viewCompletedSession('${session.id}')">
@@ -470,6 +424,14 @@ const VirtualClassModule = {
                 })
             });
 
+            const verdict = verifyRes.ok ? await verifyRes.clone().json().catch(() => ({})) : null;
+            if (verdict && verdict.unverified && isStudent && currentUser.classId !== session.classId) {
+                this.accessBlocked = true;
+                this.accessBlockedReason = 'You are not enrolled in this class, so this live session is restricted.';
+                this.activeSession = session;
+                this.switchTab('studio');
+                return;
+            }
             if (!verifyRes.ok) {
                 const errData = await verifyRes.json();
                 this.accessBlocked = true;
@@ -489,18 +451,24 @@ const VirtualClassModule = {
             }
         }
 
+        await this.loadMeetingConfig();
+
         // 2. Access Granted: Configure Active Session
         this.accessBlocked = false;
         this.activeSessionId = session.id;
         this.activeSession = session;
-        this.isHost = isTeacher || isSuperAdmin || isAdmin;
+        this.isHost = this.canHost(session);
+        if (session.status !== 'LIVE' && !session.isLive && !this.isHost) {
+            window.App?.showToast('This class has not started yet.', 'info');
+            return;
+        }
 
         // 3. Auto-Log Attendance in System & Backend
         this.recordAutoAttendance(session, currentUser);
 
         // 4. Switch to Studio Tab
         this.switchTab('studio');
-        window.App?.showToast(`Successfully entered ${session.title}. Virtual attendance logged.`, "success");
+        window.App?.showToast(`Joined ${session.title}. Attendance recorded.`, "success");
     },
 
     recordAutoAttendance(session, currentUser) {
@@ -509,8 +477,8 @@ const VirtualClassModule = {
 
         // Push to local data store
         if (window.LmsData?.attendance) {
-            const alreadyLogged = window.LmsData.attendance.find(a => 
-                a.userId === currentUser.id && a.date === today && a.session === 'VIRTUAL_CLASS' && a.classId === session.classId
+            const alreadyLogged = window.LmsData.attendance.find(a =>
+                a.userId === currentUser.id && a.session === 'VIRTUAL_CLASS' && (a.virtualSessionId === session.id || (!a.virtualSessionId && a.date === today && a.classId === session.classId))
             );
             if (!alreadyLogged) {
                 window.LmsData.attendance.unshift({
@@ -526,7 +494,8 @@ const VirtualClassModule = {
                     checkOutTime: null,
                     status: 'PRESENT',
                     session: 'VIRTUAL_CLASS',
-                    notes: `Joined Zoom Studio: ${session.meetingUuid}`
+                    virtualSessionId: session.id,
+                    notes: `Joined online class: ${session.title}`
                 });
                 window.DataStore?.save(window.LmsData);
             }
@@ -553,313 +522,83 @@ const VirtualClassModule = {
     },
 
     renderStudio() {
-        const session = this.activeSession || (window.LmsData?.virtualClasses || [])[0];
+        const session = this.activeSession;
         const currentUser = window.AuthRBAC?.currentUser || {};
         const isHost = this.isHost;
+
+        if (!session) {
+            return `<div class="card">${window.App.dashEmpty('Choose a live class from the Classrooms Lobby to join it.')}</div>`;
+        }
 
         // If access was blocked by backend guard
         if (this.accessBlocked) {
             return `
                 <div class="vc-access-denied">
-                    <div class="vc-access-denied-icon">
-                        <i class="fas fa-shield-virus"></i>
+                    <div class="vc-access-denied-icon"><i class="fas fa-shield-virus"></i></div>
+                    <h2 style="color: #ef4444; margin-bottom: 8px;">Access Restricted</h2>
+                    <p style="max-width: 600px; color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px; line-height: 1.6;">${Lms.esc(this.accessBlockedReason)}</p>
+                    <div style="background: rgba(0,0,0,0.05); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px 20px; margin-bottom: 24px; text-align: left; font-size: 0.85rem;">
+                        <div><strong>Session:</strong> ${Lms.esc(session.title)}</div>
+                        <div><strong>For class:</strong> ${Lms.esc(session.className || Lms.className(session.classId))}</div>
+                        <div><strong>Your class:</strong> ${Lms.esc(currentUser.classId ? Lms.className(currentUser.classId) : 'Not enrolled')}</div>
                     </div>
-                    <h2 style="color: #ef4444; margin-bottom: 8px;">403 Forbidden: Academic Access Blocked</h2>
-                    <p style="max-width: 600px; color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px; line-height: 1.6;">
-                        ${this.accessBlockedReason}
-                    </p>
-                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px 20px; margin-bottom: 24px; text-align: left; font-size: 0.85rem;">
-                        <div><strong>Target Room:</strong> ${session.title} (${session.meetingUuid})</div>
-                        <div><strong>Required Class:</strong> ${session.className} (${session.classId})</div>
-                        <div><strong>Scholar Enrolled Class:</strong> ${currentUser.classId || 'Unassigned'}</div>
-                        <div style="color: #f87171; margin-top: 6px;"><i class="fas fa-lock"></i> Parameter tampering prevention verified by Jamia Ashrafia Security Layer.</div>
-                    </div>
-                    <button class="btn btn-primary" onclick="VirtualClassModule.switchTab('lobby')">
-                        <i class="fas fa-arrow-left"></i> Return to Enrolled Classrooms
-                    </button>
-                </div>
-            `;
+                    <button class="btn btn-primary" onclick="VirtualClassModule.switchTab('lobby')"><i class="fas fa-arrow-left"></i> Back to Lobby</button>
+                </div>`;
         }
 
+        const isExternal = session.platform === 'EXTERNAL' && session.externalUrl;
         return `
-            <!-- ZOOM CONFERENCE ROOM MAIN CONTAINER -->
-            <div class="zoom-container" id="zoom-meeting-room">
-                <!-- TOP BAR -->
-                <div class="zoom-topbar">
-                    <div class="zoom-room-info">
-                        <div class="zoom-rec-indicator" id="zoom-rec-badge" style="cursor: pointer;" onclick="VirtualClassModule.toggleRecording()">
-                            <span class="rec-dot"></span> ${this.isRecording ? 'REC' : 'PAUSED'}
+            <div class="card" style="padding: 14px 18px; margin-bottom: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            ${session.status === 'LIVE' ? '<span class="status-pill danger"><i class="fas fa-circle"></i> LIVE</span>' : `<span class="status-pill gold">${Lms.esc(session.status || '')}</span>`}
+                            <strong style="font-size: 1.05rem; color: var(--primary-950);">${Lms.esc(session.title)}</strong>
                         </div>
-                        <div class="zoom-room-title">
-                            <span>${session.title}</span>
-                            <span style="font-family: 'Amiri', serif; color: var(--gold-200); font-size: 1.05rem;">(${session.urduTitle || ''})</span>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+                            <i class="fas fa-user-tie"></i> ${Lms.esc(session.hostTeacher || '')} • ${Lms.esc(session.className || '')} • Passcode <code>${Lms.esc(session.passcode || '—')}</code>
                         </div>
                     </div>
-
-                    <div style="display: flex; align-items: center; gap: 14px;">
-                        <div class="zoom-security-badge">
-                            <i class="fas fa-shield-check"></i> 256-bit AES End-to-End
-                        </div>
-                        <div class="zoom-timer" id="zoom-elapsed-timer">00:42:15</div>
-                        <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()" title="Copy Meeting Link">
-                            <i class="fas fa-link"></i> Invite
-                        </button>
-                    </div>
-                </div>
-
-                <!-- MAIN STAGE -->
-                <div class="zoom-stage-area">
-                    <!-- VIDEO / SCREEN-SHARE VIEW -->
-                    <div class="zoom-main-view" id="zoom-video-stage">
-                        <div class="video-grid" id="video-grid-tiles">
-                            <!-- TILE 1: TEACHER / SHEIKH SPOTLIGHT -->
-                            <div class="video-tile speaking teacher-tile" id="tile-teacher">
-                                <div class="tile-badge"><i class="fas fa-crown"></i> Ustad / Host</div>
-                                <div class="video-avatar-fallback">
-                                    <div class="avatar-circle gold">AO</div>
-                                    <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">${session.hostTeacher}</div>
-                                    <div style="font-family: 'Amiri', serif; color: var(--gold-300);">استاذ الحدیث والفقه جامعہ اشرفیہ</div>
-                                </div>
-                                <div class="tile-participant-label">
-                                    <div class="audio-waves"><span></span><span></span><span></span></div>
-                                    <span>${session.hostTeacher} (Sheikh)</span>
-                                </div>
-                            </div>
-
-                            <!-- TILE 2: USER'S LIVE WEBCAM / AVATAR TILE -->
-                            <div class="video-tile" id="tile-user">
-                                <video id="local-webcam-video" autoplay playsinline muted style="display: none; width: 100%; height: 100%; object-fit: cover;"></video>
-                                <div class="video-avatar-fallback" id="local-avatar-fallback">
-                                    <div class="avatar-circle">
-                                        ${currentUser.avatar || 'TU'}
-                                    </div>
-                                    <div style="font-weight: 600; color: #ffffff;">${currentUser.name || 'Talib-e-Ilm'}</div>
-                                    <div style="font-size: 0.72rem; color: var(--gold-300);">${currentUser.rollNo || currentUser.role || 'Scholar'}</div>
-                                </div>
-                                <div class="tile-participant-label">
-                                    <i class="fas fa-microphone" id="tile-user-mic-icon" style="color: var(--primary-400);"></i>
-                                    <span>${currentUser.name || 'You'} (Self)</span>
-                                </div>
-                            </div>
-
-                            <!-- TILE 3: STUDENT 2 -->
-                            <div class="video-tile">
-                                <div class="video-avatar-fallback">
-                                    <div class="avatar-circle">UT</div>
-                                    <div style="font-weight: 600; color: #ffffff;">Hafiz Usman Tariq</div>
-                                    <div style="font-size: 0.72rem; color: var(--text-muted);">ASH-2024-042</div>
-                                </div>
-                                <div class="tile-participant-label">
-                                    <i class="fas fa-microphone-slash mic-muted" style="color: #f87171;"></i>
-                                    <span>Hafiz Usman Tariq</span>
-                                </div>
-                            </div>
-
-                            <!-- TILE 4: STUDENT 3 -->
-                            <div class="video-tile">
-                                <div class="video-avatar-fallback">
-                                    <div class="avatar-circle">ZQ</div>
-                                    <div style="font-weight: 600; color: #ffffff;">Zubair Ahmad Qasmi</div>
-                                    <div style="font-size: 0.72rem; color: var(--text-muted);">ASH-IFT-018</div>
-                                </div>
-                                <div class="tile-participant-label">
-                                    <i class="fas fa-microphone-slash mic-muted" style="color: #f87171;"></i>
-                                    <span>Zubair Ahmad Qasmi</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- SCREEN SHARE CONTAINER (IF ACTIVE) -->
-                        <div id="screen-share-wrap" style="display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; background: #000; z-index: 4;">
-                            <video id="screen-share-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: contain;"></video>
-                        </div>
-                    </div>
-
-                    <!-- INTERACTIVE WHITEBOARD PANEL -->
-                    <div class="zoom-whiteboard-panel" id="zoom-whiteboard">
-                        <div class="wb-toolbar">
-                            <div class="wb-tools-group">
-                                <button class="wb-tool-btn active" id="wb-tool-pen" onclick="VirtualClassModule.setWbTool('pen')" title="Pen Brush"><i class="fas fa-pen"></i></button>
-                                <button class="wb-tool-btn" id="wb-tool-eraser" onclick="VirtualClassModule.setWbTool('eraser')" title="Eraser"><i class="fas fa-eraser"></i></button>
-                                <div class="wb-color-picker">
-                                    <div class="color-dot active" style="background: #124855;" onclick="VirtualClassModule.setColor('#124855', this)"></div>
-                                    <div class="color-dot" style="background: #aa8637;" onclick="VirtualClassModule.setColor('#aa8637', this)"></div>
-                                    <div class="color-dot" style="background: #dc2626;" onclick="VirtualClassModule.setColor('#dc2626', this)"></div>
-                                    <div class="color-dot" style="background: #2563eb;" onclick="VirtualClassModule.setColor('#2563eb', this)"></div>
-                                    <div class="color-dot" style="background: #0f172a;" onclick="VirtualClassModule.setColor('#0f172a', this)"></div>
-                                </div>
-                            </div>
-                            <div class="wb-tools-group">
-                                <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.insertArabicText()">
-                                    <i class="fas fa-font"></i> Insert Bismillah & Ayah
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.clearWhiteboard()">
-                                    <i class="fas fa-trash-alt"></i> Clear Board
-                                </button>
-                                <button class="btn btn-gold btn-sm" onclick="VirtualClassModule.downloadWhiteboard()">
-                                    <i class="fas fa-camera"></i> Save Snapshot
-                                </button>
-                            </div>
-                        </div>
-                        <div class="wb-canvas-wrap">
-                            <canvas id="whiteboard-canvas"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- CHAT DRAWER -->
-                    <div class="zoom-side-drawer" id="zoom-chat-drawer">
-                        <div class="drawer-header">
-                            <span class="drawer-title"><i class="fas fa-comments"></i> In-Meeting Live Chat</span>
-                            <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.toggleChat()"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="drawer-content" id="chat-messages-stream">
-                            ${this.inMeetingChat.map(msg => `
-                                <div class="chat-bubble ${msg.isTeacher ? 'teacher-msg' : ''}">
-                                    <div class="chat-author">
-                                        ${msg.isTeacher ? '<i class="fas fa-crown"></i> ' : ''}${msg.sender}
-                                        <span class="chat-time">${msg.time}</span>
-                                    </div>
-                                    <div class="chat-text">${msg.text}</div>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <div class="quick-emojis">
-                            <button class="emoji-btn" onclick="VirtualClassModule.sendQuickEmoji('سبحان الله')">سبحان الله</button>
-                            <button class="emoji-btn" onclick="VirtualClassModule.sendQuickEmoji('ما شاء الله')">ما شاء الله</button>
-                            <button class="emoji-btn" onclick="VirtualClassModule.sendQuickEmoji('جزاك الله خيراً')">جزاك الله</button>
-                            <button class="emoji-btn" onclick="VirtualClassModule.sendQuickEmoji('آمين يا رب العالمين')">آمين</button>
-                        </div>
-                        <div class="chat-input-bar">
-                            <input type="text" id="chat-input-field" placeholder="Ask question to Sheikh..." onkeypress="if(event.key==='Enter') VirtualClassModule.sendMessage()">
-                            <button class="btn btn-gold btn-sm" onclick="VirtualClassModule.sendMessage()"><i class="fas fa-paper-plane"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- PARTICIPANTS DRAWER -->
-                    <div class="zoom-side-drawer" id="zoom-participants-drawer">
-                        <div class="drawer-header">
-                            <span class="drawer-title"><i class="fas fa-users"></i> Scholars in Hall (${session.activeParticipants || 42})</span>
-                            <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.toggleParticipants()"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="drawer-content">
-                            ${isHost ? `
-                                <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                                    <button class="btn btn-danger btn-sm" style="flex: 1;" onclick="VirtualClassModule.muteAll()">
-                                        <i class="fas fa-microphone-slash"></i> Mute All
-                                    </button>
-                                    <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="VirtualClassModule.lowerAllHands()">
-                                        <i class="fas fa-hand-paper"></i> Lower Hands
-                                    </button>
-                                </div>
-                            ` : ''}
-                            <div style="display: flex; flex-direction: column; gap: 8px;" id="participants-list-container">
-                                ${this.inMeetingParticipants.map(p => `
-                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--bg-surface-elevated, #162026); border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
-                                        <div>
-                                            <div style="font-weight: 600; font-size: 0.85rem; color: #ffffff;">
-                                                ${p.name} ${p.id === currentUser.id ? '(You)' : ''}
-                                                ${p.handRaised ? '<span style="color:#fbbf24; margin-left:4px;">✋</span>' : ''}
-                                            </div>
-                                            <div style="font-size: 0.72rem; color: var(--text-muted);">${p.title}</div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; gap: 8px;">
-                                            <i class="${p.isMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone'}" style="color: ${p.isMuted ? '#f87171' : 'var(--primary-400)'};"></i>
-                                            ${isHost && p.id !== currentUser.id ? `
-                                                <button class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 0.7rem;" onclick="VirtualClassModule.removeParticipant('${p.id}', '${p.name}')" title="Moderate scholar">
-                                                    <i class="fas fa-user-times" style="color: #f87171;"></i>
-                                                </button>
-                                            ` : ''}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- FLOATING BOTTOM ACTION DOCK -->
-                <div class="zoom-dock">
-                    <!-- Left: Audio / Video Toggles -->
-                    <div class="dock-group">
-                        <button class="dock-btn ${this.isMuted ? 'danger-action' : ''}" id="btn-toggle-mic" onclick="VirtualClassModule.toggleMic()">
-                            <i class="${this.isMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone'}"></i>
-                            <span>${this.isMuted ? 'Unmute' : 'Mute'}</span>
-                        </button>
-                        <button class="dock-btn ${this.isVideoOff ? 'danger-action' : ''}" id="btn-toggle-video" onclick="VirtualClassModule.toggleVideo()">
-                            <i class="${this.isVideoOff ? 'fas fa-video-slash' : 'fas fa-video'}"></i>
-                            <span>${this.isVideoOff ? 'Start Video' : 'Stop Video'}</span>
-                        </button>
-                    </div>
-
-                    <!-- Center: Interactive Sharing & Tools -->
-                    <div class="dock-group">
-                        <button class="dock-btn" id="btn-share-screen" onclick="VirtualClassModule.toggleScreenShare()">
-                            <i class="fas fa-desktop"></i>
-                            <span>Share Screen</span>
-                        </button>
-                        <button class="dock-btn ${this.isWhiteboardActive ? 'active' : ''}" id="btn-toggle-wb" onclick="VirtualClassModule.toggleWhiteboard()">
-                            <i class="fas fa-chalkboard"></i>
-                            <span>Whiteboard</span>
-                        </button>
-                        <button class="dock-btn ${this.isParticipantsActive ? 'active' : ''}" onclick="VirtualClassModule.toggleParticipants()">
-                            <i class="fas fa-users"></i>
-                            <span>Scholars (${session.activeParticipants || 42})</span>
-                        </button>
-                        <button class="dock-btn ${this.isChatActive ? 'active' : ''}" onclick="VirtualClassModule.toggleChat()">
-                            <i class="fas fa-comment-alt"></i>
-                            <span>Chat</span>
-                        </button>
-                        <button class="dock-btn ${this.isHandRaised ? 'active' : ''}" onclick="VirtualClassModule.toggleRaiseHand()">
-                            <i class="fas fa-hand-paper"></i>
-                            <span>${this.isHandRaised ? 'Lower Hand' : 'Raise Hand'}</span>
-                        </button>
-                        <button class="dock-btn" onclick="VirtualClassModule.toggleReactionsPopup()">
-                            <i class="fas fa-smile"></i>
-                            <span>Reactions</span>
-                        </button>
-                        ${isHost ? `
-                            <button class="dock-btn ${this.isRecording ? 'active' : 'danger-action'}" onclick="VirtualClassModule.toggleRecording()">
-                                <i class="fas fa-record-vinyl"></i>
-                                <span>${this.isRecording ? 'Recording' : 'Record'}</span>
-                            </button>
-                        ` : ''}
-                    </div>
-
-                    <!-- Right: End / Leave Session -->
-                    <div class="dock-group">
-                        <button class="dock-btn end-meeting" onclick="VirtualClassModule.leaveClass()">
-                            <i class="fas fa-phone-slash"></i>
-                            <span>${isHost ? 'End Meeting' : 'Leave Class'}</span>
-                        </button>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()"><i class="fas fa-link"></i> Copy Link</button>
+                        ${isHost && session.status === 'LIVE' ? `<button class="btn btn-danger btn-sm" onclick="VirtualClassModule.endSession('${session.id}')"><i class="fas fa-stop-circle"></i> End Class for Everyone</button>` : ''}
+                        <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.leaveClass()"><i class="fas fa-sign-out-alt"></i> Leave</button>
                     </div>
                 </div>
             </div>
-
-            <!-- FLOATING ISLAMIC REACTIONS POPOVER -->
-            <div id="vc-reactions-popover" style="display: ${this.showReactions ? 'flex' : 'none'}; position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 1000;" class="vc-reactions-dock">
-                <button class="vc-reaction-btn" onclick="VirtualClassModule.sendReaction('🤲', 'Takbeer!')" title="Takbeer">🤲</button>
-                <button class="vc-reaction-btn" onclick="VirtualClassModule.sendReaction('🤍', 'SubhanAllah')" title="SubhanAllah">🤍</button>
-                <button class="vc-reaction-btn" onclick="VirtualClassModule.sendReaction('🌟', 'MashaAllah')" title="MashaAllah">🌟</button>
-                <button class="vc-reaction-btn" onclick="VirtualClassModule.sendReaction('👍', 'JazakAllah Khair')" title="JazakAllah">👍</button>
-                <button class="vc-reaction-btn" onclick="VirtualClassModule.sendReaction('👏', 'Ahsant')" title="Ahsant">👏</button>
-                <button class="vc-reaction-btn" onclick="VirtualClassModule.sendReaction('✋', 'Hand Raised')" title="Raise Hand">✋</button>
-            </div>
+            ${!isExternal && !this.canEmbed() ? `
+                <div class="card" style="text-align: center; padding: 40px 20px;">
+                    <i class="fas fa-video" style="font-size: 2.4rem; color: var(--primary-600);"></i>
+                    <h3 style="margin: 12px 0 6px;">The live classroom opens in a new tab</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 6px;">Your attendance has been recorded. Keep this portal open in the other tab.</p>
+                    <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 16px;">
+                        ${isHost ? 'As the teacher, sign in when the meeting asks (Google / GitHub) to start the class as moderator. ' : 'If the teacher has not started yet, wait on the meeting page — it opens automatically. '}
+                        ${session.passcode ? `Passcode if asked: <code>${Lms.esc(session.passcode)}</code>` : ''}
+                    </p>
+                    <button class="btn btn-primary" onclick="VirtualClassModule.openMeetingTab()"><i class="fas fa-external-link-alt"></i> Open Live Classroom</button>
+                </div>` : ''}
+            ${isExternal ? `
+                <div class="card" style="text-align: center; padding: 40px 20px;">
+                    <i class="fas fa-external-link-alt" style="font-size: 2.4rem; color: var(--primary-600);"></i>
+                    <h3 style="margin: 12px 0 6px;">This class runs on ${Lms.esc(this.platformName(session.externalUrl))}</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Your attendance has been recorded. Open the meeting in a new tab${session.passcode ? ` and use passcode <code>${Lms.esc(session.passcode)}</code> if asked` : ''}.</p>
+                    <a class="btn btn-primary" href="${Lms.esc(session.externalUrl)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-video"></i> Open Meeting</a>
+                </div>` : !this.canEmbed() ? '' : `
+                <div id="jitsi-container" style="width: 100%; height: 72vh; min-height: 460px; background: #0b1114; border-radius: var(--radius-md); overflow: hidden; display: flex; align-items: center; justify-content: center; color: #cbd5e1;">
+                    <div style="text-align: center;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><div style="margin-top: 10px;">Connecting to the live classroom...</div></div>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                    Video, audio, screen sharing, chat, raise-hand and the whiteboard are inside the meeting toolbar. Allow camera and microphone access when the browser asks.
+                </div>`}
         `;
     },
 
-    toggleReactionsPopup() {
-        this.showReactions = !this.showReactions;
-        const pop = document.getElementById('vc-reactions-popover');
-        if (pop) pop.style.display = this.showReactions ? 'flex' : 'none';
-    },
-
-    sendReaction(emoji, label) {
-        this.showReactions = false;
-        const pop = document.getElementById('vc-reactions-popover');
-        if (pop) pop.style.display = 'none';
-
-        window.App?.showToast(`Reaction sent: ${emoji} ${label}`, 'gold');
-        this.sendQuickEmoji(`${emoji} ${label}`);
+    platformName(url) {
+        const u = String(url || '').toLowerCase();
+        if (u.includes('zoom.')) return 'Zoom';
+        if (u.includes('meet.google.')) return 'Google Meet';
+        if (u.includes('teams.')) return 'Microsoft Teams';
+        return 'an external meeting service';
     },
 
     // =========================================================================
@@ -873,7 +612,7 @@ const VirtualClassModule = {
         const isStudent = window.AuthRBAC?.isStudent();
 
         const allRecordings = window.LmsData?.virtualClassRecordings || [];
-        const studentClass = currentUser.classId || 'cls_dawra_a';
+        const studentClass = currentUser.classId || '';
         const settings = window.LmsData?.virtualClassSettings || { retentionDays: 90, allowStudentDownload: false };
 
         // Class and text filtering
@@ -1282,6 +1021,28 @@ const VirtualClassModule = {
                     </div>
                 </div>
 
+                <!-- LIVE CLASSROOM SERVICE -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-video" style="color: var(--primary-600);"></i> Live Classroom Service</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6; margin-bottom: 14px;">
+                            The free public <strong>meet.jit.si</strong> service ends embedded calls after 5 minutes, so classes on it open in a new tab (no time limit).
+                            If you run your own Jitsi server or an 8x8 JaaS account, enter its domain and tick "embed" to show classes inside the portal.
+                        </p>
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label>Jitsi server domain</label>
+                            <input type="text" id="meeting-domain" class="form-control" value="${Lms.esc(this.meetingDomain())}" placeholder="meet.jit.si">
+                        </div>
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 16px;">
+                            <input type="checkbox" id="meeting-embed" ${this.canEmbed() ? 'checked' : ''} style="width: 18px; height: 18px;">
+                            <span>Embed the classroom inside the portal (own Jitsi server / JaaS only)</span>
+                        </label>
+                        <button class="btn btn-primary" onclick="VirtualClassModule.saveMeetingConfig()"><i class="fas fa-save"></i> Save Classroom Service</button>
+                    </div>
+                </div>
+
                 <!-- IMMEDIATE CLEANUP ACTION -->
                 <div class="card">
                     <div class="card-header">
@@ -1376,171 +1137,116 @@ const VirtualClassModule = {
     // 6. SCHEDULE CLASSROOM MODAL
     // =========================================================================
     openScheduleModal() {
-        const classes = window.LmsData?.classes || [];
-        const courses = window.LmsData?.courses || [];
-        const currentUser = window.AuthRBAC?.currentUser || {};
-
-        const modalHtml = `
-            <div class="modal-backdrop" id="schedule-class-modal" style="display: flex;">
-                <div class="modal" style="max-width: 640px;">
-                    <div class="modal-header">
-                        <div class="modal-title-group">
-                            <h2><i class="fas fa-video" style="color: var(--primary-500);"></i> Schedule / Launch Virtual Classroom</h2>
-                            <p>Configure live Dars stream with class-based access control and WebRTC parameters</p>
-                        </div>
-                        <button class="modal-close-btn" onclick="VirtualClassModule.closeScheduleModal()">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group" style="margin-bottom: 14px;">
-                            <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Lecture Topic (English):</label>
-                            <input type="text" id="sch-title" class="form-control" placeholder="e.g. Sahih al-Bukhari - Kitab al-Ilm" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
-                        </div>
-
-                        <div class="form-group" style="margin-bottom: 14px;">
-                            <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Urdu Calligraphic Title:</label>
-                            <input type="text" id="sch-urdu-title" class="form-control" placeholder="درسِ صحیح البخاری شریف" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px; font-family: 'Amiri', serif;">
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                            <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Target Class Section:</label>
-                                <select id="sch-class-id" class="form-control" style="width: 100%; padding: 8px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
-                                    ${classes.map(c => `
-                                        <option value="${c.id}">${c.name} - ${c.section}</option>
-                                    `).join('')}
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Associated Kitab / Course:</label>
-                                <select id="sch-course-id" class="form-control" style="width: 100%; padding: 8px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
-                                    ${courses.map(co => `
-                                        <option value="${co.id}">${co.title}</option>
-                                    `).join('')}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                            <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Scheduled Date & Time:</label>
-                                <input type="text" id="sch-datetime" class="form-control" value="2026-09-29 11:00 AM" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
-                            </div>
-
-                            <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Duration (Minutes):</label>
-                                <input type="number" id="sch-duration" class="form-control" value="60" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
-                            </div>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
-                            <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Virtual Studio / Hall:</label>
-                                <input type="text" id="sch-room" class="form-control" value="Hall Imam Bukhari (Virtual Hall)" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
-                            </div>
-
-                            <div class="form-group">
-                                <label style="display: block; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Session Passcode:</label>
-                                <input type="text" id="sch-passcode" class="form-control" value="ASHRAFIA${Math.floor(1000 + Math.random() * 9000)}" style="width: 100%; padding: 8px 12px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px; font-family: monospace; font-weight: 700;">
-                            </div>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom: 10px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="checkbox" id="sch-is-live" style="width: 16px; height: 16px; accent-color: var(--primary-500);">
-                                <span><strong>Launch as Live Stream Immediately</strong> (Directly open hall for scholars)</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" onclick="VirtualClassModule.closeScheduleModal()">Cancel</button>
-                        <button class="btn btn-primary" onclick="VirtualClassModule.saveScheduleModal()">
-                            <i class="fas fa-check-circle"></i> Confirm & Schedule Session
-                        </button>
-                    </div>
+        const classIds = Lms.myClassIds();
+        if (!classIds.length) {
+            window.App?.showToast('No classes are allocated to you yet.', 'warning');
+            return;
+        }
+        const d = new Date(Date.now() + 60 * 60000);
+        const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:00`;
+        Lms.openModal(
+            `<i class="fas fa-video" style="color: var(--primary-500);"></i> Schedule / Start Online Class`,
+            `<div class="form-grid">
+                <div class="form-group"><label>Lecture Topic *</label><input type="text" id="sch-title" class="form-control" placeholder="e.g. Sahih al-Bukhari - Kitab al-Ilm"></div>
+                <div class="form-group"><label>Urdu Title</label><input type="text" id="sch-urdu-title" class="form-control" dir="rtl" placeholder="درسِ صحیح البخاری شریف"></div>
+                <div class="form-group"><label>Class *</label>
+                    <select id="sch-class-id" class="form-control" onchange="VirtualClassModule.refreshScheduleCourses()">${Lms.classOptions(classIds[0], classIds)}</select>
                 </div>
+                <div class="form-group"><label>Kitab / Course *</label><select id="sch-course-id" class="form-control"></select></div>
+                <div class="form-group"><label>Date & Time *</label><input type="datetime-local" id="sch-datetime" class="form-control" value="${local}"></div>
+                <div class="form-group"><label>Duration (minutes) *</label><input type="number" id="sch-duration" min="10" max="240" class="form-control" value="60"></div>
+                <div class="form-group"><label>Meeting Platform *</label>
+                    <select id="sch-platform" class="form-control" onchange="document.getElementById('sch-external-wrap').style.display = this.value === 'EXTERNAL' ? '' : 'none'">
+                        <option value="BUILTIN">Built-in live classroom (video, screen share, chat)</option>
+                        <option value="EXTERNAL">Zoom / Google Meet / Teams link</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Passcode</label><input type="text" id="sch-passcode" class="form-control" value="ASH${Math.floor(100000 + Math.random() * 900000)}" style="font-family: monospace;"></div>
+                <div class="form-group" id="sch-external-wrap" style="display: none;"><label>Meeting Link *</label><input type="url" id="sch-external" class="form-control" placeholder="https://zoom.us/j/..."></div>
             </div>
-        `;
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="sch-is-live" style="width: 16px; height: 16px;">
+                <span><strong>Start now</strong> — open the room immediately and notify students</span>
+            </label>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-primary" onclick="VirtualClassModule.saveScheduleModal()"><i class="fas fa-check-circle"></i> Save</button>`
+        );
+        this.refreshScheduleCourses();
+    },
 
-        const existingModal = document.getElementById('schedule-class-modal');
-        if (existingModal) existingModal.remove();
-
-        const wrap = document.createElement('div');
-        wrap.innerHTML = modalHtml;
-        document.body.appendChild(wrap.firstElementChild);
+    refreshScheduleCourses() {
+        const classId = Lms.val('sch-class-id');
+        const me = window.AuthRBAC?.currentUser || {};
+        let ids = Lms.classCourseIds(classId);
+        if (me.role === 'TEACHER') {
+            const mine = Lms.teacherCourseIds(me.id, classId);
+            const cls = Lms.getClass(classId);
+            if (!(cls && cls.teacherId === me.id) && mine.length) ids = mine;
+        }
+        if (!ids.length) ids = (window.LmsData.courses || []).map(c => c.id);
+        document.getElementById('sch-course-id').innerHTML = Lms.courseOptions(null, ids);
     },
 
     closeScheduleModal() {
-        const modal = document.getElementById('schedule-class-modal');
-        if (modal) modal.remove();
+        window.App.closeModal();
     },
 
-    async saveScheduleModal() {
-        const title = document.getElementById('sch-title')?.value.trim();
-        const urduTitle = document.getElementById('sch-urdu-title')?.value.trim();
-        const classId = document.getElementById('sch-class-id')?.value;
-        const courseId = document.getElementById('sch-course-id')?.value;
-        const scheduledStart = document.getElementById('sch-datetime')?.value;
-        const durationMinutes = Number(document.getElementById('sch-duration')?.value) || 60;
-        const roomName = document.getElementById('sch-room')?.value;
-        const passcode = document.getElementById('sch-passcode')?.value;
-        const isLive = document.getElementById('sch-is-live')?.checked;
-
-        if (!title) {
-            alert("Please enter a lecture title.");
+    saveScheduleModal() {
+        const title = Lms.val('sch-title');
+        const when = Lms.val('sch-datetime');
+        const durationMinutes = parseInt(Lms.val('sch-duration'), 10) || 0;
+        const platform = Lms.val('sch-platform');
+        const externalUrl = Lms.val('sch-external');
+        const isLive = document.getElementById('sch-is-live').checked;
+        if (!title || !when || durationMinutes < 10) {
+            window.App.showToast('Topic, date/time and a duration of at least 10 minutes are required', 'warning');
             return;
         }
-
+        if (platform === 'EXTERNAL' && !/^https:\/\//i.test(externalUrl)) {
+            window.App.showToast('Paste the full https:// meeting link', 'warning');
+            return;
+        }
         const currentUser = window.AuthRBAC?.currentUser || {};
-        const classes = window.LmsData?.classes || [];
-        const targetClass = classes.find(c => c.id === classId) || { name: 'Dars Section' };
-
-        const newId = 'vc_' + Date.now();
-        const newSession = {
-            id: newId,
-            meetingUuid: `ASH-ZOOM-${Math.floor(100 + Math.random() * 900)}-${Math.floor(100 + Math.random() * 900)}-${Math.floor(100 + Math.random() * 900)}`,
-            title: title,
-            urduTitle: urduTitle || 'درسِ نظامی',
-            hostTeacher: currentUser.name || 'Qari Arshad Ubaid (Sheikh-ul-Hadith)',
-            hostId: currentUser.id || 'u_teacher_1',
-            classId: classId,
-            className: `${targetClass.name} - ${targetClass.section || 'Main'}`,
-            courseId: courseId,
-            roomName: roomName,
-            scheduledStart: scheduledStart,
-            durationMinutes: durationMinutes,
-            passcode: passcode,
+        const classId = Lms.val('sch-class-id');
+        const cls = Lms.getClass(classId) || { name: 'Class' };
+        const startsAt = new Date(when);
+        const rand = () => Math.floor(100 + Math.random() * 900);
+        const session = {
+            id: Lms.uid('vc'),
+            meetingUuid: `ASH-${rand()}-${rand()}-${rand()}`,
+            title,
+            urduTitle: Lms.val('sch-urdu-title'),
+            hostTeacher: currentUser.name,
+            hostId: currentUser.id,
+            classId,
+            className: `${cls.name} - ${cls.section || ''}`,
+            courseId: Lms.val('sch-course-id'),
+            courseName: Lms.courseTitle(Lms.val('sch-course-id')),
+            roomName: platform === 'EXTERNAL' ? this.platformName(externalUrl) : 'Built-in live classroom',
+            platform,
+            externalUrl: platform === 'EXTERNAL' ? externalUrl : null,
+            startsAt: startsAt.toISOString(),
+            scheduledStart: startsAt.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            durationMinutes,
+            passcode: Lms.val('sch-passcode'),
             status: isLive ? 'LIVE' : 'UPCOMING',
-            isLive: !!isLive,
-            activeParticipants: isLive ? 1 : 0,
-            recordingStatus: isLive ? 'RECORDING_ACTIVE' : 'SCHEDULED',
+            isLive,
+            startedAt: isLive ? new Date().toISOString() : null,
+            activeParticipants: 0,
             attendanceCount: 0
         };
-
-        if (!window.LmsData.virtualClasses) window.LmsData.virtualClasses = [];
-        window.LmsData.virtualClasses.unshift(newSession);
-        window.DataStore?.save(window.LmsData);
-
-        // Sync with backend API
-        try {
-            await fetch('/api/virtual-class/create', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-id': currentUser.id,
-                    'x-user-role': currentUser.role
-                },
-                body: JSON.stringify(newSession)
-            });
-        } catch (e) {
-            console.warn("Backend session creation queued", e);
-        }
-
-        this.closeScheduleModal();
-        window.App?.showToast("Virtual Classroom scheduled and synchronized with academic timetable!", "success");
-
+        window.LmsData.virtualClasses = window.LmsData.virtualClasses || [];
+        window.LmsData.virtualClasses.unshift(session);
+        window.DataStore.save(window.LmsData);
+        Lms.notifyClass(classId,
+            isLive ? `Live class started: ${title}` : `Online class scheduled: ${title}`,
+            isLive ? `${currentUser.name} is live now. Open Online Classes to join.` : `${session.scheduledStart} • ${durationMinutes} min with ${currentUser.name}.`,
+            'LIVE_CLASS', 'virtual-class');
+        window.App.closeModal();
+        window.App?.showToast(isLive ? 'Class started — students have been notified' : 'Online class scheduled and students notified', 'success');
         if (isLive) {
-            this.enterClassroom(newId);
+            if (window.App.currentRoute !== 'virtual-class') window.App.navigate('virtual-class');
+            this.enterClassroom(session.id);
         } else {
             this.switchTab('lobby');
         }
@@ -1552,6 +1258,14 @@ const VirtualClassModule = {
     openVideoPlayer(recId) {
         const recording = (window.LmsData?.virtualClassRecordings || []).find(r => r.id === recId);
         if (!recording) return;
+        if (!recording.videoUrl && recording.externalUrl) {
+            window.open(recording.externalUrl, '_blank', 'noopener');
+            return;
+        }
+        if (!recording.videoUrl) {
+            window.App?.showToast('The video file for this recording has not been uploaded yet.', 'info');
+            return;
+        }
 
         recording.viewsCount = (recording.viewsCount || 0) + 1;
         window.DataStore?.save(window.LmsData);
@@ -1570,7 +1284,7 @@ const VirtualClassModule = {
                     </div>
                     <div class="modal-body" style="padding: 0; background: #000;">
                         <video controls autoplay style="width: 100%; max-height: 480px; display: block; outline: none;">
-                            <source src="${recording.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'}" type="video/mp4">
+                            <source src="${Lms.esc(recording.videoUrl)}">
                             Your browser does not support HTML5 video streaming.
                         </video>
                         <div style="padding: 16px 20px; background: var(--bg-surface-elevated, #162026); border-top: 1px solid rgba(255,255,255,0.08);">
@@ -1617,354 +1331,271 @@ const VirtualClassModule = {
     },
 
     // =========================================================================
-    // 8. INTERACTIVE WEBRTC & STUDIO CONTROLS
+    // 8. LIVE ROOM (Jitsi Meet embed), SESSION LIFECYCLE
     // =========================================================================
+    jitsiApi: null,
+
+    meetingConfig: { domain: 'meet.jit.si', embed: false },
+
+    async loadMeetingConfig() {
+        try {
+            const data = await fetch('/api/settings/meeting').then(r => r.json());
+            if (data && data.settings) this.meetingConfig = data.settings;
+        } catch (e) { /* keep defaults */ }
+        return this.meetingConfig;
+    },
+
+    meetingDomain() {
+        return this.meetingConfig.domain || 'meet.jit.si';
+    },
+
+    // Public meet.jit.si ends embedded calls after 5 minutes, so it is never embedded
+    canEmbed() {
+        return !!this.meetingConfig.embed && this.meetingDomain() !== 'meet.jit.si';
+    },
+
+    meetingUrl(session) {
+        const me = window.AuthRBAC?.currentUser || {};
+        const name = `${me.name || 'Guest'}${this.isHost ? ' (Ustad)' : me.rollNo ? ' - ' + me.rollNo : ''}`;
+        return `https://${this.meetingDomain()}/${this.roomNameFor(session)}#userInfo.displayName=${encodeURIComponent(JSON.stringify(name))}&config.subject=${encodeURIComponent(JSON.stringify(session.title || ''))}&config.prejoinConfig.enabled=false`;
+    },
+
+    openMeetingTab() {
+        if (!this.activeSession) return;
+        const win = window.open(this.meetingUrl(this.activeSession), '_blank', 'noopener');
+        if (!win) window.App?.showToast('Your browser blocked the new tab. Allow pop-ups for this site and try again.', 'warning');
+    },
+
+    async saveMeetingConfig() {
+        const me = window.AuthRBAC?.currentUser || {};
+        try {
+            const res = await fetch('/api/settings/meeting', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-User-Id': me.id || '', 'X-User-Role': me.role || '' },
+                body: JSON.stringify({ domain: Lms.val('meeting-domain'), embed: document.getElementById('meeting-embed').checked })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+            this.meetingConfig = data.settings;
+            window.App?.showToast(data.settings.embed ? 'Live classes will open inside the portal' : 'Live classes will open in a new tab', 'success');
+            this.switchTab('retention');
+        } catch (e) {
+            window.App?.showToast(e.message, 'error');
+        }
+    },
+
+    roomNameFor(session) {
+        return `JamiaAshrafia${String(session.meetingUuid || session.id).replace(/[^a-zA-Z0-9]/g, '')}${String(session.id).replace(/[^a-zA-Z0-9]/g, '').slice(-6)}`;
+    },
+
     initAfterRender() {
-        if (this.currentTab === 'studio' && !this.accessBlocked) {
-            this.startTimer();
-            this.setupWhiteboardCanvas();
-        }
-    },
-
-    startTimer() {
-        if (this.timerInterval) clearInterval(this.timerInterval);
-        this.timerInterval = setInterval(() => {
-            this.timerSeconds++;
-            const hrs = String(Math.floor(this.timerSeconds / 3600)).padStart(2, '0');
-            const mins = String(Math.floor((this.timerSeconds % 3600) / 60)).padStart(2, '0');
-            const secs = String(this.timerSeconds % 60).padStart(2, '0');
-            const el = document.getElementById('zoom-elapsed-timer');
-            if (el) el.textContent = `${hrs}:${mins}:${secs}`;
-        }, 1000);
-    },
-
-    async toggleVideo() {
-        const videoEl = document.getElementById('local-webcam-video');
-        const fallback = document.getElementById('local-avatar-fallback');
-        const btn = document.getElementById('btn-toggle-video');
-
-        if (!this.localStream) {
-            try {
-                this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                if (videoEl) {
-                    videoEl.srcObject = this.localStream;
-                    videoEl.style.display = 'block';
-                    if (fallback) fallback.style.display = 'none';
-                }
-                this.isVideoOff = false;
-                if (btn) {
-                    btn.className = 'dock-btn';
-                    btn.innerHTML = `<i class="fas fa-video"></i><span>Stop Video</span>`;
-                }
-                window.App?.showToast("Webcam video feed active in live lecture", "success");
-            } catch (err) {
-                console.warn("Camera hardware access unavailable; using avatar mode", err);
-                this.isVideoOff = !this.isVideoOff;
-                if (btn) {
-                    btn.className = this.isVideoOff ? 'dock-btn danger-action' : 'dock-btn';
-                    btn.innerHTML = `<i class="${this.isVideoOff ? 'fas fa-video-slash' : 'fas fa-video'}"></i><span>${this.isVideoOff ? 'Start Video' : 'Stop Video'}</span>`;
-                }
-                window.App?.showToast(this.isVideoOff ? "Video muted (Avatar active)" : "Camera feed enabled", "info");
-            }
+        if (this.currentTab === 'studio' && this.activeSession && !this.accessBlocked && !(this.activeSession.platform === 'EXTERNAL' && this.activeSession.externalUrl) && this.canEmbed()) {
+            this.mountMeeting();
         } else {
-            const videoTracks = this.localStream.getVideoTracks();
-            if (videoTracks.length > 0) {
-                this.isVideoOff = !this.isVideoOff;
-                videoTracks[0].enabled = !this.isVideoOff;
-                if (videoEl) videoEl.style.display = this.isVideoOff ? 'none' : 'block';
-                if (fallback) fallback.style.display = this.isVideoOff ? 'flex' : 'none';
-                if (btn) {
-                    btn.className = this.isVideoOff ? 'dock-btn danger-action' : 'dock-btn';
-                    btn.innerHTML = `<i class="${this.isVideoOff ? 'fas fa-video-slash' : 'fas fa-video'}"></i><span>${this.isVideoOff ? 'Start Video' : 'Stop Video'}</span>`;
-                }
-            }
+            this.disposeMeeting();
         }
     },
 
-    toggleMic() {
-        this.isMuted = !this.isMuted;
-        if (this.localStream) {
-            const audioTracks = this.localStream.getAudioTracks();
-            if (audioTracks.length > 0) {
-                audioTracks[0].enabled = !this.isMuted;
-            }
-        }
-        const btn = document.getElementById('btn-toggle-mic');
-        const micIcon = document.getElementById('tile-user-mic-icon');
-        if (btn) {
-            btn.className = this.isMuted ? 'dock-btn danger-action' : 'dock-btn';
-            btn.innerHTML = `<i class="${this.isMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone'}"></i><span>${this.isMuted ? 'Unmute' : 'Mute'}</span>`;
-        }
-        if (micIcon) {
-            micIcon.className = this.isMuted ? 'fas fa-microphone-slash mic-muted' : 'fas fa-microphone';
-            micIcon.style.color = this.isMuted ? '#f87171' : 'var(--primary-400)';
-        }
-        window.App?.showToast(this.isMuted ? "Microphone muted" : "Microphone active", "info");
-    },
-
-    async toggleScreenShare() {
-        const screenWrap = document.getElementById('screen-share-wrap');
-        const screenVideo = document.getElementById('screen-share-video');
-        const btn = document.getElementById('btn-share-screen');
-
-        if (!this.screenStream) {
-            try {
-                this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                if (screenVideo) screenVideo.srcObject = this.screenStream;
-                if (screenWrap) screenWrap.style.display = 'block';
-                if (btn) {
-                    btn.classList.add('active');
-                    btn.innerHTML = `<i class="fas fa-stop-circle"></i><span>Stop Sharing</span>`;
-                }
-                window.App?.showToast("Broadcasting screen to scholars", "gold");
-
-                this.screenStream.getVideoTracks()[0].onended = () => {
-                    this.stopScreenShare();
-                };
-            } catch (err) {
-                console.warn("Screen share cancelled", err);
-                window.App?.showToast("Screen share cancelled", "warning");
-            }
-        } else {
-            this.stopScreenShare();
-        }
-    },
-
-    stopScreenShare() {
-        if (this.screenStream) {
-            this.screenStream.getTracks().forEach(t => t.stop());
-            this.screenStream = null;
-        }
-        const screenWrap = document.getElementById('screen-share-wrap');
-        const btn = document.getElementById('btn-share-screen');
-        if (screenWrap) screenWrap.style.display = 'none';
-        if (btn) {
-            btn.classList.remove('active');
-            btn.innerHTML = `<i class="fas fa-desktop"></i><span>Share Screen</span>`;
-        }
-        window.App?.showToast("Screen share stopped", "info");
-    },
-
-    toggleWhiteboard() {
-        this.isWhiteboardActive = !this.isWhiteboardActive;
-        const panel = document.getElementById('zoom-whiteboard');
-        const btn = document.getElementById('btn-toggle-wb');
-        if (panel) panel.classList.toggle('active', this.isWhiteboardActive);
-        if (btn) btn.classList.toggle('active', this.isWhiteboardActive);
-        if (this.isWhiteboardActive) {
-            this.setupWhiteboardCanvas();
-            window.App?.showToast("Interactive Whiteboard open", "info");
-        }
-    },
-
-    setupWhiteboardCanvas() {
-        const canvas = document.getElementById('whiteboard-canvas');
-        if (!canvas) return;
-        const wrap = canvas.parentElement;
-        canvas.width = wrap.clientWidth;
-        canvas.height = wrap.clientHeight;
-        this.wbCtx = canvas.getContext('2d');
-        this.wbCtx.lineCap = 'round';
-        this.wbCtx.lineJoin = 'round';
-
-        canvas.onmousedown = (e) => {
-            this.isDrawing = true;
-            this.wbCtx.beginPath();
-            this.wbCtx.moveTo(e.offsetX, e.offsetY);
-        };
-        canvas.onmousemove = (e) => {
-            if (!this.isDrawing) return;
-            this.wbCtx.strokeStyle = this.currentColor;
-            this.wbCtx.lineWidth = this.currentLineWidth;
-            this.wbCtx.lineTo(e.offsetX, e.offsetY);
-            this.wbCtx.stroke();
-        };
-        canvas.onmouseup = () => { this.isDrawing = false; };
-        canvas.onmouseleave = () => { this.isDrawing = false; };
-    },
-
-    setWbTool(tool) {
-        document.querySelectorAll('.wb-tool-btn').forEach(b => b.classList.remove('active'));
-        if (tool === 'pen') {
-            document.getElementById('wb-tool-pen')?.classList.add('active');
-            this.currentLineWidth = 3;
-        } else if (tool === 'eraser') {
-            document.getElementById('wb-tool-eraser')?.classList.add('active');
-            this.currentColor = '#ffffff';
-            this.currentLineWidth = 24;
-        }
-    },
-
-    setColor(colorHex, el) {
-        this.currentColor = colorHex;
-        this.currentLineWidth = 3;
-        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
-        if (el) el.classList.add('active');
-        document.getElementById('wb-tool-pen')?.classList.add('active');
-        document.getElementById('wb-tool-eraser')?.classList.remove('active');
-    },
-
-    insertArabicText() {
-        if (!this.wbCtx) return;
-        const canvas = document.getElementById('whiteboard-canvas');
-        this.wbCtx.font = "bold 28px 'Amiri', serif";
-        this.wbCtx.fillStyle = "#124855";
-        this.wbCtx.textAlign = "center";
-        this.wbCtx.fillText("بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", canvas.width / 2, 60);
-
-        this.wbCtx.font = "20px 'Amiri', serif";
-        this.wbCtx.fillStyle = "#aa8637";
-        this.wbCtx.fillText("إنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى (صحیح البخاری: ١)", canvas.width / 2, 110);
-        window.App?.showToast("Hadith text inserted on whiteboard", "gold");
-    },
-
-    clearWhiteboard() {
-        const canvas = document.getElementById('whiteboard-canvas');
-        if (canvas && this.wbCtx) {
-            this.wbCtx.clearRect(0, 0, canvas.width, canvas.height);
-            window.App?.showToast("Whiteboard cleared", "info");
-        }
-    },
-
-    downloadWhiteboard() {
-        const canvas = document.getElementById('whiteboard-canvas');
-        if (canvas) {
-            const dataUrl = canvas.toDataURL("image/png");
-            const link = document.createElement("a");
-            link.download = `Jamia_Ashrafia_Lecture_Whiteboard_${Date.now()}.png`;
-            link.href = dataUrl;
-            link.click();
-            window.App?.showToast("Whiteboard snapshot downloaded", "success");
-        }
-    },
-
-    toggleChat() {
-        this.isChatActive = !this.isChatActive;
-        const drawer = document.getElementById('zoom-chat-drawer');
-        if (drawer) drawer.classList.toggle('active', this.isChatActive);
-        if (this.isChatActive && this.isParticipantsActive) this.toggleParticipants();
-    },
-
-    toggleParticipants() {
-        this.isParticipantsActive = !this.isParticipantsActive;
-        const drawer = document.getElementById('zoom-participants-drawer');
-        if (drawer) drawer.classList.toggle('active', this.isParticipantsActive);
-        if (this.isParticipantsActive && this.isChatActive) this.toggleChat();
-    },
-
-    toggleRaiseHand() {
-        this.isHandRaised = !this.isHandRaised;
-        window.App?.showToast(this.isHandRaised ? "Hand raised! Sheikh notified." : "Hand lowered", "gold");
-        if (this.isHandRaised) {
-            this.sendQuickEmoji(`✋ ${window.AuthRBAC?.currentUser?.name || 'Scholar'} raised hand`);
-        }
-    },
-
-    toggleRecording() {
-        this.isRecording = !this.isRecording;
-        const badge = document.getElementById('zoom-rec-badge');
-        if (badge) {
-            badge.innerHTML = `<span class="rec-dot" style="${this.isRecording ? '' : 'animation:none; opacity:0.5;'}"></span> ${this.isRecording ? 'REC' : 'PAUSED'}`;
-            badge.style.background = this.isRecording ? 'rgba(239, 68, 68, 0.2)' : 'rgba(148, 163, 184, 0.2)';
-            badge.style.borderColor = this.isRecording ? 'rgba(239, 68, 68, 0.4)' : 'rgba(148, 163, 184, 0.4)';
-            badge.style.color = this.isRecording ? '#f87171' : '#cbd5e1';
-        }
-        window.App?.showToast(this.isRecording ? "Cloud recording active (AWS S3 AES-256)" : "Cloud recording paused by host", this.isRecording ? "danger" : "info");
-    },
-
-    sendMessage() {
-        const input = document.getElementById('chat-input-field');
-        if (!input) return;
-        const text = input.value.trim();
-        if (!text) return;
-
-        this.sendQuickEmoji(text);
-        input.value = '';
-    },
-
-    sendQuickEmoji(text) {
-        const chat = document.getElementById('chat-messages-stream');
-        if (!chat) return;
-
-        const isTeacher = window.AuthRBAC?.isTeacher();
-        const userName = window.AuthRBAC?.currentUser?.name || "Talib-e-Ilm";
-        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        this.inMeetingChat.push({
-            id: 'c_' + Date.now(),
-            sender: userName,
-            isTeacher: !!isTeacher,
-            time: timeStr,
-            text: text
+    loadJitsiScript(domain) {
+        if (window.JitsiMeetExternalAPI) return Promise.resolve();
+        if (this._jitsiLoading) return this._jitsiLoading;
+        this._jitsiLoading = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = `https://${domain}/external_api.js`;
+            s.async = true;
+            s.onload = resolve;
+            s.onerror = () => {
+                this._jitsiLoading = null;
+                reject(new Error(`Could not load the meeting service from ${domain}`));
+            };
+            document.head.appendChild(s);
         });
+        return this._jitsiLoading;
+    },
 
-        const bubble = document.createElement('div');
-        bubble.className = `chat-bubble ${isTeacher ? 'teacher-msg' : ''}`;
-        bubble.innerHTML = `
-            <div class="chat-author">
-                ${isTeacher ? '<i class="fas fa-crown"></i> ' : ''}${userName}
-                <span class="chat-time">${timeStr}</span>
+    async mountMeeting() {
+        const container = document.getElementById('jitsi-container');
+        const session = this.activeSession;
+        if (!container || !session) return;
+        this.disposeMeeting();
+        const domain = this.meetingDomain();
+        const me = window.AuthRBAC?.currentUser || {};
+        try {
+            await this.loadJitsiScript(domain);
+            if (!document.getElementById('jitsi-container')) return; // navigated away meanwhile
+            container.innerHTML = '';
+            const api = new window.JitsiMeetExternalAPI(domain, {
+                roomName: this.roomNameFor(session),
+                parentNode: container,
+                width: '100%',
+                height: '100%',
+                userInfo: { displayName: `${me.name || 'Guest'}${this.isHost ? ' (Ustad)' : me.rollNo ? ' • ' + me.rollNo : ''}`, email: me.email || '' },
+                configOverwrite: {
+                    subject: session.title,
+                    prejoinPageEnabled: false,
+                    prejoinConfig: { enabled: false },
+                    startWithAudioMuted: !this.isHost,
+                    startWithVideoMuted: !this.isHost,
+                    disableDeepLinking: true
+                },
+                interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
+            });
+            this.jitsiApi = api;
+            // Host locks the room with the session passcode; participants supply it automatically
+            api.addListener('participantRoleChanged', e => {
+                if (e.role === 'moderator' && session.passcode) api.executeCommand('password', session.passcode);
+            });
+            api.addListener('passwordRequired', () => {
+                if (session.passcode) api.executeCommand('password', session.passcode);
+            });
+            api.addListener('readyToClose', () => this.leaveClass());
+        } catch (err) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 20px; max-width: 520px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: #fbbf24;"></i>
+                    <div style="margin: 10px 0;">${Lms.esc(err.message)}. Check your internet connection.</div>
+                    <a class="btn btn-primary" href="https://${Lms.esc(domain)}/${Lms.esc(this.roomNameFor(session))}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Open the classroom in a new tab</a>
+                </div>`;
+        }
+    },
+
+    disposeMeeting() {
+        if (this.jitsiApi) {
+            try { this.jitsiApi.dispose(); } catch (e) { /* already closed */ }
+            this.jitsiApi = null;
+        }
+    },
+
+    // Called by the router when the user leaves the Online Classes page
+    onLeaveRoute() {
+        this.disposeMeeting();
+        if (this.currentTab === 'studio') this.currentTab = 'lobby';
+    },
+
+    canHost(session) {
+        const me = window.AuthRBAC?.currentUser || {};
+        if (window.AuthRBAC?.isAdmin()) return true;
+        return me.role === 'TEACHER' && (session.hostId === me.id || Lms.teacherClassIds(me.id).includes(session.classId));
+    },
+
+    startSessionEarly(sessionId) {
+        const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
+        if (!session || !this.canHost(session)) return;
+        Object.assign(session, { status: 'LIVE', isLive: true, startedAt: new Date().toISOString() });
+        window.DataStore.save(window.LmsData);
+        Lms.notifyClass(session.classId, `Live class started: ${session.title}`,
+            `${session.hostTeacher} is live now. Open Online Classes and press "Join Live Class".`, 'LIVE_CLASS', 'virtual-class');
+        this.enterClassroom(sessionId);
+    },
+
+    endSession(sessionId) {
+        const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
+        if (!session || !confirm('End this class for everyone? Students will no longer be able to join.')) return;
+        Object.assign(session, { status: 'COMPLETED', isLive: false, endedAt: new Date().toISOString() });
+        session.attendanceCount = (window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS' && a.virtualSessionId === session.id && a.role === 'STUDENT').length;
+        window.DataStore.save(window.LmsData);
+        if (this.jitsiApi) {
+            try { this.jitsiApi.executeCommand('endConference'); } catch (e) { /* not moderator */ }
+        }
+        this.leaveClass();
+        window.App?.showToast('Class ended', 'success');
+    },
+
+    viewCompletedSession(sessionId) {
+        const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
+        if (!session) return;
+        const attendees = (window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS'
+            && (a.virtualSessionId === session.id || (!a.virtualSessionId && a.classId === session.classId && session.startedAt && a.date === session.startedAt.slice(0, 10))));
+        const recording = (window.LmsData.virtualClassRecordings || []).find(r => r.sessionId === session.id);
+        const roster = Lms.studentsInClass(session.classId);
+        Lms.openModal(
+            `<i class="fas fa-history" style="color: var(--gold-400);"></i> Session Log: ${Lms.esc(session.title)}`,
+            `<div style="font-size: 0.85rem; line-height: 1.8; margin-bottom: 14px;">
+                <div><strong>Class:</strong> ${Lms.esc(session.className || Lms.className(session.classId))}</div>
+                <div><strong>Teacher:</strong> ${Lms.esc(session.hostTeacher || '')}</div>
+                <div><strong>Scheduled:</strong> ${Lms.esc(session.scheduledStart || '')} (${Lms.esc(session.durationMinutes)} min)</div>
+                ${session.startedAt ? `<div><strong>Started:</strong> ${Lms.fmtDateTime(session.startedAt)}${session.endedAt ? ` • <strong>Ended:</strong> ${Lms.fmtDateTime(session.endedAt)}` : ''}</div>` : ''}
+                <div><strong>Attendance:</strong> ${attendees.filter(a => a.role === 'STUDENT').length} of ${roster.length} students joined</div>
             </div>
-            <div class="chat-text">${text}</div>
-        `;
-        chat.appendChild(bubble);
-        chat.scrollTop = chat.scrollHeight;
-    },
-
-    muteAll() {
-        this.inMeetingParticipants.forEach(p => {
-            if (p.role !== 'TEACHER') p.isMuted = true;
-        });
-        window.App?.showToast("All scholar microphones muted by Sheikh", "warning");
-        const drawer = document.getElementById('zoom-participants-drawer');
-        if (drawer && this.isParticipantsActive) {
-            this.toggleParticipants();
-            this.toggleParticipants();
-        }
-    },
-
-    lowerAllHands() {
-        this.inMeetingParticipants.forEach(p => p.handRaised = false);
-        window.App?.showToast("All hands lowered by Sheikh", "info");
-        const drawer = document.getElementById('zoom-participants-drawer');
-        if (drawer && this.isParticipantsActive) {
-            this.toggleParticipants();
-            this.toggleParticipants();
-        }
-    },
-
-    removeParticipant(id, name) {
-        if (!confirm(`Are you sure you want to remove ${name} from this virtual hall?`)) return;
-        this.inMeetingParticipants = this.inMeetingParticipants.filter(p => p.id !== id);
-        window.App?.showToast(`${name} removed from session`, "danger");
-        const drawer = document.getElementById('zoom-participants-drawer');
-        if (drawer && this.isParticipantsActive) {
-            this.toggleParticipants();
-            this.toggleParticipants();
-        }
+            ${recording ? `<button class="btn btn-gold btn-sm" style="margin-bottom: 12px;" onclick="App.closeModal(); VirtualClassModule.openVideoPlayer('${recording.id}')"><i class="fas fa-play"></i> Watch Recording</button>` : ''}
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead><tr><th>Participant</th><th>Joined</th></tr></thead>
+                    <tbody>
+                        ${attendees.length ? attendees.map(a => `<tr><td>${Lms.esc(a.userName)} <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(a.identifier || '')}</span></td><td>${Lms.esc(a.date)} ${Lms.esc(a.checkInTime || '')}</td></tr>`).join('')
+                            : '<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No attendance recorded for this session.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+            ${roster.length ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;"><strong>Did not join:</strong> ${roster.filter(s => !attendees.some(a => a.userId === s.id)).map(s => Lms.esc(s.name)).join(', ') || 'None'}</div>` : ''}`,
+            this.canHost(session) ? `
+                <button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
+                <button class="btn btn-gold" onclick="VirtualClassModule.openAddRecordingModal('${session.id}')"><i class="fas fa-upload"></i> ${recording ? 'Replace' : 'Add'} Recording</button>` : null
+        );
     },
 
     copyMeetingLink() {
         const session = this.activeSession || {};
-        const url = `https://lms.jamiaashrafia.org/join/${session.meetingUuid || 'ASH-ZOOM-982-114-889'}`;
-        navigator.clipboard.writeText(url);
-        window.App?.showToast("Encrypted meeting invite link copied to clipboard", "success");
+        const url = session.platform === 'EXTERNAL' && session.externalUrl
+            ? session.externalUrl
+            : `https://${this.meetingDomain()}/${this.roomNameFor(session)}`;
+        navigator.clipboard.writeText(url).then(
+            () => window.App?.showToast('Meeting link copied', 'success'),
+            () => window.App?.showToast(url, 'info')
+        );
     },
 
     leaveClass() {
-        if (this.localStream) {
-            this.localStream.getTracks().forEach(t => t.stop());
-            this.localStream = null;
-        }
-        if (this.screenStream) {
-            this.screenStream.getTracks().forEach(t => t.stop());
-            this.screenStream = null;
-        }
-        if (this.timerInterval) clearInterval(this.timerInterval);
-
-        window.App?.showToast("Exited virtual classroom session", "info");
+        this.disposeMeeting();
+        this.activeSession = null;
         this.switchTab('lobby');
-    }
-};
+    },
 
-window.VirtualClassModule = VirtualClassModule;
+    // =========================================================================
+    // 9. RECORDINGS UPLOAD
+    // =========================================================================
+    openAddRecordingModal(sessionId) {
+        const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
+        if (!session) return;
+        Lms.openModal(
+            `<i class="fas fa-film" style="color: var(--gold-400);"></i> Add Lecture Recording`,
+            `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">${Lms.esc(session.title)} • ${Lms.esc(session.className || '')}</div>
+            <div class="form-group" style="margin-bottom: 12px;"><label>Recording link (YouTube / Google Drive / Dropbox)</label>
+                <input type="url" id="rec-link" class="form-control" placeholder="https://..."></div>
+            <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-bottom: 12px;">— or upload the video file —</div>
+            ${Lms.fileInput('rec-file', { label: 'Upload MP4 / WebM / MP3 (max 25 MB)', accept: '.mp4,.webm,.mp3,.m4a', hint: 'For longer lectures upload to YouTube or Drive and paste the link above' })}`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-gold" onclick="VirtualClassModule.saveRecording(this, '${session.id}')"><i class="fas fa-save"></i> Save Recording</button>`
+        );
+    },
+
+    async saveRecording(btn, sessionId) {
+        const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
+        const link = Lms.val('rec-link');
+        const input = document.getElementById('rec-file');
+        if (!link && !(input && input.files.length)) {
+            window.App.showToast('Paste a link or choose a file', 'warning');
+            return;
+        }
+        if (link && !/^https?:\/\//i.test(link)) {
+            window.App.showToast('The link must start with http:// or https://', 'warning');
+            return;
+        }
+        await Lms.busy(btn, async () => {
+            const [file] = link ? [] : await Lms.uploadFromInput('rec-file');
+            const list = window.LmsData.virtualClassRecordings = window.LmsData.virtualClassRecordings || [];
+            let rec = list.find(r => r.sessionId === sessionId);
+            if (!rec) {
+                rec = { id: Lms.uid('rec'), sessionId, viewsCount: 0 };
+                list.unshift(rec);
+            }
+            Object.assign(rec, {
+                title: session.title, urduTitle: session.urduTitle || '', teacherName: session.hostTeacher, teacherId: session.hostId,
+                classId: session.classId, className: session.className, courseId: session.courseId, courseName: Lms.courseTitle(session.courseId),
+                recordedDate: (session.startedAt || new Date().toISOString()).slice(0, 10),
+                durationFormatted: `${session.durationMinutes || 60} min`,
+                videoUrl: file ? file.url : null, externalUrl: link || null, fileSizeBytes: file ? file.size : 0
+            });
+            window.DataStore.save(window.LmsData);
+            Lms.notifyClass(session.classId, `Recording available: ${session.title}`, 'The lecture recording is now in Online Classes → Recordings Vault.', 'LIVE_CLASS', 'virtual-class');
+            window.App.

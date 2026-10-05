@@ -105,12 +105,13 @@ const AuthRBAC = {
 
     init() {
         const savedUserId = localStorage.getItem('JAMIA_CURRENT_USER_ID');
-        if (!savedUserId) {
-            window.location.replace('login.html');
-            return;
+        if (!savedUserId || !this.setUser(savedUserId)) {
+            // Unknown or removed account: never fall back to another user's identity
+            this.logout();
+            return false;
         }
-        this.setUser(savedUserId);
         this.syncPermissionsFromServer();
+        return true;
     },
 
     async syncPermissionsFromServer() {
@@ -134,16 +135,30 @@ const AuthRBAC = {
     setUser(userId) {
         const users = window.LmsData.users;
         const found = users.find(u => u.id === userId);
-        if (found) {
-            this.currentUser = found;
-            localStorage.setItem('JAMIA_CURRENT_USER_ID', userId);
-        } else {
-            this.currentUser = users[0];
-            localStorage.setItem('JAMIA_CURRENT_USER_ID', users[0].id);
-        }
+        if (!found) return false;
+        this.currentUser = found;
+        localStorage.setItem('JAMIA_CURRENT_USER_ID', userId);
         this.updateHeaderProfile();
         // Dispatch global user changed event
         window.dispatchEvent(new CustomEvent('lms:user_changed', { detail: this.currentUser }));
+        return true;
+    },
+
+    // Re-point at the freshest copy of the signed-in user after a data sync
+    refreshCurrentUser() {
+        if (!this.currentUser) return;
+        const fresh = (window.LmsData.users || []).find(u => u.id === this.currentUser.id);
+        if (!fresh) {
+            this.logout();
+            return;
+        }
+        if (fresh.status === 'SUSPENDED' || fresh.status === 'INACTIVE') {
+            alert('Your account has been ' + fresh.status.toLowerCase() + '. Please contact the Academic Office.');
+            this.logout();
+            return;
+        }
+        this.currentUser = fresh;
+        this.updateHeaderProfile();
     },
 
     setRole(roleKey) {
@@ -169,11 +184,13 @@ const AuthRBAC = {
         // Super Admin is permanently protected with unconditional root access
         if (activeRole === 'SUPER_ADMIN') return true;
 
+        // Built-in capabilities of a system role plus anything granted to it in Roles Management
         const dynamicRole = window.LmsData?.roles?.find(r => r.id === activeRole);
-        const roleConfig = dynamicRole || ROLES[activeRole];
-        if (!roleConfig) return false;
-        if (roleConfig.permissions && roleConfig.permissions.includes("*")) return true;
-        return roleConfig.permissions ? roleConfig.permissions.includes(permission) : false;
+        const granted = [
+            ...((ROLES[activeRole] && ROLES[activeRole].permissions) || []),
+            ...((dynamicRole && dynamicRole.permissions) || [])
+        ];
+        return granted.includes("*") || granted.includes(permission);
     },
 
     // Check if a specific module is accessible to the given role
@@ -244,7 +261,11 @@ const AuthRBAC = {
         return true;
     },
 
-    logout() {
+    async logout() {
+        // Hand any unsent changes to the server before the identity is cleared
+        if (this.currentUser && window.DataStore && window.DataStore.syncNow) {
+            await Promise.race([window.DataStore.syncNow(), new Promise(r => setTimeout(r, 2500))]);
+        }
         localStorage.removeItem('JAMIA_CURRENT_USER_ID');
         localStorage.removeItem('JAMIA_AUTH_TOKEN');
         try {

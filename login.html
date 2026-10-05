@@ -125,9 +125,30 @@
             transition: opacity 0.25s ease;
         }
 
-        #eadmission-modal-backdrop.open {
+        #eadmission-modal-backdrop.open,
+        #public-modal-backdrop.open {
             display: flex;
             opacity: 1;
+        }
+
+        #public-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 34, 41, 0.65);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3100;
+            padding: 20px;
+        }
+
+        .public-links {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
         }
 
         .eadmission-modal-window {
@@ -297,10 +318,15 @@
 
         <!-- ONLINE STUDENT APPLICATION / E-ADMISSION SECTION -->
         <div style="text-align: center; margin-top: 26px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px solid var(--border-subtle); padding-top: 18px;">
-            <div>Seeking new admission at Jamia Ashrafia Lahore?</div>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="openEAdmissionModal()" style="margin-top: 10px; border-color: var(--primary-200); color: var(--primary-800); font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
-                <i class="fas fa-file-signature" style="color: var(--primary-600);"></i> Online Student Application / E-Admission
-            </button>
+            <div id="adm-status-line"><i class="fas fa-spinner fa-spin"></i> Checking admission status...</div>
+            <div class="public-links">
+                <button type="button" id="btn-apply-online" class="btn btn-secondary btn-sm" onclick="openEAdmissionModal()" style="border-color: var(--primary-200); color: var(--primary-800); font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-file-signature" style="color: var(--primary-600);"></i> Apply Online (Student Admission)
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="openTrackApplicationModal()" style="display: inline-flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-search"></i> Track Application
+                </button>
+            </div>
         </div>
     </div>
 
@@ -494,8 +520,9 @@
                                 and Sunnah discipline under the supervision of Hazrat Mohtamim and the Asatizah-e-Kiram.
                             </p>
                         </div>
+                        <div id="eadm-fee-note" style="background: var(--gold-50); border: 1px solid var(--gold-200); padding: 12px 14px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 0.82rem; color: var(--gold-800);"></div>
                         <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="eadm-terms" required checked style="width: 18px; height: 18px; accent-color: var(--primary-500);">
+                            <input type="checkbox" id="eadm-terms" required style="width: 18px; height: 18px; accent-color: var(--primary-500);">
                             <span style="font-size: 0.82rem; color: var(--text-primary);">I accept the regulations and disciplinary code of Wifaq-ul-Madaris Al-Arabia Pakistan.</span>
                         </label>
                     </div>
@@ -512,10 +539,22 @@
         </div>
     </div>
 
+    <!-- TRACK APPLICATION MODAL -->
+    <div id="public-modal-backdrop" onclick="if (event.target === this) closePublicModal()">
+        <div class="eadmission-modal-window">
+            <div class="modal-header" style="background: var(--primary-50); border-bottom: 1px solid var(--primary-200); padding: 16px 22px; display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="card-title" id="public-modal-title" style="margin: 0; font-size: 1.05rem; color: var(--primary-900);"></h3>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closePublicModal()" aria-label="Close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="public-modal-body" style="padding: 20px 22px; overflow-y: auto;"></div>
+            <div class="modal-footer" id="public-modal-footer" style="padding: 14px 22px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; gap: 8px;"></div>
+        </div>
+    </div>
+
     <!-- TOAST CONTAINER -->
     <div id="toast-container"></div>
 
-    <script src="js/data.js"></script>
+    <script src="js/data.js?v=5.0"></script>
     <script>
         // Ensure data store is loaded
         window.LmsData = window.DataStore ? window.DataStore.get() : null;
@@ -552,78 +591,93 @@
         // =====================================================================
         // UNIFIED LOGIN SUBMIT (AUTOMATIC ACCOUNT DETECTION)
         // =====================================================================
-        function handleLoginSubmit(e) {
+        function escapeHtml(v) {
+            return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function roleTitleOf(role) {
+            return ({ SUPER_ADMIN: 'Super Admin (Mohtamim)', ACADEMIC_ADMIN: 'Academic Nazim', TEACHER: 'Teacher', STUDENT: 'Student', ACCOUNTANT: 'Accountant' })[role]
+                || String(role || 'User').replace('_', ' ');
+        }
+
+        // Unified login: the server checks the hashed password; the local directory is only used if the server is unreachable
+        async function handleLoginSubmit(e) {
             e.preventDefault();
-            const idVal = document.getElementById('login-identifier').value.trim();
-            const pwdVal = document.getElementById('login-password').value.trim();
+            let idVal = document.getElementById('login-identifier').value.trim();
+            const pwdVal = document.getElementById('login-password').value;
+            const btn = document.getElementById('btn-submit-login');
 
             if (!idVal || !pwdVal) {
                 showToast('Please provide both Username / ID and Password', 'warning');
                 return;
             }
 
+            // Friendly shortcuts for the built-in demo accounts
             const users = window.LmsData?.users || [];
-            const idLower = idVal.toLowerCase();
-            
-            // Automatically identify user account type based on entered Username / ID:
-            // 1. Exact match by rollNo, email, id, or scholar/teacher name (case-insensitive)
-            let matchedUser = users.find(u => 
-                (u.rollNo && u.rollNo.toLowerCase() === idLower) || 
-                (u.email && u.email.toLowerCase() === idLower) ||
-                (u.id && u.id.toLowerCase() === idLower) ||
-                (u.name && u.name.toLowerCase() === idLower)
-            );
-
-            // 2. Friendly role keywords if directly testing system roles
-            if (!matchedUser) {
-                if (idLower === 'admin' || idLower === 'superadmin' || idLower === 'mohtamim') {
-                    matchedUser = users.find(u => u.role === 'SUPER_ADMIN');
-                } else if (idLower === 'teacher' || idLower === 'ustad') {
-                    matchedUser = users.find(u => u.role === 'TEACHER');
-                } else if (idLower === 'student' || idLower === 'talib') {
-                    matchedUser = users.find(u => u.role === 'STUDENT');
-                } else if (idLower === 'nazim' || idLower === 'academic') {
-                    matchedUser = users.find(u => u.role === 'ACADEMIC_ADMIN');
-                } else if (idLower === 'accountant' || idLower === 'maliyat') {
-                    matchedUser = users.find(u => u.role === 'ACCOUNTANT');
-                }
+            const shortcuts = { admin: 'SUPER_ADMIN', mohtamim: 'SUPER_ADMIN', nazim: 'ACADEMIC_ADMIN', accountant: 'ACCOUNTANT', maliyat: 'ACCOUNTANT' };
+            const shortcutRole = shortcuts[idVal.toLowerCase()];
+            if (shortcutRole) {
+                const u = users.find(x => x.role === shortcutRole);
+                if (u && u.email) idVal = u.email;
             }
 
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: idVal, password: pwdVal })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success && data.user) {
+                    // Make sure this browser knows the account before the portal loads
+                    const list = window.LmsData.users = window.LmsData.users || [];
+                    const i = list.findIndex(u => u.id === data.user.id);
+                    if (i >= 0) list[i] = { ...list[i], ...data.user };
+                    else list.push(data.user);
+                    window.DataStore.save(window.LmsData);
+                    localStorage.setItem('JAMIA_AUTH_TOKEN', data.token);
+                    executeLogin(data.user.id, roleTitleOf(data.user.role));
+                    return;
+                }
+                if (!data.fallback) {
+                    showToast(data.error || 'Sign-in failed. Please check your credentials.', 'danger');
+                    return;
+                }
+            } catch (err) {
+                console.warn('Login server unreachable, using offline directory:', err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+            offlineLogin(idVal, pwdVal);
+        }
+
+        // Offline fallback (server or database down): accounts known to this browser only
+        function offlineLogin(idVal, pwdVal) {
+            const idLower = idVal.toLowerCase();
+            const users = window.LmsData?.users || [];
+            const matchedUser = users.find(u =>
+                (u.rollNo && u.rollNo.toLowerCase() === idLower) ||
+                (u.email && u.email.toLowerCase() === idLower) ||
+                (u.id && u.id.toLowerCase() === idLower)
+            );
             if (!matchedUser) {
-                showToast('Invalid Username / ID. No matching student, teacher, or administrative account found.', 'danger');
+                showToast('No matching student, teacher or staff account found.', 'danger');
                 return;
             }
-
-            // Verify Password
-            const allowedMaster = ['admin123', 'Ashrafia1947#', 'password', 'student123', 'ashrafia123', 'nazim123'];
-            if (matchedUser.password) {
-                if (matchedUser.password !== pwdVal && !allowedMaster.includes(pwdVal)) {
-                    showToast('Incorrect password. Please verify your credentials or contact administrator.', 'danger');
-                    return;
-                }
-            } else {
-                if (!allowedMaster.includes(pwdVal) && pwdVal !== 'Ashrafia1947#') {
-                    showToast('Incorrect password. Please verify your credentials or contact administrator.', 'danger');
-                    return;
-                }
+            if ((matchedUser.password || 'ashrafia123') !== pwdVal) {
+                showToast('Incorrect password. Please verify your credentials or contact the administrator.', 'danger');
+                return;
             }
-
-            // Check account status
             if (matchedUser.status === 'SUSPENDED' || matchedUser.status === 'INACTIVE') {
                 showToast(`This account is currently ${matchedUser.status}. Please contact the Academic Office.`, 'warning');
                 return;
             }
-
-            // Automatically identify role title for friendly greeting
-            let roleTitle = 'User';
-            if (matchedUser.role === 'SUPER_ADMIN') roleTitle = 'Super Admin (Mohtamim)';
-            else if (matchedUser.role === 'ACADEMIC_ADMIN') roleTitle = 'Academic Nazim';
-            else if (matchedUser.role === 'TEACHER') roleTitle = 'Teacher';
-            else if (matchedUser.role === 'STUDENT') roleTitle = 'Student';
-            else if (matchedUser.role === 'ACCOUNTANT') roleTitle = 'Accountant';
-            else roleTitle = matchedUser.role.replace('_', ' ');
-
-            executeLogin(matchedUser.id, roleTitle);
+            showToast('Server unreachable — signed in with offline data.', 'warning');
+            executeLogin(matchedUser.id, roleTitleOf(matchedUser.role));
         }
 
         function executeLogin(userId, roleTitle) {
@@ -790,7 +844,43 @@
         // form after the previous submission replaced it with the success screen.
         let eadmPristineHtml = null;
 
+        let admissionWindow = null;
+
+        async function loadAdmissionWindow() {
+            const line = document.getElementById('adm-status-line');
+            const applyBtn = document.getElementById('btn-apply-online');
+            try {
+                const res = await fetch('/api/settings/admissions');
+                const data = await res.json();
+                admissionWindow = data.settings;
+            } catch (e) {
+                admissionWindow = null;
+            }
+            if (!line) return;
+            if (!admissionWindow) {
+                line.innerHTML = 'Seeking new admission at Jamia Ashrafia Lahore?';
+                return;
+            }
+            const st = admissionWindow;
+            const fmt = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+            if (st.isAcceptingApplications) {
+                line.innerHTML = `<span class="status-pill success" style="font-weight: 700;"><i class="fas fa-door-open"></i> Admissions Open — ${escapeHtml(st.session)}</span>
+                    <div style="margin-top: 6px;">${escapeHtml(st.message || '')}</div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">Last date: <strong>${fmt(st.deadline)}</strong> • Registration fee: <strong>PKR ${Number(st.registrationFee || 0).toLocaleString()}</strong></div>`;
+                if (applyBtn) applyBtn.disabled = false;
+            } else {
+                line.innerHTML = `<span class="status-pill danger" style="font-weight: 700;"><i class="fas fa-door-closed"></i> Admissions Closed</span>
+                    <div style="margin-top: 6px;">${escapeHtml(st.closedMessage || 'Admissions are currently closed.')}</div>`;
+                if (applyBtn) applyBtn.disabled = true;
+            }
+        }
+        document.addEventListener('DOMContentLoaded', loadAdmissionWindow);
+
         function openEAdmissionModal() {
+            if (admissionWindow && !admissionWindow.isAcceptingApplications) {
+                showToast(admissionWindow.closedMessage || 'Admissions are currently closed.', 'warning');
+                return;
+            }
             const body = document.getElementById('eadmission-modal-body');
             const footer = document.getElementById('eadmission-modal-footer');
             const title = document.getElementById('eadmission-modal-title');
@@ -804,6 +894,13 @@
 
             currentWizStep = 1;
             resetWizUI();
+            const feeNote = document.getElementById('eadm-fee-note');
+            if (feeNote) {
+                const fee = admissionWindow ? Number(admissionWindow.registrationFee || 0) : 0;
+                feeNote.innerHTML = fee > 0
+                    ? `<i class="fas fa-money-check-alt"></i> <strong>Registration fee: PKR ${fee.toLocaleString()}</strong>. After submitting you will receive an Application No. Deposit the fee at Meezan Bank / HBL (A/C 0142-7901452203, Jamia Ashrafia Lahore) quoting your Application No, and bring the receipt to your interview.`
+                    : '<i class="fas fa-info-circle"></i> No registration fee is charged for this session.';
+            }
             populateEadmCountries();
             loadEadmMasterData();
             handleEadmStudentTypeChange('LOCAL');
@@ -1056,6 +1153,8 @@
 
                     <div style="margin-top: 18px; font-size: 0.8rem; color: var(--gold-800); background: var(--gold-50); border: 1px solid var(--gold-200); border-radius: 6px; padding: 10px 14px; max-width: 460px; margin-left: auto; margin-right: auto;">
                         <i class="fas fa-info-circle"></i> Please save your <strong>Application Tracking No</strong>. The Nazim-e-Taleemat committee will verify your credentials and schedule your academic interview.
+                        ${admissionWindow && Number(admissionWindow.registrationFee) > 0 ? `<br><br><i class="fas fa-money-check-alt"></i> Deposit the <strong>registration fee of PKR ${Number(admissionWindow.registrationFee).toLocaleString()}</strong> at Meezan Bank / HBL (A/C 0142-7901452203) quoting <strong>${escapeHtml(record.applicationNo)}</strong>.` : ''}
+                        <br><br>Check your status any time with <strong>"Track Application"</strong> on the login page.
                     </div>
                 </div>
             `;
@@ -1065,6 +1164,69 @@
                     <i class="fas fa-check"></i> Return to Login Screen
                 </button>
             `;
+        }
+
+        // =====================================================================
+        // TRACK ADMISSION APPLICATION
+        // =====================================================================
+        function openPublicModal(title, body, footer) {
+            document.getElementById('public-modal-title').innerHTML = title;
+            document.getElementById('public-modal-body').innerHTML = body;
+            document.getElementById('public-modal-footer').innerHTML = footer;
+            document.getElementById('public-modal-backdrop').classList.add('open');
+        }
+
+        function closePublicModal() {
+            document.getElementById('public-modal-backdrop').classList.remove('open');
+        }
+
+        const STATUS_TEXT = {
+            APPLIED: ['info', 'Application received — awaiting review'],
+            UNDER_REVIEW: ['warning', 'Documents under review'],
+            INTERVIEW_SCHEDULED: ['gold', 'Interview scheduled'],
+            APPROVED: ['success', 'Approved — enrollment in progress'],
+            ENROLLED: ['success', 'Enrolled — welcome to Jamia Ashrafia!'],
+            REJECTED: ['danger', 'Not approved this session']
+        };
+
+        function openTrackApplicationModal() {
+            openPublicModal('<i class="fas fa-search" style="color: var(--primary-600);"></i> Track Admission Application',
+                `<div class="form-group" style="margin-bottom: 12px;"><label>Application No *</label><input type="text" id="trk-app" class="form-control" placeholder="e.g. ASH-ADM-2026-001"></div>
+                 <div class="form-group"><label>Last 4 digits of CNIC / B-Form, Passport or Phone *</label><input type="text" id="trk-verify" class="form-control" maxlength="20" placeholder="e.g. 4521"></div>
+                 <div id="trk-result" style="margin-top: 14px;"></div>`,
+                `<button type="button" class="btn btn-secondary" onclick="closePublicModal()">Close</button>
+                 <button type="button" class="btn btn-primary" onclick="trackApplication()"><i class="fas fa-search"></i> Check Status</button>`);
+        }
+
+        async function trackApplication() {
+            const appNo = document.getElementById('trk-app').value.trim();
+            const verify = document.getElementById('trk-verify').value.trim();
+            const out = document.getElementById('trk-result');
+            if (!appNo || verify.replace(/\D/g, '').length < 4) {
+                showToast('Enter the application number and at least 4 digits', 'warning');
+                return;
+            }
+            out.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+            try {
+                const res = await fetch(`/api/admissions/status?applicationNo=${encodeURIComponent(appNo)}&verify=${encodeURIComponent(verify)}`);
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    out.innerHTML = `<div style="color: var(--danger);">${escapeHtml(data.error || 'Not found')}</div>`;
+                    return;
+                }
+                const a = data.application;
+                const [pill, text] = STATUS_TEXT[a.status] || ['info', a.status];
+                out.innerHTML = `
+                    <div style="border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px; line-height: 1.9; font-size: 0.88rem;">
+                        <div><strong>${escapeHtml(a.name)}</strong> • ${escapeHtml(a.applicationNo)}</div>
+                        <div>Applied: ${escapeHtml(a.appliedAt)}</div>
+                        <div><span class="status-pill ${pill}">${escapeHtml(text)}</span></div>
+                        ${a.interviewDate && a.status === 'INTERVIEW_SCHEDULED' ? `<div><i class="fas fa-calendar-alt"></i> Interview: <strong>${escapeHtml(a.interviewDate)}</strong> at Jamia Ashrafia, Ferozepur Road</div>` : ''}
+                        ${a.allottedRollNo ? `<div>Allotted Roll No: <strong>${escapeHtml(a.allottedRollNo)}</strong>${a.status === 'ENROLLED' ? ' — sign in with your roll number and the password given by the Academic Office.' : ''}</div>` : ''}
+                    </div>`;
+            } catch (e) {
+                out.innerHTML = '<div style="color: var(--danger);">Could not reach the server. Please try again.</div>';
+            }
         }
 
         // Toast notifications helper

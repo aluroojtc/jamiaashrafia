@@ -993,6 +993,12 @@ button, input, select, textarea {
 }
 
 @media (max-width: 1024px) {
+    /* Two-column workspaces (dashboards, class detail, timetable) stack on narrow screens */
+    .dash-two-col,
+    .classes-detail-grid,
+    .timetable-layout {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
     .sidebar {
         width: 220px;
     }

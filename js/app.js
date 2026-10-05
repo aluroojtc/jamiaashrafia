@@ -95,15 +95,40 @@ const App = {
         setTimeout(doReset, 80);
     },
 
-    init() {
+    async init() {
         console.log("Initializing Jamia Ashrafia Cloud LMS with Multi-Tier RBAC...");
-        
+
         // Prevent browser from automatically restoring scroll position on hash navigation
         if ('scrollRestoration' in history) {
             history.scrollRestoration = 'manual';
         }
 
-        window.AuthRBAC.init();
+        const viewport = document.getElementById('main-content-viewport');
+        if (viewport) {
+            viewport.innerHTML = `<div style="padding: 80px 20px; text-align: center; color: var(--text-muted);"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><div style="margin-top: 12px;">Loading latest data...</div></div>`;
+        }
+        if (!localStorage.getItem('JAMIA_CURRENT_USER_ID')) {
+            window.location.replace('login.html');
+            return;
+        }
+        // Show the signed-in user's own menu while loading (never the static placeholder)
+        const cachedUser = (window.LmsData.users || []).find(u => u.id === localStorage.getItem('JAMIA_CURRENT_USER_ID'));
+        if (cachedUser) {
+            window.AuthRBAC.currentUser = cachedUser;
+            window.AuthRBAC.updateHeaderProfile();
+            this.renderSidebar();
+        } else {
+            const nav = document.querySelector('#app-sidebar .sidebar-nav');
+            if (nav) nav.innerHTML = '';
+            const nameEl = document.getElementById('header-user-name');
+            if (nameEl) nameEl.textContent = 'Signing in...';
+            const roleEl = document.getElementById('header-user-role');
+            if (roleEl) roleEl.textContent = '';
+        }
+        // Fetch everyone's latest classes, assignments, results etc. from the server
+        await window.DataStore.startSync();
+
+        if (!window.AuthRBAC.init()) return;
         this.renderSidebar();
         this.bindEvents();
         this.updateNotificationBadge();
@@ -177,6 +202,12 @@ const App = {
             this.navigate(this.currentRoute);
         });
 
+        // Changes made by other users arrived from the server
+        window.addEventListener('lms:data_synced', () => {
+            window.AuthRBAC.refreshCurrentUser();
+            this.refreshCurrentView();
+        });
+
         // Listen for permissions changed event
         window.addEventListener('lms:permissions_changed', () => {
             this.renderSidebar();
@@ -194,6 +225,17 @@ const App = {
                 if (dropdown) dropdown.classList.remove('open');
             }
         });
+    },
+
+    // Re-render the open page with fresh data, unless the user is busy in a form, modal, exam or live class
+    refreshCurrentView() {
+        const modalOpen = document.getElementById('global-modal-backdrop')?.classList.contains('open');
+        const active = document.activeElement;
+        const typing = active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName);
+        const inStudio = this.currentRoute === 'virtual-class' && window.VirtualClassModule && window.VirtualClassModule.currentTab === 'studio';
+        const inExam = window.ExamsModule && window.ExamsModule.attempt;
+        if (modalOpen || typing || inStudio || inExam) return;
+        this.navigate(this.currentRoute, { preserveScroll: true });
     },
 
     toggleUserDropdown() {
@@ -400,7 +442,13 @@ const App = {
                 ${can('notifications') ? `
                     <a href="#notifications" class="nav-item ${this.currentRoute === 'notifications' ? 'active' : ''}" data-route="notifications">
                         <i class="fas fa-bullhorn"></i>
-                        <span>Student Notifications</span>
+                        <span>Notifications</span>
+                    </a>
+                ` : ''}
+                ${can('teachers') ? `
+                    <a href="#teachers" class="nav-item ${this.currentRoute === 'teachers' ? 'active' : ''}" data-route="teachers">
+                        <i class="fas fa-user-tie"></i>
+                        <span>Faculty & My Profile</span>
                     </a>
                 ` : ''}
             `;
@@ -464,6 +512,12 @@ const App = {
                         <span>Maktaba Ashrafia</span>
                     </a>
                 ` : ''}
+                ${can('fees') ? `
+                    <a href="#fees" class="nav-item ${this.currentRoute === 'fees' ? 'active' : ''}" data-route="fees">
+                        <i class="fas fa-file-invoice"></i>
+                        <span>My Fees & Payments</span>
+                    </a>
+                ` : ''}
                 ${can('notifications') ? `
                     <a href="#notifications" class="nav-item ${this.currentRoute === 'notifications' ? 'active' : ''}" data-route="notifications">
                         <i class="fas fa-bullhorn"></i>
@@ -472,28 +526,53 @@ const App = {
                 ` : ''}
             `;
         } else {
-            // Default fallback
+            // Academic Admin, Accountant and custom roles: every module this role is permitted to open
+            const roleDef = (window.LmsData.roles || []).find(r => r.id === role) || window.ROLES[role] || {};
+            const sections = [
+                ['Administration', ['admissions', 'students', 'teachers', 'users', 'roles', 'permissions']],
+                ['Academics', ['classes', 'attendance', 'virtual_class', 'assignments', 'exams', 'timetable']],
+                ['Finance & Resources', ['fees', 'library', 'reports', 'notifications', 'heritage', 'security']]
+            ];
+            const routeFor = mod => Object.keys(window.ROUTE_MODULE_MAP).find(r => window.ROUTE_MODULE_MAP[r] === mod) || mod;
             html += `
-                <div class="nav-section-title">Navigation</div>
-                <a href="#dashboard" class="nav-item active" data-route="dashboard">
+                <div class="nav-section-title">${Lms.esc(roleDef.name || roleDef.title || role.replace('_', ' '))}</div>
+                <a href="#dashboard" class="nav-item ${this.currentRoute === 'dashboard' ? 'active' : ''}" data-route="dashboard">
                     <i class="fas fa-tachometer-alt"></i>
                     <span>Dashboard</span>
                 </a>
-                <a href="#fees" class="nav-item" data-route="fees">
-                    <i class="fas fa-hand-holding-heart"></i>
-                    <span>Finance & Fees</span>
-                </a>
             `;
+            sections.forEach(([title, mods]) => {
+                const allowed = mods.filter(m => can(m));
+                if (!allowed.length) return;
+                html += `<div class="nav-section-title">${title}</div>`;
+                allowed.forEach(m => {
+                    const meta = window.AuthRBAC.getModuleMeta(m);
+                    const r = routeFor(m);
+                    html += `
+                        <a href="#${r}" class="nav-item ${this.currentRoute === r ? 'active' : ''}" data-route="${r}">
+                            <i class="${meta.icon}"></i>
+                            <span>${Lms.esc(meta.title)}</span>
+                        </a>`;
+                });
+            });
         }
 
         sidebarNav.innerHTML = html;
     },
 
-    navigate(route) {
+    navigate(route, opts = {}) {
+        const leavingRoute = this.currentRoute;
         this.currentRoute = route;
+        if (leavingRoute === 'virtual-class' && route !== 'virtual-class' && window.VirtualClassModule && window.VirtualClassModule.onLeaveRoute) {
+            window.VirtualClassModule.onLeaveRoute();
+        }
 
+        const keepScroll = opts.preserveScroll ? {
+            viewport: document.getElementById('main-content-viewport')?.scrollTop || 0,
+            win: window.scrollY
+        } : null;
         // Immediately reset scroll position to top across all containers
-        this.resetScrollToTop();
+        if (!keepScroll) this.resetScrollToTop();
 
         // Synchronize active class in sidebar
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -605,6 +684,12 @@ const App = {
                 viewport.innerHTML = this.renderDashboard();
         }
 
+        if (keepScroll) {
+            const vp = document.getElementById('main-content-viewport');
+            if (vp) vp.scrollTop = keepScroll.viewport;
+            window.scrollTo(0, keepScroll.win);
+            return;
+        }
         // Enforce guaranteed scroll reset to top (0, 0)
         this.resetScrollToTop();
     },
@@ -668,9 +753,15 @@ const App = {
     // 1. SUPER ADMIN DASHBOARD
     renderSuperAdminDashboard() {
         const user = window.AuthRBAC.currentUser;
-        const roleDef = window.ROLES['SUPER_ADMIN'];
+        const role = window.AuthRBAC.getRole();
+        const roleDef = (window.LmsData.roles || []).find(r => r.id === role) || window.ROLES[role] || {};
         const inst = window.LmsData.institution;
-        const liveClass = window.LmsData.virtualClasses[0];
+        const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.isLive || vc.status === 'LIVE')
+            || (window.LmsData.virtualClasses || []).find(vc => vc.status === 'UPCOMING');
+        const totalDonations = (window.LmsData.donations || []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+        const pendingFees = (window.LmsData.feeChallans || []).filter(c => c.status !== 'PAID');
+        const verifyQueue = (window.LmsData.feeChallans || []).filter(c => c.status === 'VERIFICATION_PENDING').length;
+        const can = (m) => window.AuthRBAC.canAccessModule(m);
 
         return `
             <!-- WELCOME HEADER -->
@@ -681,17 +772,20 @@ const App = {
                         Jamia Ashrafia Executive Administrative Portal
                     </h1>
                     <p>
-                        Welcome, <strong>${user.name}</strong> 
-                        <span class="status-pill gold" style="margin-left: 6px;">Super Admin (Mohtamim)</span>
+                        Welcome, <strong>${Lms.esc(user.name)}</strong>
+                        <span class="status-pill gold" style="margin-left: 6px;">${Lms.esc(roleDef.name || roleDef.title || role)}</span>
                     </p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-gold btn-sm" onclick="App.navigate('permissions')">
+                    ${can('permissions') ? `<button class="btn btn-gold btn-sm" onclick="App.navigate('permissions')">
                         <i class="fas fa-sliders-h"></i> Configure Permissions
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="App.navigate('admissions')">
+                    </button>` : ''}
+                    ${can('admissions') ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('admissions')">
                         <i class="fas fa-user-plus"></i> Admissions Queue (${window.LmsData.admissions.length})
-                    </button>
+                    </button>` : ''}
+                    ${can('fees') ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('fees')">
+                        <i class="fas fa-file-invoice-dollar"></i> Fees (${verifyQueue} to verify)
+                    </button>` : ''}
                 </div>
             </div>
 
@@ -748,16 +842,16 @@ const App = {
                 <div class="metric-card info">
                     <div class="metric-icon-box"><i class="fas fa-chart-line"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Executive Reports</span>
-                        <span class="metric-value">10 Categories</span>
-                        <span class="metric-hint">Audits & Analytics</span>
+                        <span class="metric-label">Unpaid Fee Challans</span>
+                        <span class="metric-value">${pendingFees.length}</span>
+                        <span class="metric-hint">${Lms.money(pendingFees.reduce((s, c) => s + (Number(c.netPayable) || 0), 0))} outstanding</span>
                     </div>
                 </div>
                 <div class="metric-card danger">
                     <div class="metric-icon-box"><i class="fas fa-hand-holding-heart"></i></div>
                     <div class="metric-content">
                         <span class="metric-label">Zakat & Sadaqat</span>
-                        <span class="metric-value">PKR 850k</span>
+                        <span class="metric-value">${Lms.money(totalDonations)}</span>
                         <span class="metric-hint" style="color: var(--text-muted);">Kafalat-e-Talib-e-Ilm</span>
                     </div>
                 </div>
@@ -767,45 +861,25 @@ const App = {
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
                 <!-- Left: Live Class Alert Box & Highlights -->
                 <div>
-                    <div class="card" style="border: 2px solid var(--primary-200); background: linear-gradient(135deg, var(--primary-50) 0%, var(--gold-50) 100%);">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                            <div>
-                                <span class="status-pill danger" style="animation: pulse 1.5s infinite;"><i class="fas fa-circle"></i> Live Video Room Active</span>
-                                <h3 style="font-size: 1.15rem; color: var(--text-primary); margin-top: 6px;">${liveClass.title}</h3>
-                                <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-700);">${liveClass.urduTitle}</div>
-                            </div>
-                            <button class="btn btn-primary" onclick="App.navigate('virtual-class')">
-                                <i class="fas fa-sign-in-alt"></i> Join Room Now
-                            </button>
-                        </div>
-                        <div style="font-size: 0.82rem; color: var(--text-secondary); display: flex; gap: 20px; flex-wrap: wrap;">
-                            <span><i class="fas fa-user-tie"></i> ${liveClass.hostTeacher}</span>
-                            <span><i class="fas fa-users"></i> ${liveClass.activeParticipants} Scholars Joined</span>
-                            <span><i class="fas fa-key"></i> Passcode: <code>${liveClass.passcode}</code></span>
-                        </div>
-                    </div>
+                    ${can('virtual_class') ? this.liveSessionCard(liveClass, true) : ''}
 
                     <!-- Highlights -->
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-history"></i> Current Academic Highlights</h3>
+                            <h3 class="card-title"><i class="fas fa-history"></i> Today's Timetable (${this.todayName()})</h3>
                             <button class="btn btn-secondary btn-sm" onclick="App.navigate('timetable')">View Timetable</button>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 12px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Fajr Dars: Sahih al-Bukhari (Hall Imam Bukhari)</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Qari Arshad Ubaid • 06:30 AM - 08:00 AM</div>
-                                </div>
-                                <span class="status-pill success">Completed</span>
-                            </div>
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Fiqh Session: Al-Hidayah (Room 201)</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Mufti Ahmadur Rahman • 10:15 AM - 11:45 AM</div>
-                                </div>
-                                <span class="status-pill info">In Progress</span>
-                            </div>
+                            ${(() => {
+                                const slots = (window.LmsData.timetables || []).filter(t => t.day === this.todayName())
+                                    .sort((x, y) => String(x.startTime).localeCompare(String(y.startTime)));
+                                const now = new Date().toTimeString().slice(0, 5);
+                                return slots.length ? slots.map(t => this.dashListItem(
+                                    `${Lms.esc(t.courseId ? Lms.courseTitle(t.courseId) : t.periodName)}`,
+                                    `${Lms.fmtTime(t.startTime)} – ${Lms.fmtTime(t.endTime)} • ${Lms.esc(Lms.className(t.classId))} • ${Lms.esc(t.teacherId ? Lms.userName(t.teacherId) : t.room || '')}`,
+                                    `<span class="status-pill ${now >= t.endTime ? 'success' : now >= t.startTime ? 'info' : 'gold'}">${now >= t.endTime ? 'Completed' : now >= t.startTime ? 'In Progress' : 'Upcoming'}</span>`
+                                )).join('') : this.dashEmpty('No periods scheduled today.');
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -817,30 +891,21 @@ const App = {
                             <h3 class="card-title"><i class="fas fa-cogs"></i> Administrative Operations</h3>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <button class="btn btn-gold" style="justify-content: flex-start;" onclick="App.navigate('reports')">
-                                <i class="fas fa-chart-line"></i> Executive Reports (10 Categories)
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('attendance')">
-                                <i class="fas fa-calendar-check" style="color: var(--gold-400);"></i> Attendance Monitoring & Check-Ins
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('students')">
-                                <i class="fas fa-user-graduate" style="color: var(--primary-400);"></i> Students Management (${(window.LmsData.users || []).filter(u => u.role === 'STUDENT').length})
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('permissions')">
-                                <i class="fas fa-sliders-h" style="color: var(--warning);"></i> Settings / System Permissions
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('admissions')">
-                                <i class="fas fa-user-plus" style="color: var(--primary-400);"></i> Admission Applications (${window.LmsData.admissions.length})
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('teachers')">
-                                <i class="fas fa-user-tie" style="color: var(--gold-400);"></i> Teachers & Faculty Portals
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('fees')">
-                                <i class="fas fa-file-invoice" style="color: var(--info);"></i> Fee & Zakat Accounts
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('security')">
-                                <i class="fas fa-shield-alt" style="color: var(--danger);"></i> Cloud Architecture & RBAC Specs
-                            </button>
+                            ${[
+                                ['admissions', 'fas fa-user-plus', 'Admission Applications'],
+                                ['classes', 'fas fa-chalkboard-teacher', 'Classes, Courses & Allocation'],
+                                ['teachers', 'fas fa-user-tie', 'Teachers & Faculty Registration'],
+                                ['students', 'fas fa-user-graduate', 'Students Management'],
+                                ['exams', 'fas fa-award', 'Exams & Results'],
+                                ['timetable', 'fas fa-calendar-alt', 'Schedules & Timetable'],
+                                ['fees', 'fas fa-file-invoice', 'Fee Structure, Challans & Donations'],
+                                ['library', 'fas fa-book-reader', 'Library (Maktaba)'],
+                                ['reports', 'fas fa-chart-line', 'Executive Reports'],
+                                ['permissions', 'fas fa-sliders-h', 'System Permissions']
+                            ].filter(([m]) => can(m)).map(([m, icon, label]) => `
+                                <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('${Object.keys(window.ROUTE_MODULE_MAP).find(r => window.ROUTE_MODULE_MAP[r] === m)}')">
+                                    <i class="${icon}" style="color: var(--primary-400);"></i> ${label}
+                                </button>`).join('')}
                         </div>
                     </div>
 
@@ -849,12 +914,7 @@ const App = {
                             <h3 class="card-title"><i class="fas fa-bullhorn"></i> Dispatches</h3>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
-                            ${window.LmsData.notifications.slice(0, 3).map(n => `
-                                <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid var(--gold-400);">
-                                    <div style="font-weight: 700; color: var(--primary-950);">${n.title}</div>
-                                    <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${n.sender} • ${n.time}</div>
-                                </div>
-                            `).join('')}
+                            ${this.dashNotices(3)}
                         </div>
                     </div>
                 </div>
@@ -862,378 +922,336 @@ const App = {
         `;
     },
 
-    // 2. TEACHER DASHBOARD
+    // Small building blocks shared by the role dashboards
+    dashListItem(title, sub, actionHtml, accent) {
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); ${accent ? `border-left: 3px solid ${accent};` : ''}">
+                <div style="min-width: 0;">
+                    <div style="font-weight: 700; color: var(--primary-950);">${title}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${sub}</div>
+                </div>
+                ${actionHtml || ''}
+            </div>`;
+    },
+
+    dashEmpty(text) {
+        return `<div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">${text}</div>`;
+    },
+
+    dashNotices(limit = 4) {
+        const list = (window.LmsData.notifications || []).slice(0, limit);
+        if (!list.length) return this.dashEmpty('No notifications yet.');
+        return list.map(n => `
+            <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid ${n.isRead ? 'var(--border-prominent)' : 'var(--gold-400)'}; cursor: pointer;" onclick="App.navigate('notifications')">
+                <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(n.title)}</div>
+                <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${Lms.esc(n.sender || '')} • ${Lms.esc(n.time || '')}</div>
+            </div>`).join('');
+    },
+
+    todayName() {
+        return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+    },
+
+    liveSessionCard(session, isHostView) {
+        if (!session) return '';
+        const live = session.isLive || session.status === 'LIVE';
+        return `
+            <div class="card" style="border: 2px solid ${live ? 'var(--danger)' : 'var(--gold-400)'}; background: linear-gradient(135deg, var(--primary-50) 0%, var(--gold-50) 100%);">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div>
+                        ${live
+                            ? `<span class="status-pill danger" style="animation: pulse 1.5s infinite;"><i class="fas fa-circle"></i> Live Now</span>`
+                            : `<span class="status-pill gold"><i class="fas fa-clock"></i> Next Online Class • ${Lms.esc(session.scheduledStart || '')}</span>`}
+                        <h3 style="color: var(--text-primary); margin-top: 6px;">${Lms.esc(session.title)}</h3>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-user-tie"></i> ${Lms.esc(session.hostTeacher || '')} • ${Lms.esc(session.className || '')}</div>
+                    </div>
+                    <button class="btn ${live ? 'btn-primary' : 'btn-secondary'}" onclick="App.navigate('virtual-class')">
+                        <i class="fas ${live ? 'fa-sign-in-alt' : 'fa-video'}"></i> ${live ? (isHostView ? 'Open Live Room' : 'Join Class') : 'Online Classes'}
+                    </button>
+                </div>
+            </div>`;
+    },
+
+    // 2. TEACHER DASHBOARD (teacher portal with live data)
     renderTeacherDashboard() {
         const user = window.AuthRBAC.currentUser;
-        const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.hostId === user.id && (vc.isLive || vc.status === 'LIVE'))
-                       || (window.LmsData.virtualClasses || []).find(vc => vc.isLive || vc.status === 'LIVE')
-                       || (window.LmsData.virtualClasses || [])[0];
+        const data = window.LmsData;
+        const classIds = Lms.teacherClassIds(user.id);
+        const myStudents = Lms.students().filter(s => classIds.includes(s.classId));
+        const myAssignments = (data.assignments || []).filter(a => a.teacherId === user.id || classIds.includes(a.classId));
+        const asgIds = new Set(myAssignments.map(a => a.id));
+        const toCheck = (data.assignmentSubmissions || []).filter(s => asgIds.has(s.assignmentId) && !s.isGraded);
+        const myExams = (data.exams || []).filter(e => e.createdBy === user.id || classIds.includes(e.classId));
+        const examIds = new Set(myExams.map(e => e.id));
+        const papersToMark = (data.examSubmissions || []).filter(s => examIds.has(s.examId) && !s.isMarked);
+        const today = this.todayName();
+        const todaySlots = (data.timetables || []).filter(t => t.day === today && t.teacherId === user.id)
+            .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+        const sessions = (data.virtualClasses || []).filter(vc => vc.hostId === user.id || classIds.includes(vc.classId));
+        const liveOrNext = sessions.find(vc => vc.isLive || vc.status === 'LIVE') || sessions.find(vc => vc.status === 'UPCOMING');
+        const myCourseRows = [];
+        (data.classes || []).forEach(c => (c.courseTeachers || []).forEach(ct => {
+            if (ct.teacherId === user.id) myCourseRows.push({ cls: c, course: Lms.getCourse(ct.courseId) });
+        }));
 
         return `
-            <!-- TEACHER WELCOME -->
             <div class="view-header">
                 <div class="view-title-group">
-                    <h1>
-                        <i class="fas fa-chalkboard-teacher" style="color: var(--gold-400);"></i>
-                        Sheikh-ul-Hadith & Faculty Academic Portal
-                    </h1>
+                    <h1><i class="fas fa-chalkboard-teacher" style="color: var(--gold-400);"></i> Teacher Portal</h1>
                     <p>
-                        Welcome, <strong>${user.name}</strong> 
-                        <span class="status-pill success" style="margin-left: 6px;">Teacher (Sheikh-ul-Hadith)</span>
-                        <span style="font-family: 'Amiri', serif; margin-left: 8px; color: var(--gold-200);">${user.urduName || ''}</span>
+                        Welcome, <strong>${Lms.esc(user.name)}</strong>
+                        <span class="status-pill success" style="margin-left: 6px;">${Lms.esc(user.designation || 'Teacher')}</span>
+                        <span style="font-family: 'Amiri', serif; margin-left: 8px; color: var(--gold-700);">${Lms.esc(user.urduName || '')}</span>
                     </p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-gold btn-sm" onclick="App.navigate('virtual-class')">
-                        <i class="fas fa-video"></i> Host Zoom Dars
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="App.navigate('assignments')">
-                        <i class="fas fa-clipboard-check"></i> Grade Homework
-                    </button>
+                    <button class="btn btn-gold btn-sm" onclick="App.navigate('virtual-class')"><i class="fas fa-video"></i> Online Classes</button>
+                    <button class="btn btn-primary btn-sm" onclick="App.navigate('assignments')"><i class="fas fa-clipboard-check"></i> Check Assignments</button>
+                    <button class="btn btn-secondary btn-sm" onclick="TeachersModule.openMyProfileModal()"><i class="fas fa-user-edit"></i> My Profile</button>
                 </div>
             </div>
 
-            <!-- ATTENDANCE CHECK-IN WIDGET -->
             ${window.AttendanceModule ? window.AttendanceModule.renderDashboardCheckInWidget(user) : ''}
 
-            <!-- TEACHER HERO SUMMARY -->
-            <div class="ashrafia-hero-card" style="background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 100%);">
-                <div class="ashrafia-hero-content">
-                    <div class="ashrafia-hero-badge"><i class="fas fa-book-reader"></i> Faculty Allocation: Dawra-e-Hadith & Hadith Studies</div>
-                    <h2 class="ashrafia-hero-title">مسند تدریس - جامعہ اشرفیہ، لاہور</h2>
-                    <p class="ashrafia-hero-desc">
-                        Assigned Chair: <strong>Sahih al-Bukhari & Ulum-ul-Hadith</strong> at Hall Imam Bukhari (Ferozepur Road).
-                        Manage assigned student batches, upload assignments, check student answer sheets, and monitor attendance.
-                    </p>
-                    <div class="ashrafia-hero-stats">
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">2</span>
-                            <span class="hero-stat-label">Assigned Batches</span>
-                        </div>
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">125</span>
-                            <span class="hero-stat-label">Scholars Enrolled</span>
-                        </div>
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">18</span>
-                            <span class="hero-stat-label">Pending Homework</span>
-                        </div>
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">06:30 AM</span>
-                            <span class="hero-stat-label">Daily Fajr Dars</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TEACHER QUICK METRICS -->
             <div class="metrics-grid">
-                <div class="metric-card gold">
-                    <div class="metric-icon-box"><i class="fas fa-video"></i></div>
+                <div class="metric-card gold" style="cursor: pointer;" onclick="App.navigate('classes')">
+                    <div class="metric-icon-box"><i class="fas fa-users"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Virtual Dars Room</span>
-                        <span class="metric-value">Ready to Broadcast</span>
-                        <span class="metric-hint" style="color: var(--gold-300);">Passcode: ${liveClass.passcode}</span>
+                        <span class="metric-label">My Classes</span>
+                        <span class="metric-value">${classIds.length}</span>
+                        <span class="metric-hint">${myStudents.length} students enrolled</span>
                     </div>
                 </div>
-                <div class="metric-card">
+                <div class="metric-card" style="cursor: pointer;" onclick="App.navigate('assignments')">
                     <div class="metric-icon-box"><i class="fas fa-tasks"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Assignments to Grade</span>
-                        <span class="metric-value">18 Submissions</span>
-                        <span class="metric-hint">Bukhari & Tirmidhi</span>
+                        <span class="metric-label">Assignments to Check</span>
+                        <span class="metric-value">${toCheck.length}</span>
+                        <span class="metric-hint">${myAssignments.length} assignments published</span>
                     </div>
                 </div>
-                <div class="metric-card info">
-                    <div class="metric-icon-box"><i class="fas fa-calendar-check"></i></div>
+                <div class="metric-card info" style="cursor: pointer;" onclick="App.navigate('exams')">
+                    <div class="metric-icon-box"><i class="fas fa-pen-nib"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Today's Lectures</span>
-                        <span class="metric-value">2 Scheduled</span>
-                        <span class="metric-hint">Fajr & Asr Hours</span>
+                        <span class="metric-label">Exam Papers to Mark</span>
+                        <span class="metric-value">${papersToMark.length}</span>
+                        <span class="metric-hint">${myExams.length} exams in my classes</span>
                     </div>
                 </div>
-                <div class="metric-card success">
-                    <div class="metric-icon-box"><i class="fas fa-user-check"></i></div>
+                <div class="metric-card success" style="cursor: pointer;" onclick="App.navigate('timetable')">
+                    <div class="metric-icon-box"><i class="fas fa-calendar-day"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Student Attendance</span>
-                        <span class="metric-value">98.4%</span>
-                        <span class="metric-hint">Dawra Section A</span>
+                        <span class="metric-label">Today's Periods (${today})</span>
+                        <span class="metric-value">${todaySlots.length}</span>
+                        <span class="metric-hint">${todaySlots[0] ? 'First: ' + Lms.fmtTime(todaySlots[0].startTime) : 'No lectures today'}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- TWO COLUMN TEACHING WORKSPACE -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+            <div class="dash-two-col" style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px;">
                 <div>
-                    <!-- Active Live Class -->
-                    <div class="card" style="border: 2px solid var(--gold-400);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div>
-                                <span class="status-pill danger"><i class="fas fa-circle"></i> Live Video Lecture Waiting</span>
-                                <h3 style="color: var(--primary-950); margin-top: 6px;">${liveClass.title}</h3>
-                                <div style="font-family: 'Amiri', serif; color: var(--gold-700); font-size: 1.1rem;">${liveClass.urduTitle}</div>
-                            </div>
-                            <button class="btn btn-gold" onclick="App.navigate('virtual-class')">
-                                <i class="fas fa-play"></i> Start Lecture Now
-                            </button>
+                    ${this.liveSessionCard(liveOrNext, true)}
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-book"></i> My Classes & Kitabs</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="App.navigate('classes')">Open Classes</button>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            ${myCourseRows.length ? myCourseRows.map(r => this.dashListItem(
+                                `${Lms.esc(r.course ? r.course.title : 'Kitab')}`,
+                                `${Lms.esc(r.cls.name)} — ${Lms.esc(r.cls.section || '')} • ${Lms.studentsInClass(r.cls.id).length} students • ${Lms.esc(r.cls.room || '')}`,
+                                `<button class="btn btn-secondary btn-sm" onclick="ClassesCoursesModule.selectClass('${r.cls.id}')">Open</button>`
+                            )).join('') : this.dashEmpty('No kitabs are allocated to you yet. The Academic Office assigns classes from "Classes & Courses".')}
                         </div>
                     </div>
 
-                    <!-- Assigned Classes -->
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-book"></i> My Assigned Courses</h3>
-                            <button class="btn btn-secondary btn-sm" onclick="App.navigate('classes')">Full Catalog</button>
+                            <h3 class="card-title"><i class="fas fa-clipboard-check"></i> Waiting for Checking</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="App.navigate('assignments')">All Submissions</button>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Sahih al-Bukhari (Jild 1) - HAD-801</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Dawra-e-Hadith • 60 Talaba • Hall Imam Bukhari</div>
-                                </div>
-                                <button class="btn btn-secondary btn-sm" onclick="App.navigate('assignments')">Review Submissions</button>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Sunan al-Tirmidhi (Kitab al-Jana'iz) - HAD-802</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Dawra-e-Hadith • 65 Talaba • Room 102</div>
-                                </div>
-                                <button class="btn btn-secondary btn-sm" onclick="App.navigate('timetable')">View Schedule</button>
-                            </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            ${toCheck.slice(0, 5).map(s => {
+                                const a = (data.assignments || []).find(x => x.id === s.assignmentId) || {};
+                                return this.dashListItem(Lms.esc(s.studentName), `${Lms.esc(a.title || '')} • submitted ${Lms.fmtDateTime(s.submittedAt)}`,
+                                    `<button class="btn btn-gold btn-sm" onclick="AssignmentsModule.openGradeSubmissionModal('${s.id}')">Check</button>`, 'var(--warning)');
+                            }).join('')}
+                            ${papersToMark.slice(0, 5).map(s => {
+                                const ex = (data.exams || []).find(x => x.id === s.examId) || {};
+                                return this.dashListItem(Lms.esc(s.studentName), `Exam: ${Lms.esc(ex.title || '')} • ${Lms.fmtDateTime(s.submittedAt)}`,
+                                    `<button class="btn btn-gold btn-sm" onclick="ExamsModule.openMarkSubmissionModal('${s.id}')">Mark</button>`, 'var(--info)');
+                            }).join('')}
+                            ${!toCheck.length && !papersToMark.length ? this.dashEmpty('All caught up — nothing waiting for checking.') : ''}
                         </div>
                     </div>
                 </div>
 
-                <!-- Teacher Actions & Broadcasts -->
                 <div>
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-bolt"></i> Teacher Operations</h3>
+                            <h3 class="card-title"><i class="fas fa-calendar-alt"></i> Today's Schedule</h3>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <button class="btn btn-gold" style="justify-content: flex-start;" onclick="App.navigate('virtual-class')">
-                                <i class="fas fa-video"></i> Launch Zoom Live Room
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('attendance')">
-                                <i class="fas fa-calendar-check" style="color: var(--primary-400);"></i> Check-In & Attendance History
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('students')">
-                                <i class="fas fa-user-graduate" style="color: var(--gold-400);"></i> View My Students
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('assignments')">
-                                <i class="fas fa-clipboard-check" style="color: var(--primary-400);"></i> Check & Mark Assignments
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('exams')">
-                                <i class="fas fa-award" style="color: var(--gold-400);"></i> Wifaq Sanad Online Marking
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('timetable')">
-                                <i class="fas fa-calendar-alt" style="color: var(--info);"></i> My Teaching Schedule
-                            </button>
+                            ${todaySlots.length ? todaySlots.map(t => this.dashListItem(
+                                `${Lms.fmtTime(t.startTime)} – ${Lms.fmtTime(t.endTime)}`,
+                                `${Lms.esc(Lms.courseTitle(t.courseId))} • ${Lms.esc(Lms.className(t.classId))} • ${Lms.esc(t.room || '')}`
+                            )).join('') : this.dashEmpty(today === 'Friday' ? 'Jumu\'ah — no classes today.' : 'No lectures scheduled for you today.')}
                         </div>
                     </div>
 
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-bullhorn"></i> Faculty Notices</h3>
+                            <h3 class="card-title"><i class="fas fa-bolt"></i> Quick Actions</h3>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
-                            ${window.LmsData.notifications.slice(0, 3).map(n => `
-                                <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid var(--primary-500);">
-                                    <div style="font-weight: 700; color: var(--primary-950);">${n.title}</div>
-                                    <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${n.sender} • ${n.time}</div>
-                                </div>
-                            `).join('')}
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <button class="btn btn-gold" style="justify-content: flex-start;" onclick="App.navigate('virtual-class'); setTimeout(() => VirtualClassModule.openScheduleModal(), 50);"><i class="fas fa-video"></i> Schedule an Online Class</button>
+                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('assignments'); setTimeout(() => AssignmentsModule.openCreateAssignmentModal(), 50);"><i class="fas fa-plus-circle"></i> Create Assignment</button>
+                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('exams'); setTimeout(() => ExamsModule.openExamEditor(), 50);"><i class="fas fa-file-signature"></i> Create Exam / Quiz</button>
+                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="TeachersModule.openAttendanceModal()"><i class="fas fa-clipboard-list"></i> Mark Class Attendance</button>
+                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('notifications'); setTimeout(() => NotificationsModule.openBroadcastModal(), 50);"><i class="fas fa-bullhorn"></i> Notify My Students</button>
                         </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-bell"></i> Notifications</h3>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">${this.dashNotices()}</div>
                     </div>
                 </div>
             </div>
         `;
     },
 
-    // 3. STUDENT DASHBOARD
+    // 3. STUDENT DASHBOARD (live data for the signed-in student)
     renderStudentDashboard() {
         const user = window.AuthRBAC.currentUser;
-        const studentClass = user.classId || 'cls_dawra_a';
-        const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.classId === studentClass && (vc.isLive || vc.status === 'LIVE'))
-                       || (window.LmsData.virtualClasses || []).find(vc => vc.classId === studentClass)
-                       || (window.LmsData.virtualClasses || [])[0];
+        const data = window.LmsData;
+        const cls = Lms.getClass(user.classId);
+        const today = Lms.today();
+        const myAssignments = (data.assignments || []).filter(a => a.classId === user.classId);
+        const mySubs = (data.assignmentSubmissions || []).filter(s => s.studentId === user.id);
+        const pending = myAssignments.filter(a => !mySubs.some(s => s.assignmentId === a.id))
+            .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+        const myExams = (data.exams || []).filter(e => e.classId === user.classId && e.status !== 'CLOSED' && (e.status === 'OPEN' || e.examDate >= today))
+            .sort((a, b) => String(a.examDate).localeCompare(String(b.examDate)));
+        const results = (data.examResults || []).filter(r => r.studentId === user.id && r.published);
+        const dues = (data.feeChallans || []).filter(c => c.studentId === user.id && c.status !== 'PAID');
+        const loans = (data.libraryLoans || []).filter(l => l.userId === user.id && l.status === 'ISSUED');
+        const sessions = (data.virtualClasses || []).filter(vc => vc.classId === user.classId);
+        const liveOrNext = sessions.find(vc => vc.isLive || vc.status === 'LIVE') || sessions.find(vc => vc.status === 'UPCOMING');
+        const dayName = this.todayName();
+        const todaySlots = (data.timetables || []).filter(t => t.day === dayName && (t.classId === user.classId || t.classId === 'all'))
+            .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
 
         return `
-            <!-- STUDENT WELCOME -->
             <div class="view-header">
                 <div class="view-title-group">
-                    <h1>
-                        <i class="fas fa-user-graduate" style="color: var(--gold-400);"></i>
-                        Talib-e-Ilm Academic Learning Portal
-                    </h1>
+                    <h1><i class="fas fa-user-graduate" style="color: var(--gold-400);"></i> Student Portal</h1>
                     <p>
-                        Welcome, <strong>${user.name}</strong> 
-                        <span class="status-pill primary" style="margin-left: 6px;">Roll No: ${user.rollNo || 'ASH-2024-001'}</span>
-                        <span style="font-family: 'Amiri', serif; margin-left: 8px; color: var(--gold-200);">${user.urduName || ''}</span>
+                        Welcome, <strong>${Lms.esc(user.name)}</strong>
+                        <span class="status-pill primary" style="margin-left: 6px;">Roll No: ${Lms.esc(user.rollNo || '—')}</span>
+                        <span style="font-family: 'Amiri', serif; margin-left: 8px; color: var(--gold-700);">${Lms.esc(user.urduName || '')}</span>
                     </p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-gold btn-sm" onclick="App.navigate('virtual-class')">
-                        <i class="fas fa-video"></i> Join Live Zoom Dars
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="App.navigate('assignments')">
-                        <i class="fas fa-file-upload"></i> Submit Homework
-                    </button>
+                    <button class="btn btn-gold btn-sm" onclick="App.navigate('virtual-class')"><i class="fas fa-video"></i> Online Classes</button>
+                    <button class="btn btn-primary btn-sm" onclick="App.navigate('assignments')"><i class="fas fa-file-upload"></i> Submit Homework</button>
                 </div>
             </div>
 
-            <!-- ATTENDANCE CHECK-IN WIDGET -->
             ${window.AttendanceModule ? window.AttendanceModule.renderDashboardCheckInWidget(user) : ''}
 
-            <!-- STUDENT HERO BANNER -->
-            <div class="ashrafia-hero-card" style="background: linear-gradient(135deg, rgba(4, 120, 87, 0.95) 0%, rgba(30, 58, 138, 0.85) 100%);">
-                <div class="ashrafia-hero-content">
-                    <div class="ashrafia-hero-badge"><i class="fas fa-university"></i> ${user.program || 'Dars-e-Nizami (Dawra-e-Hadith)'} • Session 1446-1447 AH</div>
-                    <h2 class="ashrafia-hero-title">جامعہ اشرفیہ، لاہور - پورٹل برائے طلبہ</h2>
-                    <p class="ashrafia-hero-desc">
-                        Resident Campus: <strong>Main Ferozepur Road</strong> | Residence: <strong>${user.hostel || 'Hostel Block A, Room 204'}</strong>.
-                        Affiliated with <strong>Wifaq-ul-Madaris Al-Arabia Pakistan</strong> (HEC Recognized M.A Equivalence).
-                    </p>
-                    <div class="ashrafia-hero-stats">
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">6</span>
-                            <span class="hero-stat-label">Enrolled Kitabs</span>
-                        </div>
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">2</span>
-                            <span class="hero-stat-label">Pending Homework</span>
-                        </div>
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">Mumtaz</span>
-                            <span class="hero-stat-label">Wifaq Sanad Standing</span>
-                        </div>
-                        <div class="hero-stat-item">
-                            <span class="hero-stat-value">99%</span>
-                            <span class="hero-stat-label">Prayer Attendance</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            ${!cls ? `
+                <div class="card" style="border-left: 4px solid var(--warning);">
+                    <strong><i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> You are not enrolled in a class yet.</strong>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">The Academic Office will assign your class. Assignments, exams and online classes appear here once you are enrolled.</div>
+                </div>` : ''}
 
-            <!-- STUDENT KEY METRICS -->
             <div class="metrics-grid">
-                <div class="metric-card gold">
-                    <div class="metric-icon-box"><i class="fas fa-video"></i></div>
+                <div class="metric-card gold" style="cursor: pointer;" onclick="App.navigate('classes')">
+                    <div class="metric-icon-box"><i class="fas fa-book-open"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Live Video Dars</span>
-                        <span class="metric-value">Active Now</span>
-                        <span class="metric-hint" style="color: var(--gold-300);"><i class="fas fa-circle"></i> Hall Imam Bukhari</span>
+                        <span class="metric-label">My Class</span>
+                        <span class="metric-value" style="font-size: 1.05rem;">${Lms.esc(cls ? cls.name : 'Not enrolled')}</span>
+                        <span class="metric-hint">${cls ? Lms.classCourseIds(cls.id).length + ' kitabs • ' + Lms.esc(cls.section || '') : ''}</span>
                     </div>
                 </div>
-                <div class="metric-card">
+                <div class="metric-card" style="cursor: pointer;" onclick="App.navigate('assignments')">
                     <div class="metric-icon-box"><i class="fas fa-tasks"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Assignments Due</span>
-                        <span class="metric-value">2 Pending</span>
-                        <span class="metric-hint">Due in 3 Days</span>
+                        <span class="metric-label">Assignments Pending</span>
+                        <span class="metric-value">${pending.length}</span>
+                        <span class="metric-hint">${pending[0] ? 'Next due ' + Lms.fmtDate(pending[0].dueDate) : 'Nothing pending'}</span>
                     </div>
                 </div>
-                <div class="metric-card info">
+                <div class="metric-card info" style="cursor: pointer;" onclick="App.navigate('exams')">
                     <div class="metric-icon-box"><i class="fas fa-award"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Annual Wifaq Result</span>
-                        <span class="metric-value">Grade A+ (First)</span>
-                        <span class="metric-hint">Sanad Issued</span>
+                        <span class="metric-label">Upcoming / Open Exams</span>
+                        <span class="metric-value">${myExams.length}</span>
+                        <span class="metric-hint">${results.length} result(s) published</span>
                     </div>
                 </div>
-                <div class="metric-card success">
-                    <div class="metric-icon-box"><i class="fas fa-book-reader"></i></div>
+                <div class="metric-card ${dues.length ? 'danger' : 'success'}" style="cursor: pointer;" onclick="App.navigate('fees')">
+                    <div class="metric-icon-box"><i class="fas fa-file-invoice"></i></div>
                     <div class="metric-content">
-                        <span class="metric-label">Maktaba Ashrafia</span>
-                        <span class="metric-value">1 Book Issued</span>
-                        <span class="metric-hint">Due 15 Oct</span>
+                        <span class="metric-label">Fee Dues</span>
+                        <span class="metric-value">${Lms.money(dues.reduce((s, c) => s + (Number(c.netPayable) || 0), 0))}</span>
+                        <span class="metric-hint">${dues.length} unpaid challan(s) • ${loans.length} library book(s)</span>
                     </div>
                 </div>
             </div>
 
-            <!-- TWO COLUMN STUDENT WORKSPACE -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+            <div class="dash-two-col" style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px;">
                 <div>
-                    <!-- Active Live Classroom Alert -->
-                    <div class="card" style="border: 2px solid var(--primary-200); background: linear-gradient(135deg, var(--primary-50) 0%, var(--gold-50) 100%);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div>
-                                <span class="status-pill danger" style="animation: pulse 1.5s infinite;"><i class="fas fa-circle"></i> Live Zoom Room Open</span>
-                                <h3 style="color: var(--text-primary); margin-top: 6px;">${liveClass.title}</h3>
-                                <div style="font-family: 'Amiri', serif; color: var(--gold-700); font-size: 1.15rem;">${liveClass.urduTitle}</div>
-                            </div>
-                            <button class="btn btn-primary" onclick="App.navigate('virtual-class')">
-                                <i class="fas fa-sign-in-alt"></i> Enter Classroom
-                            </button>
+                    ${this.liveSessionCard(liveOrNext, false)}
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-tasks"></i> Homework To Do</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="App.navigate('assignments')">All Assignments</button>
                         </div>
-                        <div style="font-size: 0.82rem; color: var(--text-secondary); display: flex; gap: 20px;">
-                            <span><i class="fas fa-user-tie"></i> Ustad: ${liveClass.hostTeacher}</span>
-                            <span><i class="fas fa-users"></i> ${liveClass.activeParticipants} Fellow Scholars Online</span>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            ${pending.length ? pending.slice(0, 5).map(a => this.dashListItem(Lms.esc(a.title),
+                                `${Lms.esc(Lms.courseTitle(a.courseId))} • Due ${Lms.fmtDate(a.dueDate)}${a.dueDate < today ? ' <strong style="color: var(--danger);">(overdue)</strong>' : ''}`,
+                                `<button class="btn btn-primary btn-sm" onclick="AssignmentsModule.openStudentUploadModal('${a.id}')"><i class="fas fa-upload"></i> Submit</button>`,
+                                a.dueDate < today ? 'var(--danger)' : 'var(--gold-400)')).join('') : this.dashEmpty('No pending homework. Alhamdulillah!')}
                         </div>
                     </div>
 
-                    <!-- My Enrolled Courses -->
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-book-open"></i> My Enrolled Classes (Dawra-e-Hadith)</h3>
-                            <button class="btn btn-secondary btn-sm" onclick="App.navigate('classes')">Full Curriculum</button>
+                            <h3 class="card-title"><i class="fas fa-file-signature"></i> Exams</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="App.navigate('exams')">Exams & Results</button>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Sahih al-Bukhari (Jild 1)</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Qari Arshad Ubaid • 06:30 AM - 08:00 AM • Hall Imam Bukhari</div>
-                                </div>
-                                <button class="btn btn-secondary btn-sm" onclick="App.navigate('assignments')">Assignments</button>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm);">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Al-Hidayah (Fiqh Hanafi)</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Mufti Ahmadur Rahman • 10:15 AM - 11:45 AM • Room 201</div>
-                                </div>
-                                <button class="btn btn-secondary btn-sm" onclick="App.navigate('timetable')">Timetable</button>
-                            </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            ${myExams.length ? myExams.slice(0, 4).map(e => this.dashListItem(Lms.esc(e.title),
+                                `${Lms.fmtDate(e.examDate)} at ${Lms.fmtTime(e.startTime)} • ${e.durationMinutes} min • ${e.mode === 'ONLINE' ? 'Online' : 'In hall'}`,
+                                e.status === 'OPEN' && e.mode === 'ONLINE' ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('exams')">Attempt</button>` : '')).join('') : this.dashEmpty('No upcoming exams.')}
                         </div>
                     </div>
                 </div>
 
-                <!-- Student Quick Actions & Announcements -->
                 <div>
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-bolt"></i> Student Quick Menu</h3>
+                            <h3 class="card-title"><i class="fas fa-calendar-alt"></i> Today (${dayName})</h3>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <button class="btn btn-gold" style="justify-content: flex-start;" onclick="App.navigate('virtual-class')">
-                                <i class="fas fa-video"></i> Join Live Zoom Classroom
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('assignments')">
-                                <i class="fas fa-file-upload" style="color: var(--primary-400);"></i> Upload Completed Homework
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('exams')">
-                                <i class="fas fa-award" style="color: var(--gold-400);"></i> Wifaq Sanad & Grade Card
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('timetable')">
-                                <i class="fas fa-calendar-alt" style="color: var(--info);"></i> Dars & Prayer Timetable
-                            </button>
-                            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('library')">
-                                <i class="fas fa-book-reader" style="color: var(--primary-400);"></i> Search Maktaba Ashrafia
-                            </button>
+                            ${todaySlots.length ? todaySlots.map(t => this.dashListItem(
+                                `${Lms.fmtTime(t.startTime)} – ${Lms.fmtTime(t.endTime)}`,
+                                `${Lms.esc(t.courseId ? Lms.courseTitle(t.courseId) : t.periodName)} • ${Lms.esc(t.teacherId ? Lms.userName(t.teacherId) : t.room || '')}`
+                            )).join('') : this.dashEmpty(dayName === 'Friday' ? 'Jumu\'ah — no classes today.' : 'No periods scheduled today.')}
                         </div>
                     </div>
 
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-bullhorn"></i> Ashrafia Bulletins</h3>
+                            <h3 class="card-title"><i class="fas fa-bell"></i> Notifications</h3>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
-                            ${window.LmsData.notifications.slice(0, 3).map(n => `
-                                <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid var(--gold-400);">
-                                    <div style="font-weight: 700; color: var(--primary-950);">${n.title}</div>
-                                    <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${n.sender} • ${n.time}</div>
-                                </div>
-                            `).join('')}
-                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">${this.dashNotices()}</div>
                     </div>
                 </div>
             </div>
@@ -1448,9 +1466,13 @@ const App = {
         try {
             const role = window.AuthRBAC ? window.AuthRBAC.getRole() : '';
             if (role) {
+                const me = window.AuthRBAC.currentUser || {};
+                const classIds = me.role === 'STUDENT' ? [me.classId].filter(Boolean) : [];
                 const res = await fetch('/api/notifications', {
                     headers: {
                         'X-User-Role': role,
+                        'X-User-Id': me.id || '',
+                        'X-User-Class': classIds.join(','),
                         'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
                     }
                 });
@@ -1459,7 +1481,13 @@ const App = {
                     if (data && Array.isArray(data.notifications)) {
                         if (window.LmsData) {
                             const prevTopId = window.LmsData.notifications?.[0]?.id;
+                            const prevUnread = this.lastUnreadCount;
                             window.LmsData.notifications = data.notifications;
+                            this.lastUnreadCount = data.unreadCount;
+                            if (prevUnread !== undefined && data.unreadCount > prevUnread && data.notifications[0]?.id !== prevTopId) {
+                                this.playChime();
+                                this.showToast(`New notification: ${Lms.esc(data.notifications[0].title)}`, 'gold');
+                            }
                             // Show newly arrived notifications if the list is open
                             const viewport = document.getElementById('main-content-viewport');
                             if (viewport && this.currentRoute === 'notifications' && data.notifications[0]?.id !== prevTopId) {
@@ -1478,7 +1506,7 @@ const App = {
         } catch (e) {
             // Offline fallback
         }
-        const unreadCount = (window.LmsData?.notifications || []).filter(n => !n.isRead).length;
+        const unreadCount = (window.NotificationsModule ? window.NotificationsModule.visibleList() : (window.LmsData?.notifications || [])).filter(n => !n.isRead).length;
         const badge = document.getElementById('header-notif-badge');
         if (badge) {
             badge.textContent = unreadCount;
