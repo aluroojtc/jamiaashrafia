@@ -15,23 +15,35 @@ const UsersModule = {
         return (window.LmsData?.users || []).filter(u => u.role !== 'STUDENT' && u.role !== 'TEACHER');
     },
 
-    // Helper: Returns only assignable system roles (excludes STUDENT and TEACHER)
+    // Helper: Returns only assignable system roles (excludes STUDENT, TEACHER and the hard-coded Super Admin)
     getSystemRoles() {
-        return (window.LmsData?.roles || []).filter(r => r.id !== 'STUDENT' && r.id !== 'TEACHER');
+        return (window.LmsData?.roles || []).filter(r => !['STUDENT', 'TEACHER', 'SUPER_ADMIN'].includes(r.id));
+    },
+
+    roleInfo(roleId) {
+        return (window.LmsData?.roles || []).find(r => r.id === roleId) || { name: roleId, badgeClass: 'primary' };
+    },
+
+    // Login ID (email) and username must be unique across all accounts
+    findDuplicate(userId, email, username) {
+        const others = (window.LmsData?.users || []).filter(u => u.id !== userId);
+        if (others.some(u => (u.email || '').toLowerCase() === email)) return `Email '${email}' is already used by another account.`;
+        if (username && others.some(u => (u.username || '').toLowerCase() === username)) return `Username '${username}' is already taken.`;
+        return null;
     },
 
     render() {
         const user = window.AuthRBAC.currentUser;
         const currentRole = window.AuthRBAC.getRole();
 
-        // RBAC Guard: Only Super Admin can view or manage system users
-        if (currentRole !== 'SUPER_ADMIN') {
+        // Staff accounts page: users.view (each action below has its own permission)
+        if (!window.AuthRBAC.can('users.view')) {
             return `
                 <div class="card" style="border: 2px solid var(--danger); text-align: center; padding: 48px 24px;">
                     <i class="fas fa-lock" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
                     <h2 style="color: var(--primary-950); margin-bottom: 8px;">403 - Administrative Access Required</h2>
                     <p style="color: var(--text-secondary); max-width: 500px; margin: 0 auto 20px;">
-                        Only the Super Admin (Mohtamim) has authorization to inspect and manage system user credentials for Jamia Ashrafia LMS.
+                        Your role is not allowed to see staff accounts.
                     </p>
                     <button class="btn btn-gold" onclick="App.navigate('dashboard')">
                         <i class="fas fa-arrow-left"></i> Return to Dashboard
@@ -74,12 +86,12 @@ const UsersModule = {
                     <p>Manage administrative, finance, and operational staff user accounts, role bindings, and security credentials</p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="UsersModule.exportCSV()">
+                    ${window.AuthRBAC.can('users.export') ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.exportCSV()">
                         <i class="fas fa-file-csv"></i> Export Users CSV
-                    </button>
-                    <button class="btn btn-gold btn-sm" onclick="UsersModule.openAddUserModal()">
+                    </button>` : ''}
+                    ${window.AuthRBAC.can('users.create') ? `<button class="btn btn-gold btn-sm" onclick="UsersModule.openAddUserModal()">
                         <i class="fas fa-user-plus"></i> Add New System User
-                    </button>
+                    </button>` : ''}
                 </div>
             </div>
 
@@ -144,7 +156,7 @@ const UsersModule = {
                     <div class="search-input-wrap" style="flex: 1; min-width: 260px; max-width: 450px;">
                         <i class="fas fa-search"></i>
                         <input type="text" class="form-control" placeholder="Search by name, Urdu, email, or user ID..." 
-                               value="${this.searchTerm}" 
+                               value="${Lms.esc(this.searchTerm)}" 
                                oninput="UsersModule.handleSearch(this.value)">
                     </div>
 
@@ -155,8 +167,8 @@ const UsersModule = {
                         <select class="form-control" style="width: auto; min-width: 170px;" onchange="UsersModule.handleRoleFilter(this.value)">
                             <option value="ALL" ${this.roleFilter === 'ALL' ? 'selected' : ''}>All Roles (${systemRoles.length})</option>
                             ${systemRoles.map(r => `
-                                <option value="${r.id}" ${this.roleFilter === r.id ? 'selected' : ''}>
-                                    ${r.name || r.title}
+                                <option value="${Lms.esc(r.id)}" ${this.roleFilter === r.id ? 'selected' : ''}>
+                                    ${Lms.esc(r.name || r.title)}
                                 </option>
                             `).join('')}
                         </select>
@@ -208,10 +220,14 @@ const UsersModule = {
                                     </td>
                                 </tr>
                             ` : filtered.map(u => {
-                                const roleObj = systemRoles.find(r => r.id === u.role) || { name: u.role, badgeClass: 'primary' };
+                                const roleObj = this.roleInfo(u.role);
                                 const badgeClass = roleObj.badgeClass || 'gold';
                                 const roleName = roleObj.name || roleObj.title || u.role;
                                 const isCurrentLoggedIn = (window.AuthRBAC.currentUser && window.AuthRBAC.currentUser.id === u.id);
+                                const isSuperAdmin = u.role === 'SUPER_ADMIN';
+                                // Only a Super Admin may change a Super Admin account
+                                const touchable = !isSuperAdmin || window.AuthRBAC.isSuperAdmin();
+                                const canToggle = !isSuperAdmin && !isCurrentLoggedIn && window.AuthRBAC.can('users.deactivate');
                                 const status = u.status || 'ACTIVE';
 
                                 return `
@@ -219,56 +235,62 @@ const UsersModule = {
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 12px;">
                                                 <div class="user-avatar" style="width: 38px; height: 38px; font-size: 0.82rem; background: linear-gradient(135deg, var(--primary-600), var(--gold-600));">
-                                                    ${u.avatar || u.name.substring(0, 2).toUpperCase()}
+                                                    ${Lms.esc(u.avatar || Lms.initials(u.name))}
                                                 </div>
                                                 <div>
                                                     <div style="font-weight: 700; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
-                                                        ${u.name}
+                                                        ${Lms.esc(u.name)}
                                                         ${isCurrentLoggedIn ? `<span class="badge-pill gold" style="font-size: 0.65rem; padding: 1px 6px;">You</span>` : ''}
                                                     </div>
                                                     ${u.urduName ? `
                                                         <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">
-                                                            ${u.urduName}
+                                                            ${Lms.esc(u.urduName)}
                                                         </div>
                                                     ` : ''}
-                                                    <div style="font-size: 0.75rem; color: var(--text-muted);">ID: ${u.id}</div>
+                                                    <div style="font-size: 0.75rem; color: var(--text-muted);">ID: ${Lms.esc(u.id)}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
                                             <div style="font-family: monospace; font-size: 0.85rem; color: var(--text-primary); font-weight: 600;">
-                                                ${u.email}
+                                                ${Lms.esc(u.email)}
                                             </div>
+                                            ${u.username ? `<div style="font-size: 0.75rem; color: var(--text-muted);">Username: ${Lms.esc(u.username)}</div>` : ''}
+                                            ${u.phone ? `<div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-phone"></i> ${Lms.esc(u.phone)}</div>` : ''}
                                         </td>
                                         <td>
-                                            <span class="badge-pill ${badgeClass}">
-                                                ${roleName}
+                                            <span class="badge-pill ${Lms.esc(badgeClass)}">
+                                                ${Lms.esc(roleName)}
                                             </span>
                                             <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 3px;">
-                                                ${u.role}
+                                                ${Lms.esc(u.role)}
                                             </div>
+                                            ${(u.additionalRoles || []).map(r => `<span class="badge-pill ${Lms.esc(this.roleInfo(r).badgeClass || 'info')}" style="font-size: 0.65rem; margin-top: 3px;" title="Additional role">+ ${Lms.esc(this.roleInfo(r).name || r)}</span>`).join(' ')}
                                         </td>
                                         <td style="font-size: 0.85rem; color: var(--text-secondary); max-width: 220px;">
-                                            ${u.designation || 'Institutional Officer'}
+                                            ${Lms.esc(u.designation || 'Institutional Officer')}
                                         </td>
                                         <td style="text-align: center;">
-                                            <span onclick="UsersModule.toggleStatus('${u.id}')" 
+                                            <span ${canToggle ? `onclick="UsersModule.toggleStatus('${Lms.esc(u.id)}')"` : ''}
                                                   class="status-pill ${status === 'ACTIVE' ? 'success' : 'danger'}" 
-                                                  style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.04em; background: ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.18)'}; color: ${status === 'ACTIVE' ? '#34d399' : '#f87171'}; border: 1px solid ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'};" 
-                                                  title="Click to toggle account status (ACTIVE / INACTIVE)">
+                                                  style="cursor: ${canToggle ? 'pointer' : 'default'}; display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.04em; background: ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.18)'}; color: ${status === 'ACTIVE' ? '#34d399' : '#f87171'}; border: 1px solid ${status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'};" 
+                                                  title="${isSuperAdmin ? 'The Super Admin account is always active' : (canToggle ? 'Click to toggle account status (ACTIVE / INACTIVE)' : '')}">
                                                 <i class="fas ${status === 'ACTIVE' ? 'fa-check-circle' : 'fa-ban'}"></i>
                                                 <span>${status}</span>
                                             </span>
                                         </td>
                                         <td style="text-align: right; white-space: nowrap;">
-                                            <button class="btn btn-secondary btn-sm" onclick="UsersModule.openEditUserModal('${u.id}')" title="Edit User & Role">
+                                            ${touchable && (isCurrentLoggedIn || window.AuthRBAC.can('users.update') || window.AuthRBAC.can('users.assign_roles')) ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openEditUserModal('${Lms.esc(u.id)}')" title="Edit User & Role">
                                                 <i class="fas fa-edit"></i> Edit
-                                            </button>
-                                            <button class="btn btn-secondary btn-sm" onclick="UsersModule.openResetPasswordModal('${u.id}')" title="Reset User Password" style="margin-left: 4px;">
+                                            </button>` : ''}
+                                            ${touchable && !isCurrentLoggedIn && window.AuthRBAC.can('users.reset_password') ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openResetPasswordModal('${Lms.esc(u.id)}')" title="Reset User Password" style="margin-left: 4px;">
                                                 <i class="fas fa-key"></i> Password
-                                            </button>
-                                            ${!isCurrentLoggedIn ? `
-                                                <button class="btn btn-danger btn-sm" onclick="UsersModule.deleteUser('${u.id}')" title="Delete User" style="margin-left: 4px;">
+                                            </button>` : ''}
+                                            ${window.AuthRBAC.isSuperAdmin() && !isCurrentLoggedIn && status === 'ACTIVE' ? (isSuperAdmin
+                                                ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openSuperAdminModal('${Lms.esc(u.id)}', false)" title="Remove Super Admin rights" style="margin-left: 4px;"><i class="fas fa-crown" style="color: var(--danger);"></i></button>`
+                                                : `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openSuperAdminModal('${Lms.esc(u.id)}', true)" title="Make Super Admin" style="margin-left: 4px;"><i class="fas fa-crown" style="color: var(--gold-500);"></i></button>`) : ''}
+                                            ${!isCurrentLoggedIn && !isSuperAdmin && window.AuthRBAC.can('users.delete') ? `
+                                                <button class="btn btn-danger btn-sm" onclick="UsersModule.deleteUser('${Lms.esc(u.id)}')" title="Delete User" style="margin-left: 4px;">
                                                     <i class="fas fa-trash-alt"></i>
                                                 </button>
                                             ` : ''}
@@ -345,10 +367,25 @@ const UsersModule = {
                         <select id="add-user-role" class="form-control" required>
                             <option value="" disabled selected>-- Select System Role --</option>
                             ${systemRoles.map(r => `
-                                <option value="${r.id}">${r.name || r.title} (${r.urduTitle || r.id})</option>
+                                <option value="${Lms.esc(r.id)}">${Lms.esc(r.name || r.title)} (${Lms.esc(r.urduTitle || r.id)})</option>
                             `).join('')}
                         </select>
-                        <small style="color: var(--text-muted); font-size: 0.72rem;">Roles dynamically configured in Users & Permissions &rarr; Roles</small>
+                        <small style="color: var(--text-muted); font-size: 0.72rem;">Roles dynamically configured in Users & Roles &rarr; Roles</small>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
+                            Username
+                        </label>
+                        <input type="text" id="add-user-username" class="form-control" placeholder="Optional, e.g. samad">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
+                            Phone Number
+                        </label>
+                        <input type="tel" id="add-user-phone" class="form-control" placeholder="e.g. +92 300 1234567">
                     </div>
                 </div>
 
@@ -374,8 +411,8 @@ const UsersModule = {
                     <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Initial Password *
                     </label>
-                    <input type="text" id="add-user-pwd" class="form-control" value="ashrafia123" required>
-                    <small style="color: var(--text-muted); font-size: 0.72rem;">User can sign in with this password immediately</small>
+                    <input type="text" id="add-user-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                    <small style="color: var(--text-muted); font-size: 0.72rem;">Temporary password (at least 8 characters). Give it to the user privately; they must choose their own at first sign-in.</small>
                 </div>
             </form>
         `;
@@ -396,6 +433,8 @@ const UsersModule = {
         const urduName = document.getElementById('add-user-urdu').value.trim();
         const email = document.getElementById('add-user-email').value.trim().toLowerCase();
         const role = document.getElementById('add-user-role').value;
+        const username = document.getElementById('add-user-username').value.trim().toLowerCase();
+        const phone = document.getElementById('add-user-phone').value.trim();
         const designation = document.getElementById('add-user-desig').value.trim();
         const status = document.getElementById('add-user-status').value;
         const password = document.getElementById('add-user-pwd').value.trim();
@@ -404,10 +443,19 @@ const UsersModule = {
             App.showToast("Please fill in all required fields.", "danger");
             return;
         }
+        if (password.length < Lms.MIN_PASSWORD_LENGTH) {
+            App.showToast(`The temporary password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters.`, "danger");
+            return;
+        }
+        if (role === 'SUPER_ADMIN') {
+            App.showToast("Super Admin is a fixed system account and cannot be assigned.", "danger");
+            return;
+        }
 
         const allUsers = window.LmsData?.users || [];
-        if (allUsers.some(u => u.email.toLowerCase() === email)) {
-            App.showToast(`A user with email '${email}' already exists.`, "warning");
+        const duplicate = this.findDuplicate(null, email, username);
+        if (duplicate) {
+            App.showToast(duplicate, "warning");
             return;
         }
 
@@ -420,6 +468,8 @@ const UsersModule = {
             name: name,
             urduName: urduName || name,
             email: email,
+            username: username,
+            phone: phone,
             role: role,
             designation: designation || 'Institutional Staff',
             status: status,
@@ -434,7 +484,7 @@ const UsersModule = {
         window.DataStore.save(window.LmsData);
 
         App.closeModal();
-        App.showToast(`System user '${name}' created successfully with role: ${role}`, "success");
+        App.showToast(`System user '${name}' created. Temporary password: ${password} (must be changed at first sign-in).`, "success");
         App.navigate('users');
     },
 
@@ -447,26 +497,27 @@ const UsersModule = {
         }
 
         const systemRoles = this.getSystemRoles();
+        const isSuperAdmin = user.role === 'SUPER_ADMIN';
         const modalContainer = document.getElementById('modal-body-container');
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> Edit System User: ${user.name}`;
+        modalTitle.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> ${isSuperAdmin ? 'Edit Super Admin Profile' : 'Edit System User'}: ${Lms.esc(user.name)}`;
 
         modalContainer.innerHTML = `
-            <form id="form-edit-user" onsubmit="UsersModule.handleEditUserSubmit(event, '${userId}')">
+            <form id="form-edit-user" onsubmit="UsersModule.handleEditUserSubmit(event, '${Lms.esc(userId)}')">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div>
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Full Name (English) *
                         </label>
-                        <input type="text" id="edit-user-name" class="form-control" value="${user.name}" required>
+                        <input type="text" id="edit-user-name" class="form-control" value="${Lms.esc(user.name)}" required>
                     </div>
                     <div>
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Urdu Name (نام شریف)
                         </label>
-                        <input type="text" id="edit-user-urdu" class="form-control" value="${user.urduName || ''}" style="font-family: 'Amiri', serif;">
+                        <input type="text" id="edit-user-urdu" class="form-control" value="${Lms.esc(user.urduName || '')}" style="font-family: 'Amiri', serif;">
                     </div>
                 </div>
 
@@ -475,20 +526,40 @@ const UsersModule = {
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Email Address / Login ID *
                         </label>
-                        <input type="email" id="edit-user-email" class="form-control" value="${user.email}" required>
+                        <input type="email" id="edit-user-email" class="form-control" value="${Lms.esc(user.email)}" required>
                     </div>
                     <div>
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Assigned System Role *
                         </label>
-                        <select id="edit-user-role" class="form-control" required>
-                            ${systemRoles.map(r => `
-                                <option value="${r.id}" ${user.role === r.id ? 'selected' : ''}>
-                                    ${r.name || r.title} (${r.urduTitle || r.id})
-                                </option>
-                            `).join('')}
-                        </select>
-                        <small style="color: var(--text-muted); font-size: 0.72rem;">Role changes update portal permissions immediately</small>
+                        ${isSuperAdmin ? `
+                            <input type="text" class="form-control" value="${Lms.esc(this.roleInfo('SUPER_ADMIN').name || 'Super Admin')}" disabled style="opacity: 0.7;">
+                            <small style="color: var(--text-muted); font-size: 0.72rem;">Fixed role with full access to every module</small>
+                        ` : `
+                            <select id="edit-user-role" class="form-control" required ${window.AuthRBAC.can('users.assign_roles') && userId !== (window.AuthRBAC.currentUser || {}).id ? '' : 'disabled title="Changing roles needs the users.assign_roles permission"'}>
+                                ${systemRoles.map(r => `
+                                    <option value="${Lms.esc(r.id)}" ${user.role === r.id ? 'selected' : ''}>
+                                        ${Lms.esc(r.name || r.title)} (${Lms.esc(r.urduTitle || r.id)})
+                                    </option>
+                                `).join('')}
+                            </select>
+                            <small style="color: var(--text-muted); font-size: 0.72rem;">Role changes update portal permissions immediately</small>
+                        `}
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
+                            Username
+                        </label>
+                        <input type="text" id="edit-user-username" class="form-control" value="${Lms.esc(user.username || '')}">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
+                            Phone Number
+                        </label>
+                        <input type="tel" id="edit-user-phone" class="form-control" value="${Lms.esc(user.phone || '')}">
                     </div>
                 </div>
 
@@ -497,18 +568,19 @@ const UsersModule = {
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Designation / Office Title
                         </label>
-                        <input type="text" id="edit-user-desig" class="form-control" value="${user.designation || ''}">
+                        <input type="text" id="edit-user-desig" class="form-control" value="${Lms.esc(user.designation || '')}">
                     </div>
                     <div>
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Account Status
                         </label>
-                        <select id="edit-user-status" class="form-control">
+                        <select id="edit-user-status" class="form-control" ${isSuperAdmin ? 'disabled style="opacity: 0.7;"' : ''}>
                             <option value="ACTIVE" ${(user.status || 'ACTIVE') === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option>
                             <option value="INACTIVE" ${(user.status || 'ACTIVE') === 'INACTIVE' ? 'selected' : ''}>INACTIVE</option>
                         </select>
                     </div>
                 </div>
+                ${isSuperAdmin ? '' : this.rolePicker(user)}
             </form>
         `;
 
@@ -530,23 +602,34 @@ const UsersModule = {
         const name = document.getElementById('edit-user-name').value.trim();
         const urduName = document.getElementById('edit-user-urdu').value.trim();
         const email = document.getElementById('edit-user-email').value.trim().toLowerCase();
-        const role = document.getElementById('edit-user-role').value;
+        const username = document.getElementById('edit-user-username').value.trim().toLowerCase();
+        const phone = document.getElementById('edit-user-phone').value.trim();
         const designation = document.getElementById('edit-user-desig').value.trim();
-        const status = document.getElementById('edit-user-status').value;
+        // Super Admin's role and active status are fixed; only the profile changes
+        const isSuperAdmin = user.role === 'SUPER_ADMIN';
+        const role = isSuperAdmin ? 'SUPER_ADMIN' : document.getElementById('edit-user-role').value;
+        const status = isSuperAdmin ? 'ACTIVE' : document.getElementById('edit-user-status').value;
 
-        // Check email uniqueness among others
-        const allUsers = window.LmsData?.users || [];
-        if (allUsers.some(u => u.id !== userId && u.email.toLowerCase() === email)) {
-            App.showToast(`Email '${email}' is already taken by another user.`, "warning");
+        if (!isSuperAdmin && role === 'SUPER_ADMIN') {
+            App.showToast("Super Admin is a fixed system account and cannot be assigned.", "danger");
+            return;
+        }
+        const duplicate = this.findDuplicate(userId, email, username);
+        if (duplicate) {
+            App.showToast(duplicate, "warning");
             return;
         }
 
         user.name = name;
         user.urduName = urduName;
         user.email = email;
+        user.username = username;
+        user.phone = phone;
         user.role = role;
         user.designation = designation;
         user.status = status;
+        const extra = this.readRolePicker();
+        if (extra) user.additionalRoles = extra.filter(r => r !== role);
 
         // If editing current logged-in user, refresh header
         if (window.AuthRBAC.currentUser && window.AuthRBAC.currentUser.id === userId) {
@@ -561,6 +644,66 @@ const UsersModule = {
         App.navigate('users');
     },
 
+    // ADDITIONAL ROLES (a person may hold several roles; permissions add up, each with its role's data scope)
+    rolePicker(user) {
+        if (!window.AuthRBAC.can('users.assign_roles') || !user || user.id === (window.AuthRBAC.currentUser || {}).id) return '';
+        const held = new Set(user.additionalRoles || []);
+        const options = (window.LmsData?.roles || []).filter(r => !['SUPER_ADMIN', 'STUDENT', user.role].includes(r.id));
+        if (!options.length) return '';
+        return `
+            <div style="margin-top: 4px;" id="extra-roles-picker">
+                <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">Additional Roles</label>
+                <small style="display: block; color: var(--text-muted); font-size: 0.72rem; margin-bottom: 8px;">e.g. a teacher who also runs the library. You can only give roles that cannot do more than you.</small>
+                <div class="role-perm-grid">
+                    ${options.map(r => `
+                        <label class="role-perm-item" title="${Lms.esc(r.description || '')}">
+                            <input type="checkbox" name="extra-role" value="${Lms.esc(r.id)}" ${held.has(r.id) ? 'checked' : ''}>
+                            <span>${Lms.esc(r.name || r.id)}</span>
+                        </label>`).join('')}
+                </div>
+            </div>`;
+    },
+
+    // The ticked additional roles, or null when the picker was not shown (nothing to change)
+    readRolePicker() {
+        if (!document.getElementById('extra-roles-picker')) return null;
+        return Array.from(document.querySelectorAll('input[name="extra-role"]:checked')).map(b => b.value);
+    },
+
+    // SUPER ADMIN: given and taken away only here, with the Super Admin's password; there is always at least one
+    openSuperAdminModal(userId, grant) {
+        const user = window.LmsData?.users?.find(u => u.id === userId);
+        if (!user || !window.AuthRBAC.isSuperAdmin()) return;
+        const roles = (window.LmsData?.roles || []).filter(r => !['SUPER_ADMIN', 'STUDENT'].includes(r.id));
+        Lms.openModal(
+            grant ? `<i class="fas fa-crown" style="color: var(--gold-400);"></i> Make Super Admin` : `<i class="fas fa-crown" style="color: var(--danger);"></i> Remove Super Admin`,
+            `<p style="margin-bottom: 12px;">${grant
+                ? `<strong>${Lms.esc(user.name)}</strong> will have full control of every account, role, record and setting. Their current role stays with them as an additional role.`
+                : `<strong>${Lms.esc(user.name)}</strong> will lose Super Admin rights and be signed out. There must always be at least one Super Admin.`}</p>
+             ${grant ? '' : `<div class="form-group"><label for="sa-new-role">Role from now on *</label><select id="sa-new-role" class="form-control">${roles.map(r => `<option value="${Lms.esc(r.id)}">${Lms.esc(r.name || r.id)}</option>`).join('')}</select></div>`}
+             <div class="form-group"><label for="sa-password">Your password (to confirm) *</label><input type="password" id="sa-password" class="form-control" autocomplete="current-password"></div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn ${grant ? 'btn-gold' : 'btn-danger'}" onclick="UsersModule.confirmSuperAdmin(this, '${Lms.esc(userId)}', ${grant})">${grant ? 'Make Super Admin' : 'Remove Super Admin'}</button>`
+        );
+    },
+
+    async confirmSuperAdmin(btn, userId, grant) {
+        const password = document.getElementById('sa-password').value;
+        if (!password) return App.showToast('Enter your password to confirm.', 'warning');
+        const body = grant ? { userId, password } : { userId, password, newRole: Lms.val('sa-new-role') };
+        const result = await Lms.busy(btn, async () => {
+            const res = await fetch(grant ? '/api/super-admins' : '/api/super-admins/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            return { ok: res.ok, data: await res.json().catch(() => ({})) };
+        });
+        if (!result) return;
+        if (!result.ok) return App.showToast(result.data.error || 'The change was not saved.', 'danger');
+        App.closeModal();
+        App.showToast(grant ? 'Super Admin rights given.' : 'Super Admin rights removed.', 'success');
+        await window.DataStore.syncNow();
+        await window.AuthRBAC.loadRoles();
+        App.navigate('users');
+    },
+
     // RESET PASSWORD MODAL
     openResetPasswordModal(userId) {
         const user = window.LmsData?.users?.find(u => u.id === userId);
@@ -570,26 +713,26 @@ const UsersModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${user.name}`;
+        modalTitle.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${Lms.esc(user.name)}`;
 
         modalContainer.innerHTML = `
             <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-prominent);">
-                <div style="font-weight: 700; color: var(--primary-950);">${user.name}</div>
-                <div style="font-size: 0.85rem; color: var(--gold-700);">${user.email} &bull; Role: ${user.role}</div>
+                <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(user.name)}</div>
+                <div style="font-size: 0.85rem; color: var(--gold-700);">${Lms.esc(user.email)} &bull; Role: ${Lms.esc(user.role)}</div>
             </div>
 
-            <form id="form-reset-password" onsubmit="UsersModule.handleResetPasswordSubmit(event, '${userId}')">
+            <form id="form-reset-password" onsubmit="UsersModule.handleResetPasswordSubmit(event, '${Lms.esc(userId)}')">
                 <div style="margin-bottom: 16px;">
                     <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         New Password *
                     </label>
                     <div style="display: flex; gap: 8px;">
-                        <input type="text" id="reset-pwd-input" class="form-control" value="ashrafia${Math.floor(100 + Math.random() * 900)}" required>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('reset-pwd-input').value = 'ashrafia' + Math.floor(100 + Math.random() * 900)" title="Generate random password">
+                        <input type="text" id="reset-pwd-input" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('reset-pwd-input').value = Lms.tempPassword()" title="Generate random password">
                             <i class="fas fa-random"></i> Generate
                         </button>
                     </div>
-                    <small style="color: var(--text-muted); font-size: 0.72rem;">Minimum 4 characters. User can sign in with this new password immediately.</small>
+                    <small style="color: var(--text-muted); font-size: 0.72rem;">Temporary password, at least 8 characters. The user is signed out everywhere and must choose a new password at next sign-in.</small>
                 </div>
             </form>
         `;
@@ -610,15 +753,15 @@ const UsersModule = {
         if (!user) return;
 
         const newPwd = document.getElementById('reset-pwd-input').value.trim();
-        if (newPwd.length < 4) {
-            App.showToast("Password must be at least 4 characters long.", "danger");
+        if (newPwd.length < Lms.MIN_PASSWORD_LENGTH) {
+            App.showToast(`Password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters long.`, "danger");
             return;
         }
 
         user.password = newPwd;
         window.DataStore.save(window.LmsData);
         App.closeModal();
-        App.showToast(`Password for '${user.name}' has been reset successfully!`, "success");
+        App.showToast(`Temporary password set for '${user.name}': ${newPwd} (must be changed at next sign-in).`, "success");
     },
 
     // TOGGLE STATUS
@@ -626,8 +769,12 @@ const UsersModule = {
         const user = window.LmsData?.users?.find(u => u.id === userId);
         if (!user) return;
 
+        if (user.role === 'SUPER_ADMIN') {
+            App.showToast("The Super Admin account is always active.", "warning");
+            return;
+        }
         if (window.AuthRBAC.currentUser && window.AuthRBAC.currentUser.id === userId) {
-            App.showToast("You cannot deactivate your own active Super Admin session.", "warning");
+            App.showToast("You cannot deactivate your own account.", "warning");
             return;
         }
 
@@ -645,8 +792,12 @@ const UsersModule = {
         const user = window.LmsData?.users?.find(u => u.id === userId);
         if (!user) return;
 
+        if (user.role === 'SUPER_ADMIN') {
+            App.showToast("The Super Admin account cannot be deleted.", "danger");
+            return;
+        }
         if (window.AuthRBAC.currentUser && window.AuthRBAC.currentUser.id === userId) {
-            App.showToast("You cannot delete your own logged-in Super Admin account.", "danger");
+            App.showToast("You cannot delete your own logged-in account.", "danger");
             return;
         }
 
@@ -659,12 +810,12 @@ const UsersModule = {
         modalContainer.innerHTML = `
             <div style="padding: 10px 0;">
                 <p style="color: var(--text-primary); font-size: 1rem; margin-bottom: 12px;">
-                    Are you sure you want to permanently delete system user <strong>"${user.name}"</strong>?
+                    Are you sure you want to permanently delete system user <strong>"${Lms.esc(user.name)}"</strong>?
                 </p>
                 <div style="padding: 12px; background: rgba(239, 68, 68, 0.08); border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.85rem; color: #7f1d1d;">
-                    <div><strong>Email:</strong> ${user.email}</div>
-                    <div><strong>Role:</strong> ${user.role}</div>
-                    <div><strong>ID:</strong> ${user.id}</div>
+                    <div><strong>Email:</strong> ${Lms.esc(user.email)}</div>
+                    <div><strong>Role:</strong> ${Lms.esc(user.role)}</div>
+                    <div><strong>ID:</strong> ${Lms.esc(user.id)}</div>
                 </div>
                 <p style="color: var(--text-muted); font-size: 0.82rem; margin-top: 12px;">
                     This will permanently remove the system user credentials from Jamia Ashrafia LMS.
@@ -674,7 +825,7 @@ const UsersModule = {
 
         modalFooter.innerHTML = `
             <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-            <button class="btn btn-danger" onclick="UsersModule.confirmDeleteUser('${userId}')">
+            <button class="btn btn-danger" onclick="UsersModule.confirmDeleteUser('${Lms.esc(userId)}')">
                 <i class="fas fa-trash-alt"></i> Delete User
             </button>
         `;
@@ -683,6 +834,8 @@ const UsersModule = {
     },
 
     confirmDeleteUser(userId) {
+        const user = (window.LmsData.users || []).find(u => u.id === userId);
+        if (!user || user.role === 'SUPER_ADMIN') return;
         window.LmsData.users = (window.LmsData.users || []).filter(u => u.id !== userId);
         window.DataStore.save(window.LmsData);
         App.closeModal();

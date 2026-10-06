@@ -3,6 +3,60 @@
  * Role-Based Dashboards, Dynamic RBAC Sidebar, 403 Forbidden Guards & User Navigation
  */
 
+/**
+ * Sidebar menu. Each page appears for anyone who may open it (see MODULE_ACCESS in auth-rbac.js), so the
+ * menu and the pages can never disagree. Labels can differ for the office, teacher and student portals.
+ */
+const APP_NAV = [
+    {
+        title: { staff: 'Executive Control', teacher: 'Faculty Workspace', student: 'Talib-e-Ilm Portal' },
+        items: [
+            { route: 'dashboard', icon: { staff: 'fas fa-tachometer-alt', teacher: 'fas fa-chalkboard-teacher', student: 'fas fa-user-graduate' },
+                label: { staff: 'Dashboard', teacher: 'Teacher Dashboard', student: 'Student Dashboard' } },
+            {
+                group: 'users-permissions', label: 'Users & Roles', title: 'Manage LMS Users, Roles & Permissions', icon: 'fas fa-user-shield',
+                children: [
+                    { route: 'users', icon: 'fas fa-users', iconColor: 'var(--primary-400)', label: 'Users' },
+                    { route: 'roles', icon: 'fas fa-id-badge', iconColor: 'var(--gold-300)', label: 'Roles & Permissions' }
+                ]
+            },
+            { route: 'heritage', icon: 'fas fa-landmark', label: 'Institutional Heritage' }
+        ]
+    },
+    {
+        title: { staff: 'Students & Faculty', teacher: 'Teaching & Students', student: 'My Academics' },
+        items: [
+            { route: 'students', icon: 'fas fa-user-graduate', iconColor: 'var(--primary-400)', label: { staff: 'Students Management', teacher: 'My Students Roster' } },
+            { route: 'admissions', icon: 'fas fa-user-plus', label: 'Student Admissions' },
+            { route: 'classes', icon: { staff: 'fas fa-chalkboard-teacher', teacher: 'fas fa-book', student: 'fas fa-book-open' },
+                label: { staff: 'Classes & Curriculum', teacher: 'My Classes & Courses', student: 'My Classes & Courses' } },
+            { route: 'teachers', icon: 'fas fa-user-tie', label: { staff: 'Teachers & Portals', teacher: 'Faculty & My Profile', student: 'Faculty' } }
+        ]
+    },
+    {
+        title: { staff: 'Academic & Attendance', teacher: 'Lessons & Exams', student: 'Classes & Work' },
+        items: [
+            { route: 'attendance', icon: 'fas fa-calendar-check', iconColor: 'var(--gold-400)',
+                label: { staff: 'Attendance Monitoring', teacher: 'Faculty Attendance', student: 'My Attendance History' } },
+            { route: 'virtual-class', icon: 'fas fa-video', label: 'Zoom Virtual Dars' },
+            { route: 'assignments', icon: { staff: 'fas fa-edit', teacher: 'fas fa-clipboard-check', student: 'fas fa-file-upload' },
+                label: { staff: 'Assignments & Checking', teacher: 'Assignments & Grading', student: 'Assignments & Submissions' } },
+            { route: 'exams', icon: 'fas fa-award', label: { staff: 'Exams & Wifaq Sanad', teacher: 'Exams & Online Marking', student: 'Exams & Sanad Results' } },
+            { route: 'timetable', icon: 'fas fa-calendar-alt', label: { staff: 'Schedules & Timetable', teacher: 'Class Schedule / Timetable', student: 'Schedule & Timetable' } }
+        ]
+    },
+    {
+        title: { staff: 'Reports & Finances', teacher: 'Resources & Notices', student: 'Resources & Alerts' },
+        items: [
+            { route: 'reports', icon: 'fas fa-chart-line', iconColor: 'var(--gold-400)', label: { staff: 'Executive Reports', teacher: 'Teacher Reports', student: 'Reports' } },
+            { route: 'fees', icon: { staff: 'fas fa-hand-holding-heart', student: 'fas fa-file-invoice' }, label: { staff: 'Fees & Zakat Donations', student: 'My Fees & Payments' } },
+            { route: 'library', icon: 'fas fa-book-reader', label: 'Maktaba Ashrafia' },
+            { route: 'notifications', icon: 'fas fa-bullhorn', label: { staff: 'Broadcasts & Alerts', teacher: 'Notifications', student: 'Notifications' } },
+            { route: 'security', icon: 'fas fa-shield-alt', label: 'Architecture & RBAC' }
+        ]
+    }
+];
+
 const App = {
     currentRoute: 'dashboard',
     usersPermissionsSubmenuOpen: false,
@@ -107,12 +161,22 @@ const App = {
         if (viewport) {
             viewport.innerHTML = `<div style="padding: 80px 20px; text-align: center; color: var(--text-muted);"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><div style="margin-top: 12px;">Loading latest data...</div></div>`;
         }
-        if (!localStorage.getItem('JAMIA_CURRENT_USER_ID')) {
-            window.location.replace('login.html');
+        // The server says who is signed in; a user id saved in this browser proves nothing
+        const sessionUser = await window.AuthRBAC.verifySession();
+        if (!sessionUser) return; // redirected to the login page
+        if (sessionUser === 'offline') {
+            if (viewport) {
+                viewport.innerHTML = `<div style="padding: 80px 20px; text-align: center; color: var(--text-secondary);">
+                    <i class="fas fa-plug" style="font-size: 2rem; color: var(--warning);"></i>
+                    <h2 style="margin: 14px 0 6px; color: var(--primary-950);">The portal server cannot be reached</h2>
+                    <p>Check your internet connection, then try again.</p>
+                    <button class="btn btn-gold" onclick="location.reload()"><i class="fas fa-redo"></i> Try again</button>
+                </div>`;
+            }
             return;
         }
         // Show the signed-in user's own menu while loading (never the static placeholder)
-        const cachedUser = (window.LmsData.users || []).find(u => u.id === localStorage.getItem('JAMIA_CURRENT_USER_ID'));
+        const cachedUser = (window.LmsData.users || []).find(u => u.id === sessionUser.id);
         if (cachedUser) {
             window.AuthRBAC.currentUser = cachedUser;
             window.AuthRBAC.updateHeaderProfile();
@@ -152,18 +216,6 @@ const App = {
                 this.navigate(route);
             }
         });
-
-        // Role Switcher in Header (for instant testing of all roles)
-        const roleSelector = document.getElementById('role-selector-dropdown');
-        if (roleSelector) {
-            roleSelector.addEventListener('change', (e) => {
-                window.AuthRBAC.setRole(e.target.value);
-                this.renderSidebar();
-                this.showToast(`Switched active role to: ${e.target.value.replace('_', ' ')}`, "gold");
-                // Return to dashboard upon role change to guarantee safe view
-                this.navigate('dashboard');
-            });
-        }
 
         // Global Navigation Click delegation (supports data-route and internal hash navigation)
         document.addEventListener('click', (e) => {
@@ -245,322 +297,59 @@ const App = {
         }
     },
 
-    // Dynamically builds the sidebar according to role-based module permissions
+    // Dynamically builds the sidebar from one menu definition: an item shows when the user may open its page
     renderSidebar() {
         const sidebarNav = document.querySelector('#app-sidebar .sidebar-nav');
         if (!sidebarNav) return;
-
-        const role = window.AuthRBAC.getRole();
-        const can = (modKey) => window.AuthRBAC.canAccessModule(modKey, role);
+        const rbac = window.AuthRBAC;
+        const portal = rbac.portal();
+        const pick = v => (typeof v === 'string' ? v : (v[portal] || v.staff));
+        const link = (item, child) => {
+            const icon = pick(item.icon);
+            return `
+                <a href="#${item.route}" class="nav-item ${this.currentRoute === item.route ? 'active' : ''}" data-route="${item.route}">
+                    <i class="${Lms.esc(icon)}"${item.iconColor ? ` style="color: ${item.iconColor};"` : ''}></i>
+                    <span>${Lms.esc(pick(item.label))}</span>
+                </a>`;
+        };
 
         let html = '';
-
-        if (role === 'SUPER_ADMIN') {
-            html += `
-                <div class="nav-section-title">Executive Control</div>
-                <a href="#dashboard" class="nav-item ${this.currentRoute === 'dashboard' ? 'active' : ''}" data-route="dashboard">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <span>Super Admin Dashboard</span>
-                </a>
-
-                <!-- Users & Permissions with exactly three submenus: Users, Roles, Permissions -->
-                <div class="nav-group-wrapper">
-                    <div class="nav-item nav-parent-item ${['users', 'roles', 'permissions'].includes(this.currentRoute) ? 'active' : ''}" 
-                         onclick="App.toggleNavSubmenu('users-permissions')" 
-                         id="parent-nav-users-permissions"
-                         title="Manage LMS Users, Configured Roles & Module Permissions"
-                         style="cursor: pointer;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <i class="fas fa-user-shield" style="color: var(--gold-400);"></i>
-                            <span>Users & Permissions</span>
-                        </div>
-                        <i class="fas fa-chevron-down submenu-caret" id="caret-users-permissions" 
-                           style="${this.usersPermissionsSubmenuOpen ? 'transform: rotate(180deg);' : 'transform: rotate(0deg);'}"></i>
-                    </div>
-                    <div class="nav-submenu-list ${this.usersPermissionsSubmenuOpen ? 'open' : ''}" id="submenu-users-permissions" 
-                         style="display: ${this.usersPermissionsSubmenuOpen ? 'flex' : 'none'};">
-                        <a href="#users" class="nav-item ${this.currentRoute === 'users' ? 'active' : ''}" data-route="users">
-                            <i class="fas fa-users" style="color: var(--primary-400);"></i>
-                            <span>Users</span>
-                        </a>
-                        <a href="#roles" class="nav-item ${this.currentRoute === 'roles' ? 'active' : ''}" data-route="roles">
-                            <i class="fas fa-id-badge" style="color: var(--gold-300);"></i>
-                            <span>Roles</span>
-                        </a>
-                        <a href="#permissions" class="nav-item ${this.currentRoute === 'permissions' ? 'active' : ''}" data-route="permissions">
-                            <i class="fas fa-sliders-h" style="color: var(--warning);"></i>
-                            <span>Permissions</span>
-                            <span class="badge-pill gold" style="font-size: 0.65rem; padding: 1px 6px;">RBAC</span>
-                        </a>
-                    </div>
-                </div>
-
-                <a href="#heritage" class="nav-item ${this.currentRoute === 'heritage' ? 'active' : ''}" data-route="heritage">
-                    <i class="fas fa-landmark"></i>
-                    <span>Institutional Heritage</span>
-                    <span class="badge-pill">1947</span>
-                </a>
-
-                <div class="nav-section-title">Students & Faculty</div>
-                <a href="#students" class="nav-item ${this.currentRoute === 'students' ? 'active' : ''}" data-route="students">
-                    <i class="fas fa-user-graduate" style="color: var(--primary-400);"></i>
-                    <span>Students Management</span>
-                </a>
-                <a href="#admissions" class="nav-item ${this.currentRoute === 'admissions' ? 'active' : ''}" data-route="admissions">
-                    <i class="fas fa-user-plus"></i>
-                    <span>Student Admissions</span>
-                    <span class="badge-pill gold" id="sidebar-adm-badge">Queue</span>
-                </a>
-                <a href="#classes" class="nav-item ${this.currentRoute === 'classes' ? 'active' : ''}" data-route="classes">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    <span>Classes & Curriculum</span>
-                </a>
-                <a href="#teachers" class="nav-item ${this.currentRoute === 'teachers' ? 'active' : ''}" data-route="teachers">
-                    <i class="fas fa-user-tie"></i>
-                    <span>Teachers & Portals</span>
-                </a>
-
-                <div class="nav-section-title">Academic & Attendance</div>
-                <a href="#attendance" class="nav-item ${this.currentRoute === 'attendance' ? 'active' : ''}" data-route="attendance">
-                    <i class="fas fa-calendar-check" style="color: var(--gold-400);"></i>
-                    <span>Attendance Monitoring</span>
-                    <span class="badge-pill success">Live</span>
-                </a>
-                <a href="#virtual-class" class="nav-item ${this.currentRoute === 'virtual-class' ? 'active' : ''}" data-route="virtual-class">
-                    <i class="fas fa-video"></i>
-                    <span>Zoom Virtual Dars</span>
-                    <span class="badge-pill urgent"><i class="fas fa-circle"></i> Live</span>
-                </a>
-                <a href="#assignments" class="nav-item ${this.currentRoute === 'assignments' ? 'active' : ''}" data-route="assignments">
-                    <i class="fas fa-edit"></i>
-                    <span>Assignments & Checking</span>
-                </a>
-                <a href="#exams" class="nav-item ${this.currentRoute === 'exams' ? 'active' : ''}" data-route="exams">
-                    <i class="fas fa-award"></i>
-                    <span>Exams & Wifaq Sanad</span>
-                </a>
-                <a href="#timetable" class="nav-item ${this.currentRoute === 'timetable' ? 'active' : ''}" data-route="timetable">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>Schedules & Timetable</span>
-                </a>
-
-                <div class="nav-section-title">Reports & Finances</div>
-                <a href="#reports" class="nav-item ${this.currentRoute === 'reports' ? 'active' : ''}" data-route="reports">
-                    <i class="fas fa-chart-line" style="color: var(--gold-400);"></i>
-                    <span>Executive Reports</span>
-                    <span class="badge-pill gold">10 Sets</span>
-                </a>
-                <a href="#fees" class="nav-item ${this.currentRoute === 'fees' ? 'active' : ''}" data-route="fees">
-                    <i class="fas fa-hand-holding-heart"></i>
-                    <span>Fees & Zakat Donations</span>
-                </a>
-                <a href="#library" class="nav-item ${this.currentRoute === 'library' ? 'active' : ''}" data-route="library">
-                    <i class="fas fa-book-reader"></i>
-                    <span>Maktaba Ashrafia</span>
-                </a>
-                <a href="#notifications" class="nav-item ${this.currentRoute === 'notifications' ? 'active' : ''}" data-route="notifications">
-                    <i class="fas fa-bullhorn"></i>
-                    <span>Broadcasts & Alerts</span>
-                </a>
-                <a href="#security" class="nav-item ${this.currentRoute === 'security' ? 'active' : ''}" data-route="security">
-                    <i class="fas fa-shield-alt"></i>
-                    <span>Architecture & RBAC</span>
-                </a>
-            `;
-        } else if (role === 'TEACHER') {
-            html += `
-                <div class="nav-section-title">Faculty Workspace</div>
-                <a href="#dashboard" class="nav-item ${this.currentRoute === 'dashboard' ? 'active' : ''}" data-route="dashboard">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    <span>Teacher Dashboard</span>
-                </a>
-                ${can('heritage') ? `
-                    <a href="#heritage" class="nav-item ${this.currentRoute === 'heritage' ? 'active' : ''}" data-route="heritage">
-                        <i class="fas fa-landmark"></i>
-                        <span>Institutional Heritage</span>
-                    </a>
-                ` : ''}
-
-                <div class="nav-section-title">Teaching & Students</div>
-                ${can('students') ? `
-                    <a href="#students" class="nav-item ${this.currentRoute === 'students' ? 'active' : ''}" data-route="students">
-                        <i class="fas fa-user-graduate"></i>
-                        <span>My Students Roster</span>
-                    </a>
-                ` : ''}
-                ${can('attendance') ? `
-                    <a href="#attendance" class="nav-item ${this.currentRoute === 'attendance' ? 'active' : ''}" data-route="attendance">
-                        <i class="fas fa-calendar-check" style="color: var(--primary-400);"></i>
-                        <span>Faculty Attendance</span>
-                    </a>
-                ` : ''}
-                ${can('classes') ? `
-                    <a href="#classes" class="nav-item ${this.currentRoute === 'classes' ? 'active' : ''}" data-route="classes">
-                        <i class="fas fa-book"></i>
-                        <span>My Classes & Courses</span>
-                    </a>
-                ` : ''}
-                ${can('virtual_class') ? `
-                    <a href="#virtual-class" class="nav-item ${this.currentRoute === 'virtual-class' ? 'active' : ''}" data-route="virtual-class">
-                        <i class="fas fa-video"></i>
-                        <span>Zoom Virtual Dars</span>
-                        <span class="badge-pill urgent"><i class="fas fa-circle"></i> Live</span>
-                    </a>
-                ` : ''}
-                ${can('assignments') ? `
-                    <a href="#assignments" class="nav-item ${this.currentRoute === 'assignments' ? 'active' : ''}" data-route="assignments">
-                        <i class="fas fa-clipboard-check"></i>
-                        <span>Assignments & Grading</span>
-                    </a>
-                ` : ''}
-                ${can('exams') ? `
-                    <a href="#exams" class="nav-item ${this.currentRoute === 'exams' ? 'active' : ''}" data-route="exams">
-                        <i class="fas fa-award"></i>
-                        <span>Exams & Online Marking</span>
-                    </a>
-                ` : ''}
-                ${can('timetable') ? `
-                    <a href="#timetable" class="nav-item ${this.currentRoute === 'timetable' ? 'active' : ''}" data-route="timetable">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Class Schedule / Timetable</span>
-                    </a>
-                ` : ''}
-
-                <div class="nav-section-title">Resources & Notices</div>
-                ${can('reports') ? `
-                    <a href="#reports" class="nav-item ${this.currentRoute === 'reports' ? 'active' : ''}" data-route="reports">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Teacher Reports</span>
-                    </a>
-                ` : ''}
-                ${can('library') ? `
-                    <a href="#library" class="nav-item ${this.currentRoute === 'library' ? 'active' : ''}" data-route="library">
-                        <i class="fas fa-book-reader"></i>
-                        <span>Maktaba Ashrafia</span>
-                    </a>
-                ` : ''}
-                ${can('notifications') ? `
-                    <a href="#notifications" class="nav-item ${this.currentRoute === 'notifications' ? 'active' : ''}" data-route="notifications">
-                        <i class="fas fa-bullhorn"></i>
-                        <span>Notifications</span>
-                    </a>
-                ` : ''}
-                ${can('teachers') ? `
-                    <a href="#teachers" class="nav-item ${this.currentRoute === 'teachers' ? 'active' : ''}" data-route="teachers">
-                        <i class="fas fa-user-tie"></i>
-                        <span>Faculty & My Profile</span>
-                    </a>
-                ` : ''}
-            `;
-        } else if (role === 'STUDENT') {
-            html += `
-                <div class="nav-section-title">Talib-e-Ilm Portal</div>
-                <a href="#dashboard" class="nav-item ${this.currentRoute === 'dashboard' ? 'active' : ''}" data-route="dashboard">
-                    <i class="fas fa-user-graduate"></i>
-                    <span>Student Dashboard</span>
-                </a>
-                ${can('heritage') ? `
-                    <a href="#heritage" class="nav-item ${this.currentRoute === 'heritage' ? 'active' : ''}" data-route="heritage">
-                        <i class="fas fa-landmark"></i>
-                        <span>Institutional Heritage</span>
-                    </a>
-                ` : ''}
-
-                <div class="nav-section-title">My Academics</div>
-                ${can('attendance') ? `
-                    <a href="#attendance" class="nav-item ${this.currentRoute === 'attendance' ? 'active' : ''}" data-route="attendance">
-                        <i class="fas fa-calendar-check" style="color: var(--primary-400);"></i>
-                        <span>My Attendance History</span>
-                    </a>
-                ` : ''}
-                ${can('classes') ? `
-                    <a href="#classes" class="nav-item ${this.currentRoute === 'classes' ? 'active' : ''}" data-route="classes">
-                        <i class="fas fa-book-open"></i>
-                        <span>My Classes & Courses</span>
-                    </a>
-                ` : ''}
-                ${can('virtual_class') ? `
-                    <a href="#virtual-class" class="nav-item ${this.currentRoute === 'virtual-class' ? 'active' : ''}" data-route="virtual-class">
-                        <i class="fas fa-video"></i>
-                        <span>Zoom Virtual Dars</span>
-                        <span class="badge-pill urgent"><i class="fas fa-circle"></i> Live</span>
-                    </a>
-                ` : ''}
-                ${can('timetable') ? `
-                    <a href="#timetable" class="nav-item ${this.currentRoute === 'timetable' ? 'active' : ''}" data-route="timetable">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Schedule & Timetable</span>
-                    </a>
-                ` : ''}
-                ${can('assignments') ? `
-                    <a href="#assignments" class="nav-item ${this.currentRoute === 'assignments' ? 'active' : ''}" data-route="assignments">
-                        <i class="fas fa-file-upload"></i>
-                        <span>Assignments & Submissions</span>
-                    </a>
-                ` : ''}
-                ${can('exams') ? `
-                    <a href="#exams" class="nav-item ${this.currentRoute === 'exams' ? 'active' : ''}" data-route="exams">
-                        <i class="fas fa-award"></i>
-                        <span>Exams & Sanad Results</span>
-                    </a>
-                ` : ''}
-
-                <div class="nav-section-title">Resources & Alerts</div>
-                ${can('library') ? `
-                    <a href="#library" class="nav-item ${this.currentRoute === 'library' ? 'active' : ''}" data-route="library">
-                        <i class="fas fa-book-reader"></i>
-                        <span>Maktaba Ashrafia</span>
-                    </a>
-                ` : ''}
-                ${can('fees') ? `
-                    <a href="#fees" class="nav-item ${this.currentRoute === 'fees' ? 'active' : ''}" data-route="fees">
-                        <i class="fas fa-file-invoice"></i>
-                        <span>My Fees & Payments</span>
-                    </a>
-                ` : ''}
-                ${can('notifications') ? `
-                    <a href="#notifications" class="nav-item ${this.currentRoute === 'notifications' ? 'active' : ''}" data-route="notifications">
-                        <i class="fas fa-bullhorn"></i>
-                        <span>Notifications</span>
-                    </a>
-                ` : ''}
-            `;
-        } else {
-            // Academic Admin, Accountant and custom roles: every module this role is permitted to open
-            const roleDef = (window.LmsData.roles || []).find(r => r.id === role) || window.ROLES[role] || {};
-            const sections = [
-                ['Administration', ['admissions', 'students', 'teachers', 'users', 'roles', 'permissions']],
-                ['Academics', ['classes', 'attendance', 'virtual_class', 'assignments', 'exams', 'timetable']],
-                ['Finance & Resources', ['fees', 'library', 'reports', 'notifications', 'heritage', 'security']]
-            ];
-            const routeFor = mod => Object.keys(window.ROUTE_MODULE_MAP).find(r => window.ROUTE_MODULE_MAP[r] === mod) || mod;
-            html += `
-                <div class="nav-section-title">${Lms.esc(roleDef.name || roleDef.title || role.replace('_', ' '))}</div>
-                <a href="#dashboard" class="nav-item ${this.currentRoute === 'dashboard' ? 'active' : ''}" data-route="dashboard">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <span>Dashboard</span>
-                </a>
-            `;
-            sections.forEach(([title, mods]) => {
-                const allowed = mods.filter(m => can(m));
-                if (!allowed.length) return;
-                html += `<div class="nav-section-title">${title}</div>`;
-                allowed.forEach(m => {
-                    const meta = window.AuthRBAC.getModuleMeta(m);
-                    const r = routeFor(m);
-                    html += `
-                        <a href="#${r}" class="nav-item ${this.currentRoute === r ? 'active' : ''}" data-route="${r}">
-                            <i class="${meta.icon}"></i>
-                            <span>${Lms.esc(meta.title)}</span>
-                        </a>`;
-                });
+        APP_NAV.forEach(section => {
+            const parts = [];
+            section.items.forEach(item => {
+                if (item.children) {
+                    const kids = item.children.filter(c => rbac.canAccessRoute(c.route));
+                    if (!kids.length) return;
+                    const open = this.usersPermissionsSubmenuOpen;
+                    parts.push(`
+                        <div class="nav-group-wrapper">
+                            <div class="nav-item nav-parent-item ${kids.some(k => k.route === this.currentRoute) ? 'active' : ''}"
+                                 onclick="App.toggleNavSubmenu('${item.group}')" id="parent-nav-${item.group}" title="${Lms.esc(item.title || item.label)}" style="cursor: pointer;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <i class="${item.icon}" style="color: var(--gold-400);"></i>
+                                    <span>${Lms.esc(item.label)}</span>
+                                </div>
+                                <i class="fas fa-chevron-down submenu-caret" id="caret-${item.group}" style="${open ? 'transform: rotate(180deg);' : 'transform: rotate(0deg);'}"></i>
+                            </div>
+                            <div class="nav-submenu-list ${open ? 'open' : ''}" id="submenu-${item.group}" style="display: ${open ? 'flex' : 'none'};">
+                                ${kids.map(k => link(k, true)).join('')}
+                            </div>
+                        </div>`);
+                    return;
+                }
+                if (item.route === 'dashboard' || rbac.canAccessRoute(item.route)) parts.push(link(item));
             });
-        }
-
+            if (parts.length) html += `<div class="nav-section-title">${Lms.esc(pick(section.title))}</div>${parts.join('')}`;
+        });
         sidebarNav.innerHTML = html;
     },
 
     navigate(route, opts = {}) {
+        // Permissions are now part of each role; old links land on Roles
+        if (route === 'permissions') {
+            route = 'roles';
+            history.replaceState(null, '', '#roles');
+        }
         const leavingRoute = this.currentRoute;
         this.currentRoute = route;
         if (leavingRoute === 'virtual-class' && route !== 'virtual-class' && window.VirtualClassModule && window.VirtualClassModule.onLeaveRoute) {
@@ -583,10 +372,10 @@ const App = {
             }
         });
 
-        // Synchronize parent Users & Permissions item
+        // Synchronize parent Users & Roles item
         const parentNav = document.getElementById('parent-nav-users-permissions');
         if (parentNav) {
-            if (['users', 'roles', 'permissions'].includes(route)) {
+            if (['users', 'roles'].includes(route)) {
                 parentNav.classList.add('active');
                 const submenu = document.getElementById('submenu-users-permissions');
                 const caret = document.getElementById('caret-users-permissions');
@@ -622,9 +411,6 @@ const App = {
                 break;
             case 'roles':
                 viewport.innerHTML = window.RolesModule ? window.RolesModule.render() : '';
-                break;
-            case 'permissions':
-                viewport.innerHTML = window.PermissionsModule.render();
                 break;
             case 'students':
                 viewport.innerHTML = window.StudentsModule ? window.StudentsModule.render() : '';
@@ -698,7 +484,7 @@ const App = {
     renderForbidden(route) {
         const user = window.AuthRBAC.currentUser;
         const role = window.AuthRBAC.getRole();
-        const roleDef = window.ROLES[role] || { title: role };
+        const roleDef = { title: Lms.esc(window.AuthRBAC.roleName(role)) };
         const modKey = window.AuthRBAC.getModuleForRoute(route);
         const modMeta = modKey ? window.AuthRBAC.getModuleMeta(modKey) : { title: route, urdu: "" };
 
@@ -723,7 +509,7 @@ const App = {
 
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 24px; font-size: 0.82rem; color: var(--text-muted); text-align: left; line-height: 1.7;">
                     <div><i class="fas fa-lock" style="color: var(--danger);"></i> <strong>RBAC Guardrail:</strong> Direct URL bypass and unauthorized privilege escalation are strictly rejected by the institutional authorization engine.</div>
-                    <div style="margin-top: 6px;"><i class="fas fa-sliders-h" style="color: var(--gold-400);"></i> <strong>Permissions Authority:</strong> Only Hazrat Mohtamim (Super Admin) can enable or disable module access under <strong>Settings / Permissions</strong>.</div>
+                    <div style="margin-top: 6px;"><i class="fas fa-sliders-h" style="color: var(--gold-400);"></i> <strong>Permissions Authority:</strong> Module access is set for each role under <strong>Users & Roles &rarr; Roles & Permissions</strong>.</div>
                 </div>
 
                 <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
@@ -740,10 +526,11 @@ const App = {
 
     // Master Dashboard Delegator
     renderDashboard() {
-        const role = window.AuthRBAC.getRole();
-        if (role === 'STUDENT') {
+        // The dashboard follows the role's data scope: student portal, teacher portal or the office
+        const portal = window.AuthRBAC.portal();
+        if (portal === 'student') {
             return this.renderStudentDashboard();
-        } else if (role === 'TEACHER') {
+        } else if (portal === 'teacher') {
             return this.renderTeacherDashboard();
         } else {
             return this.renderSuperAdminDashboard();
@@ -754,7 +541,7 @@ const App = {
     renderSuperAdminDashboard() {
         const user = window.AuthRBAC.currentUser;
         const role = window.AuthRBAC.getRole();
-        const roleDef = (window.LmsData.roles || []).find(r => r.id === role) || window.ROLES[role] || {};
+        const roleDef = window.AuthRBAC.roleInfo(role);
         const inst = window.LmsData.institution;
         const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.isLive || vc.status === 'LIVE')
             || (window.LmsData.virtualClasses || []).find(vc => vc.status === 'UPCOMING');
@@ -762,6 +549,9 @@ const App = {
         const pendingFees = (window.LmsData.feeChallans || []).filter(c => c.status !== 'PAID');
         const verifyQueue = (window.LmsData.feeChallans || []).filter(c => c.status === 'VERIFICATION_PENDING').length;
         const can = (m) => window.AuthRBAC.canAccessModule(m);
+        // Finance figures only for those allowed to see fee and donation records
+        const seesFees = window.AuthRBAC.can('fees.challans.view');
+        const seesDonations = window.AuthRBAC.can('donations.view');
 
         return `
             <!-- WELCOME HEADER -->
@@ -777,13 +567,13 @@ const App = {
                     </p>
                 </div>
                 <div class="view-actions">
-                    ${can('permissions') ? `<button class="btn btn-gold btn-sm" onclick="App.navigate('permissions')">
-                        <i class="fas fa-sliders-h"></i> Configure Permissions
+                    ${can('roles') ? `<button class="btn btn-gold btn-sm" onclick="App.navigate('roles')">
+                        <i class="fas fa-sliders-h"></i> Roles & Permissions
                     </button>` : ''}
                     ${can('admissions') ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('admissions')">
                         <i class="fas fa-user-plus"></i> Admissions Queue (${window.LmsData.admissions.length})
                     </button>` : ''}
-                    ${can('fees') ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('fees')">
+                    ${seesFees ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('fees')">
                         <i class="fas fa-file-invoice-dollar"></i> Fees (${verifyQueue} to verify)
                     </button>` : ''}
                 </div>
@@ -839,22 +629,22 @@ const App = {
                         <span class="metric-hint"><i class="fas fa-users"></i> All Programs</span>
                     </div>
                 </div>
-                <div class="metric-card info">
+                ${seesFees ? `<div class="metric-card info">
                     <div class="metric-icon-box"><i class="fas fa-chart-line"></i></div>
                     <div class="metric-content">
                         <span class="metric-label">Unpaid Fee Challans</span>
                         <span class="metric-value">${pendingFees.length}</span>
                         <span class="metric-hint">${Lms.money(pendingFees.reduce((s, c) => s + (Number(c.netPayable) || 0), 0))} outstanding</span>
                     </div>
-                </div>
-                <div class="metric-card danger">
+                </div>` : ''}
+                ${seesDonations ? `<div class="metric-card danger">
                     <div class="metric-icon-box"><i class="fas fa-hand-holding-heart"></i></div>
                     <div class="metric-content">
                         <span class="metric-label">Zakat & Sadaqat</span>
                         <span class="metric-value">${Lms.money(totalDonations)}</span>
                         <span class="metric-hint" style="color: var(--text-muted);">Kafalat-e-Talib-e-Ilm</span>
                     </div>
-                </div>
+                </div>` : ''}
             </div>
 
             <!-- TWO COLUMN WORKSPACE -->
@@ -901,7 +691,7 @@ const App = {
                                 ['fees', 'fas fa-file-invoice', 'Fee Structure, Challans & Donations'],
                                 ['library', 'fas fa-book-reader', 'Library (Maktaba)'],
                                 ['reports', 'fas fa-chart-line', 'Executive Reports'],
-                                ['permissions', 'fas fa-sliders-h', 'System Permissions']
+                                ['roles', 'fas fa-sliders-h', 'Roles & Permissions']
                             ].filter(([m]) => can(m)).map(([m, icon, label]) => `
                                 <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="App.navigate('${Object.keys(window.ROUTE_MODULE_MAP).find(r => window.ROUTE_MODULE_MAP[r] === m)}')">
                                     <i class="${icon}" style="color: var(--primary-400);"></i> ${label}
@@ -1370,7 +1160,8 @@ const App = {
     openProfileModal() {
         const user = window.AuthRBAC.currentUser;
         const role = window.AuthRBAC.getRole();
-        const roleDef = window.ROLES[role] || { title: role, urduTitle: "" };
+        const roleInfo = window.AuthRBAC.roleInfo(role);
+        const roleDef = { title: Lms.esc(roleInfo.name || role), badgeClass: roleInfo.badgeClass };
 
         const titleEl = document.getElementById('modal-title-text');
         const bodyEl = document.getElementById('modal-body-container');
@@ -1380,16 +1171,16 @@ const App = {
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <div style="text-align: center; margin-bottom: 20px;">
-                    <div class="user-avatar" style="width: 72px; height: 72px; font-size: 1.6rem; margin: 0 auto 12px; border: 2px solid var(--gold-400);">${user.avatar || 'JA'}</div>
-                    <h3 style="color: var(--primary-950); margin-bottom: 4px;">${user.name}</h3>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--gold-700);">${user.urduName || ''}</div>
+                    <div class="user-avatar" style="width: 72px; height: 72px; font-size: 1.6rem; margin: 0 auto 12px; border: 2px solid var(--gold-400);">${Lms.esc(user.avatar || 'JA')}</div>
+                    <h3 style="color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(user.name)}</h3>
+                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--gold-700);">${Lms.esc(user.urduName || '')}</div>
                     <span class="status-pill ${roleDef.badgeClass || 'gold'}" style="margin-top: 6px;">${roleDef.title}</span>
                 </div>
 
                 <div style="background: var(--bg-surface-elevated); border-radius: var(--radius-sm); padding: 16px; font-size: 0.85rem; line-height: 1.9;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
                         <span style="color: var(--text-muted);"><i class="fas fa-envelope"></i> Official Email:</span>
-                        <strong style="color: var(--text-primary);">${user.email || 'N/A'}</strong>
+                        <strong style="color: var(--text-primary);">${Lms.esc(user.email || 'N/A')}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
                         <span style="color: var(--text-muted);"><i class="fas fa-mosque"></i> Campus / Branch:</span>
@@ -1417,6 +1208,11 @@ const App = {
         if (footerEl) {
             footerEl.innerHTML = `
                 <button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
+                ${window.AuthRBAC.isSuperAdmin() ? `
+                    <button class="btn btn-gold" onclick="RolesModule.editSuperAdminProfile()">
+                        <i class="fas fa-user-edit"></i> Edit Profile
+                    </button>
+                ` : ''}
                 <button class="btn btn-danger" onclick="App.closeModal(); window.AuthRBAC.logout();">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
@@ -1451,7 +1247,9 @@ const App = {
         else if (type === 'warning') icon = 'fas fa-exclamation-triangle';
         else if (type === 'gold') icon = 'fas fa-award';
 
-        toast.innerHTML = `<i class="${icon}" style="font-size: 1.1rem;"></i> <span>${message}</span>`;
+        // Messages often contain names and other text people typed, so they are always shown as plain text
+        toast.innerHTML = `<i class="${icon}" style="font-size: 1.1rem;"></i> <span></span>`;
+        toast.querySelector('span').textContent = String(message === undefined || message === null ? '' : message);
         container.appendChild(toast);
 
         setTimeout(() => {
@@ -1466,16 +1264,12 @@ const App = {
         try {
             const role = window.AuthRBAC ? window.AuthRBAC.getRole() : '';
             if (role) {
-                const me = window.AuthRBAC.currentUser || {};
-                const classIds = me.role === 'STUDENT' ? [me.classId].filter(Boolean) : [];
-                const res = await fetch('/api/notifications', {
-                    headers: {
-                        'X-User-Role': role,
-                        'X-User-Id': me.id || '',
-                        'X-User-Class': classIds.join(','),
-                        'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
-                    }
-                });
+                // The session cookie identifies the user; the server works out their classes itself
+                const res = await fetch('/api/notifications', { cache: 'no-store' });
+                if (res.status === 401) {
+                    window.location.replace('login.html?expired=1');
+                    return;
+                }
                 if (res.ok) {
                     const data = await res.json();
                     if (data && Array.isArray(data.notifications)) {
@@ -1486,7 +1280,7 @@ const App = {
                             this.lastUnreadCount = data.unreadCount;
                             if (prevUnread !== undefined && data.unreadCount > prevUnread && data.notifications[0]?.id !== prevTopId) {
                                 this.playChime();
-                                this.showToast(`New notification: ${Lms.esc(data.notifications[0].title)}`, 'gold');
+                                this.showToast(`New notification: ${data.notifications[0].title}`, 'gold');
                             }
                             // Show newly arrived notifications if the list is open
                             const viewport = document.getElementById('main-content-viewport');

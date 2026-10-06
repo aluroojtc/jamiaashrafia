@@ -82,7 +82,7 @@ const INITIAL_DATA = {
         },
         {
             id: "ACADEMIC_ADMIN",
-            name: "Academic Nazim",
+            name: "Admin",
             urduTitle: "ناظم تعلیمات",
             badgeClass: "info",
             description: "Administrative oversight of admissions, class allocations, syllabus, timetables, and academic rosters.",
@@ -116,7 +116,7 @@ const INITIAL_DATA = {
             urduTitle: "ناظم مالیات و صدقات",
             badgeClass: "warning",
             description: "Management of tuition fee challans, student fee concessions, and Jamia Ashrafia Zakat / Sadqah records.",
-            isSystem: true,
+            isSystem: false,
             permissions: ["fees:manage", "challan:generate", "donations:record"],
             status: "ACTIVE"
         }
@@ -130,7 +130,6 @@ const INITIAL_DATA = {
             role: "SUPER_ADMIN",
             designation: "Principal / Mohtamim",
             email: "mohtamim@jamiaashrafia.org",
-            password: "admin123",
             status: "ACTIVE",
             branchId: "b1",
             avatar: "FR"
@@ -142,7 +141,6 @@ const INITIAL_DATA = {
             role: "ACADEMIC_ADMIN",
             designation: "Nazim-e-Taleemat (Director Academics)",
             email: "taleemat@jamiaashrafia.org",
-            password: "nazim123",
             status: "ACTIVE",
             branchId: "b1",
             avatar: "AU"
@@ -158,7 +156,6 @@ const INITIAL_DATA = {
             branchId: "b1",
             avatar: "AO",
             sanad: "Shahadat-ul-Alimiyyah (Wifaq)",
-            password: "ashrafia123",
             status: "ACTIVE",
             assignedCourses: ["c_bukhari_1", "c_tirmidhi", "c_tajweed"]
         },
@@ -173,7 +170,6 @@ const INITIAL_DATA = {
             branchId: "b1",
             avatar: "AR",
             sanad: "Takhassus fil-Ifta (Jamia Ashrafia)",
-            password: "ashrafia123",
             status: "ACTIVE",
             assignedCourses: ["c_hidayah", "c_banking"]
         },
@@ -194,7 +190,6 @@ const INITIAL_DATA = {
             attendancePct: 98.4,
             gpa: "Mumtaz (88%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "TU"
         },
         {
@@ -214,7 +209,6 @@ const INITIAL_DATA = {
             attendancePct: 94.2,
             gpa: "Jayyid Jiddan (76%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "UT"
         },
         {
@@ -234,7 +228,6 @@ const INITIAL_DATA = {
             attendancePct: 100.0,
             gpa: "Mumtaz (92%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "RF"
         },
         {
@@ -254,7 +247,6 @@ const INITIAL_DATA = {
             attendancePct: 91.5,
             gpa: "Jayyid (68%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "ZH"
         },
         {
@@ -274,7 +266,6 @@ const INITIAL_DATA = {
             attendancePct: 96.0,
             gpa: "Mumtaz (85%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "BQ"
         },
         {
@@ -294,7 +285,6 @@ const INITIAL_DATA = {
             attendancePct: 88.0,
             gpa: "Jayyid (64%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "ZM"
         },
         {
@@ -314,7 +304,6 @@ const INITIAL_DATA = {
             attendancePct: 97.5,
             gpa: "Mumtaz (89%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "MS"
         },
         {
@@ -334,7 +323,6 @@ const INITIAL_DATA = {
             attendancePct: 93.0,
             gpa: "Jayyid Jiddan (74%)",
             status: "ACTIVE",
-            password: "ashrafia123",
             avatar: "HN"
         },
         {
@@ -344,7 +332,6 @@ const INITIAL_DATA = {
             role: "ACCOUNTANT",
             designation: "Nazim-e-Maliyat (Finance & Zakat Officer)",
             email: "finance@jamiaashrafia.org",
-            password: "ashrafia123",
             status: "ACTIVE",
             branchId: "b1",
             avatar: "AG"
@@ -1432,113 +1419,10 @@ const INITIAL_DATA = {
         }
     ],
 
-    // Granular Module Availability per Role (Configurable by Super Admin)
-    roleModulePermissions: {
-        STUDENT: {
-            classes: true,
-            assignments: true,
-            exams: true,
-            timetable: true,
-            virtual_class: true,
-            notifications: true,
-            library: true,
-            attendance: true,
-            students: false,
-            reports: false,
-            users: false,
-            roles: false,
-            admissions: false,
-            teachers: false,
-            fees: true,
-            heritage: true,
-            permissions: false,
-            security: false
-        },
-        TEACHER: {
-            classes: true,
-            assignments: true,
-            exams: true,
-            timetable: true,
-            virtual_class: true,
-            notifications: true,
-            library: true,
-            teachers: true,
-            students: true,
-            attendance: true,
-            reports: false,
-            users: false,
-            roles: false,
-            admissions: false,
-            fees: false,
-            heritage: true,
-            permissions: false,
-            security: false
-        },
-        ACADEMIC_ADMIN: {
-            classes: true,
-            assignments: true,
-            exams: true,
-            timetable: true,
-            virtual_class: true,
-            notifications: true,
-            library: true,
-            teachers: true,
-            students: true,
-            attendance: true,
-            reports: true,
-            users: false,
-            roles: false,
-            admissions: true,
-            fees: false,
-            heritage: true,
-            permissions: false,
-            security: false
-        },
-        ACCOUNTANT: {
-            classes: false,
-            assignments: false,
-            exams: false,
-            timetable: false,
-            virtual_class: false,
-            notifications: true,
-            library: false,
-            teachers: false,
-            students: false,
-            attendance: true,
-            reports: true,
-            users: false,
-            roles: false,
-            admissions: false,
-            fees: true,
-            heritage: true,
-            permissions: false,
-            security: false
-        },
-        SUPER_ADMIN: {
-            classes: true,
-            assignments: true,
-            exams: true,
-            timetable: true,
-            virtual_class: true,
-            notifications: true,
-            library: true,
-            admissions: true,
-            teachers: true,
-            students: true,
-            attendance: true,
-            reports: true,
-            users: true,
-            roles: true,
-            fees: true,
-            heritage: true,
-            permissions: true,
-            security: true
-        }
-    }
 };
 
 // DATA STORE CONTROLLER
-const DATA_SCHEMA_VERSION = 2;
+const DATA_SCHEMA_VERSION = 3;
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
 // Collections shared with every other user through the server record store (see server/lms-api.js)
@@ -1561,8 +1445,32 @@ function to24h(t) {
 
 // One-time upgrades for data saved by older versions of the portal
 function migrateData(parsed) {
-    if ((parsed.schemaVersion || 1) >= DATA_SCHEMA_VERSION) return false;
+    const from = parsed.schemaVersion || 1;
+    if (from >= DATA_SCHEMA_VERSION) return false;
+    if (from < 2) migrateToV2(parsed);
+    if (from < 3) migrateToV3(parsed);
+    parsed.schemaVersion = DATA_SCHEMA_VERSION;
+    return true;
+}
 
+// Roles: Super Admin's access is no longer stored, the separate Permissions page is gone,
+// "Academic Nazim" is now the default Admin role (which manages roles) and Accountant is a custom role
+function migrateToV3(parsed) {
+    const roles = parsed.roles || [];
+    const admin = roles.find(r => r.id === 'ACADEMIC_ADMIN');
+    if (admin && (!admin.name || admin.name === 'Academic Nazim')) admin.name = 'Admin';
+    const accountant = roles.find(r => r.id === 'ACCOUNTANT');
+    if (accountant) accountant.isSystem = false;
+
+    const perms = parsed.roleModulePermissions;
+    if (perms) {
+        delete perms.SUPER_ADMIN;
+        Object.values(perms).forEach(p => { if (p) delete p.permissions; });
+        if (perms.ACADEMIC_ADMIN) perms.ACADEMIC_ADMIN.roles = true;
+    }
+}
+
+function migrateToV2(parsed) {
     ['courseMaterials', 'examSubmissions', 'libraryLoans', 'feeStructures'].forEach(key => {
         if (!Array.isArray(parsed[key])) parsed[key] = clone(INITIAL_DATA[key] || []);
     });
@@ -1639,9 +1547,6 @@ function migrateData(parsed) {
         if (!Array.isArray(s.attachments)) s.attachments = [];
         delete s.attachmentUrl;
     });
-
-    parsed.schemaVersion = DATA_SCHEMA_VERSION;
-    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1649,6 +1554,8 @@ function migrateData(parsed) {
 // ---------------------------------------------------------------------------
 
 const SYNC_STATE_KEY = 'JAMIA_ASHRAFIA_LMS_SYNC_V1';
+// Set at sign-in: the next full pull replaces the local copy with what the server shares with this user
+const FRESH_SESSION_KEY = 'JAMIA_ASHRAFIA_FRESH_SESSION';
 
 function hashString(str) {
     let h = 5381;
@@ -1694,10 +1601,28 @@ const SyncEngine = {
         } catch (e) { /* quota: state is rebuilt on next full pull */ }
     },
 
+    // Who is calling is known to the server from the session cookie; no identity is sent from here
     headers() {
-        const uid = localStorage.getItem('JAMIA_CURRENT_USER_ID') || '';
-        const u = (window.LmsData?.users || []).find(x => x.id === uid);
-        return { 'Content-Type': 'application/json', 'X-User-Id': uid, 'X-User-Role': u ? u.role : '' };
+        return { 'Content-Type': 'application/json' };
+    },
+
+    // The session ended (signed out elsewhere, password reset, account deactivated) or needs a new password
+    checkAuth(res) {
+        if (res.status === 401) {
+            this.enabled = false;
+            localStorage.removeItem('JAMIA_CURRENT_USER_ID');
+            if (!/login\.html$/.test(window.location.pathname)) window.location.replace('login.html?expired=1');
+            throw new Error('signed out');
+        }
+        if (res.status === 403 && res.headers.get('content-type')?.includes('json')) {
+            return res.clone().json().then(body => {
+                if (body && body.mustChangePassword) {
+                    this.enabled = false;
+                    window.location.replace('login.html#change-password');
+                    throw new Error('password change required');
+                }
+            }, () => {});
+        }
     },
 
     enqueue(fn) {
@@ -1772,11 +1697,27 @@ const SyncEngine = {
         const data = window.LmsData;
         const url = full || !this.since ? '/api/store' : `/api/store?since=${encodeURIComponent(this.since)}`;
         const res = await fetch(url, { headers: this.headers(), cache: 'no-store' });
+        await this.checkAuth(res);
         if (!res.ok) throw new Error(`pull failed (${res.status})`);
         const payload = await res.json();
         const isFull = !!payload.full;
         const present = new Set(payload.presentCollections || []);
         const changedCollections = [];
+
+        // First full pull after signing in: the server's copy (only what this user may see) replaces the local one.
+        // Collections the server does not have yet keep their local seed data, so a new installation can be seeded.
+        if (isFull && localStorage.getItem(FRESH_SESSION_KEY) === '1') {
+            SYNC_COLLECTIONS.forEach(coll => {
+                if (!present.has(coll)) return;
+                const recs = (payload.collections || {})[coll] || [];
+                data[coll] = recs.slice();
+                const snap = this.snap[coll] = {};
+                recs.forEach(r => { snap[r.id] = recordHash(coll, r); });
+                changedCollections.push(coll);
+            });
+            this.pw = {};
+            localStorage.removeItem(FRESH_SESSION_KEY);
+        }
 
         // Private collections the server only shares with their owner: drop other people's
         // records locally (e.g. seed data) without treating that as a deletion to push
@@ -1866,6 +1807,8 @@ const SyncEngine = {
 
     async push() {
         if (!localStorage.getItem('JAMIA_CURRENT_USER_ID')) return;
+        // Previewing a role: nothing is sent (the local copy is discarded when the preview ends)
+        if (this.readOnly) return;
         const { upserts, deletes, meta } = this.computePush();
         if (!Object.keys(upserts).length && !Object.keys(deletes).length) return;
 
@@ -1874,27 +1817,50 @@ const SyncEngine = {
             headers: this.headers(),
             body: JSON.stringify({ upserts, deletes })
         });
+        await this.checkAuth(res);
         if (!res.ok) throw new Error(`push failed (${res.status})`);
         const out = await res.json();
         this.online = true;
 
+        let passwordsSent = false;
         Object.entries(out.accepted || {}).forEach(([coll, ids]) => {
             const snap = this.snap[coll] = this.snap[coll] || {};
             ids.forEach(id => {
                 const m = meta[coll] && meta[coll][id];
                 if (m) {
                     snap[id] = m.h;
-                    if (coll === 'users' && m.ph) this.pw[id] = m.ph;
+                    if (coll === 'users' && m.ph) {
+                        // The server keeps only a hash; never leave the password in this browser's storage
+                        const rec = (window.LmsData.users || []).find(u => u.id === id);
+                        if (rec) delete rec.password;
+                        delete this.pw[id];
+                        passwordsSent = true;
+                    }
                 } else {
                     delete snap[id]; // accepted delete
                 }
             });
         });
+        if (passwordsSent) {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(window.LmsData)); } catch (e) { /* storage full */ }
+        }
+        // Explain refusals the person can act on (e.g. a password that is too short, an email already in use)
+        const messages = [];
+        Object.values(out.errors || {}).forEach(byId => Object.values(byId).forEach(msg => messages.push(msg)));
+        if (messages.length && window.App && window.App.showToast) {
+            window.App.showToast(`Not saved: ${[...new Set(messages)].join(' ')}`, 'danger');
+        }
         let rejectedAny = false;
         Object.entries(out.rejected || {}).forEach(([coll, ids]) => {
             ids.forEach(id => {
                 rejectedAny = true;
                 if (this.snap[coll]) delete this.snap[coll][id];
+                if (coll === 'users') {
+                    // A refused password is not retried; the administrator sets a valid one again
+                    const rec = (window.LmsData.users || []).find(u => u.id === id);
+                    if (rec) delete rec.password;
+                    delete this.pw[id];
+                }
                 (this.rejected[coll] = this.rejected[coll] || new Set()).add(id);
             });
             console.warn(`[Sync] Server rejected changes to ${coll}:`, ids);
@@ -1955,39 +1921,6 @@ const DataStore = {
                 if (!parsed.roles || parsed.roles.length === 0) {
                     parsed.roles = clone(INITIAL_DATA.roles);
                     dirty = true;
-                }
-
-                // Guarantee roleModulePermissions is complete
-                if (!parsed.roleModulePermissions) {
-                    parsed.roleModulePermissions = clone(INITIAL_DATA.roleModulePermissions);
-                    dirty = true;
-                } else {
-                    // Guarantee SUPER_ADMIN retains full permissions permanently
-                    if (!parsed.roleModulePermissions.SUPER_ADMIN) {
-                        parsed.roleModulePermissions.SUPER_ADMIN = {};
-                    }
-                    Object.keys(INITIAL_DATA.roleModulePermissions.SUPER_ADMIN).forEach(m => {
-                        if (parsed.roleModulePermissions.SUPER_ADMIN[m] !== true) {
-                            parsed.roleModulePermissions.SUPER_ADMIN[m] = true;
-                            dirty = true;
-                        }
-                    });
-
-                    // Guarantee all configurable roles have permission definitions
-                    (parsed.roles || []).forEach(r => {
-                        if (!parsed.roleModulePermissions[r.id]) {
-                            parsed.roleModulePermissions[r.id] = INITIAL_DATA.roleModulePermissions[r.id]
-                                ? clone(INITIAL_DATA.roleModulePermissions[r.id])
-                                : {
-                                    classes: true, assignments: false, exams: false, timetable: true,
-                                    virtual_class: false, notifications: true, library: true, attendance: true,
-                                    students: false, reports: false, users: false, roles: false,
-                                    admissions: false, teachers: false, fees: false, heritage: true,
-                                    permissions: false, security: false
-                                };
-                            dirty = true;
-                        }
-                    });
                 }
 
                 // Guarantee attendance array exists
@@ -2068,6 +2001,20 @@ const DataStore = {
         return this.get();
     },
 
+    // Forgets everything this browser cached, so the next person on a shared computer starts from
+    // only what the server shares with them. Called at sign-in and sign-out.
+    clearLocal() {
+        clearTimeout(SyncEngine.pushTimer);
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(SYNC_STATE_KEY);
+        localStorage.setItem(FRESH_SESSION_KEY, '1');
+        SyncEngine.since = null;
+        SyncEngine.snap = {};
+        SyncEngine.pw = {};
+        window.LmsData = this.get();
+        return window.LmsData;
+    },
+
     // Starts multi-user sync (called once the portal has loaded)
     startSync() {
         return SyncEngine.start();
@@ -2077,6 +2024,11 @@ const DataStore = {
     syncNow() {
         clearTimeout(SyncEngine.pushTimer);
         return SyncEngine.enqueue(() => SyncEngine.cycle(false));
+    },
+
+    // While a Super Admin previews a role, changes stay in this browser and are never sent
+    setReadOnly(on) {
+        SyncEngine.readOnly = !!on;
     },
 
     isOnline() {

@@ -26,7 +26,7 @@
 
     <!-- Design System CSS -->
     <link rel="stylesheet" href="css/main.css?v=4.0">
-    <link rel="stylesheet" href="css/components.css?v=5.0">
+    <link rel="stylesheet" href="css/components.css?v=5.1">
     <link rel="stylesheet" href="css/zoom-room.css?v=4.0">
 </head>
 <body>
@@ -107,9 +107,13 @@
                             <i class="fas fa-id-badge"></i>
                             <span>My Profile</span>
                         </button>
+                        <button class="dropdown-item" onclick="document.getElementById('header-user-dropdown').classList.remove('open'); Lms.openChangePasswordModal()">
+                            <i class="fas fa-key"></i>
+                            <span>Change Password</span>
+                        </button>
                         <button class="dropdown-item" id="dropdown-settings-link" onclick="App.navigate('users'); document.getElementById('header-user-dropdown').classList.remove('open');">
                             <i class="fas fa-user-shield"></i>
-                            <span>Users & Permissions</span>
+                            <span>Users & Roles</span>
                         </button>
                         <div class="dropdown-divider"></div>
                         <button class="dropdown-item danger" onclick="window.AuthRBAC.logout()">
@@ -134,14 +138,12 @@
                     <a href="#heritage" class="nav-item" data-route="heritage">
                         <i class="fas fa-landmark"></i>
                         <span>Institutional Heritage</span>
-                        <span class="badge-pill">1947</span>
                     </a>
 
                     <div class="nav-section-title">Admissions & Faculty</div>
                     <a href="#admissions" class="nav-item" data-route="admissions">
                         <i class="fas fa-user-graduate"></i>
                         <span>Student Admissions</span>
-                        <span class="badge-pill gold" id="sidebar-adm-badge">Queue</span>
                     </a>
                     <a href="#classes" class="nav-item" data-route="classes">
                         <i class="fas fa-chalkboard-teacher"></i>
@@ -156,7 +158,6 @@
                     <a href="#virtual-class" class="nav-item" data-route="virtual-class">
                         <i class="fas fa-video"></i>
                         <span>Zoom Virtual Dars</span>
-                        <span class="badge-pill urgent"><i class="fas fa-circle"></i> Live</span>
                     </a>
                     <a href="#assignments" class="nav-item" data-route="assignments">
                         <i class="fas fa-edit"></i>
@@ -231,27 +232,26 @@
     <div id="toast-container"></div>
 
     <!-- APPLICATION SCRIPTS -->
-    <script src="js/data.js?v=5.0"></script>
-    <script src="js/auth-rbac.js?v=5.0"></script>
-    <script src="js/lms-core.js?v=5.0"></script>
-    <script src="js/modules/permissions.js?v=5.0"></script>
-    <script src="js/modules/institutional.js?v=5.0"></script>
-    <script src="js/modules/admissions.js?v=5.0"></script>
-    <script src="js/modules/classes-courses.js?v=5.0"></script>
-    <script src="js/modules/teachers.js?v=5.0"></script>
-    <script src="js/modules/assignments.js?v=5.0"></script>
-    <script src="js/modules/fees-donations.js?v=5.0"></script>
-    <script src="js/modules/library.js?v=5.0"></script>
-    <script src="js/modules/exams.js?v=5.0"></script>
-    <script src="js/modules/timetable.js?v=5.0"></script>
-    <script src="js/modules/notifications.js?v=5.0"></script>
-    <script src="js/modules/attendance.js?v=5.0"></script>
-    <script src="js/modules/students.js?v=5.0"></script>
-    <script src="js/modules/users.js?v=5.0"></script>
-    <script src="js/modules/roles.js?v=5.0"></script>
-    <script src="js/modules/reports.js?v=5.0"></script>
-    <script src="js/modules/virtual-class.js?v=5.0"></script>
-    <script src="js/modules/prayer-times.js?v=5.0"></script>
-    <script src="js/app.js?v=5.0"></script>
+    <script src="js/data.js?v=6.2"></script>
+    <script src="js/auth-rbac.js?v=6.2"></script>
+    <script src="js/lms-core.js?v=6.2"></script>
+    <script src="js/modules/institutional.js?v=6.2"></script>
+    <script src="js/modules/admissions.js?v=6.2"></script>
+    <script src="js/modules/classes-courses.js?v=6.2"></script>
+    <script src="js/modules/teachers.js?v=6.2"></script>
+    <script src="js/modules/assignments.js?v=6.2"></script>
+    <script src="js/modules/fees-donations.js?v=6.2"></script>
+    <script src="js/modules/library.js?v=6.2"></script>
+    <script src="js/modules/exams.js?v=6.2"></script>
+    <script src="js/modules/timetable.js?v=6.2"></script>
+    <script src="js/modules/notifications.js?v=6.2"></script>
+    <script src="js/modules/attendance.js?v=6.2"></script>
+    <script src="js/modules/students.js?v=6.2"></script>
+    <script src="js/modules/users.js?v=6.2"></script>
+    <script src="js/modules/roles.js?v=6.2"></script>
+    <script src="js/modules/reports.js?v=6.2"></script>
+    <script src="js/modules/virtual-class.js?v=6.2"></script>
+    <script src="js/modules/prayer-times.js?v=6.2"></script>
+    <script src="js/app.js?v=6.2"></script>
 </body>
 </html>

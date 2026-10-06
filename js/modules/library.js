@@ -15,7 +15,8 @@ const LibraryModule = {
     FINE_PER_DAY: 10,
 
     canManage() {
-        return window.AuthRBAC.isAdmin() || Lms.role() === 'LIBRARIAN' || window.AuthRBAC.can('library:manage');
+        // Issuing and returning books for everyone (the office view of loans)
+        return window.AuthRBAC.wide('library.loans.issue');
     },
 
     loans() {
@@ -63,7 +64,8 @@ const LibraryModule = {
                 </div>
                 <div class="view-actions">
                     ${canManage ? `
-                        <button class="btn btn-secondary btn-sm" onclick="LibraryModule.openIssueModal()"><i class="fas fa-stamp"></i> Issue Book</button>
+                        <button class="btn btn-secondary btn-sm" onclick="LibraryModule.openIssueModal()"><i class="fas fa-stamp"></i> Issue Book</button>` : ''}
+                    ${Lms.can('library.catalog.manage') ? `
                         <button class="btn btn-gold btn-sm" onclick="LibraryModule.openAddBookModal()"><i class="fas fa-plus"></i> Catalog New Kitab</button>` : ''}
                 </div>
             </div>
@@ -185,8 +187,8 @@ const LibraryModule = {
                             ${myLoan ? `<span class="status-pill ${myLoan.status === 'ISSUED' ? 'success' : 'warning'}" style="flex: 1; justify-content: center;">${myLoan.status === 'ISSUED' ? 'Issued to you • due ' + Lms.fmtDate(myLoan.dueDate) : 'Request pending'}</span>`
                                 : canManage
                                     ? `<button class="btn btn-gold btn-sm" style="flex: 1;" onclick="LibraryModule.openIssueModal('${b.id}')" ${avail <= 0 ? 'disabled' : ''}><i class="fas fa-stamp"></i> Issue</button>`
-                                    : `<button class="btn btn-gold btn-sm" style="flex: 1;" onclick="LibraryModule.requestBook('${b.id}')" ${avail <= 0 ? 'disabled title="All copies are on loan"' : ''}><i class="fas fa-book"></i> Request to Borrow</button>`}
-                            ${canManage ? `
+                                    : !Lms.can('library.request') ? '' : `<button class="btn btn-gold btn-sm" style="flex: 1;" onclick="LibraryModule.requestBook('${b.id}')" ${avail <= 0 ? 'disabled title="All copies are on loan"' : ''}><i class="fas fa-book"></i> Request to Borrow</button>`}
+                            ${Lms.can('library.catalog.manage') ? `
                                 <button class="btn btn-secondary btn-sm" title="Edit" onclick="LibraryModule.openAddBookModal('${b.id}')"><i class="fas fa-edit"></i></button>
                                 <button class="btn btn-secondary btn-sm" title="Delete" onclick="LibraryModule.deleteBook('${b.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                         </div>

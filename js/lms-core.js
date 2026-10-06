@@ -21,6 +21,59 @@ const Lms = {
         return this.esc(value).replace(/\n/g, '<br>');
     },
 
+    // Random temporary password for accounts created or reset by staff (the person must change it at first sign-in)
+    tempPassword(length = 10) {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        const bytes = new Uint32Array(length);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, b => chars[b % chars.length]).join('');
+    },
+
+    MIN_PASSWORD_LENGTH: 8,
+
+    // Changes the signed-in user's own password; resolves to null on success or an error message
+    async changeOwnPassword(currentPassword, newPassword) {
+        if (String(newPassword || '').length < this.MIN_PASSWORD_LENGTH) return `The new password must be at least ${this.MIN_PASSWORD_LENGTH} characters.`;
+        try {
+            const res = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPassword, newPassword })
+            });
+            const data = await res.json().catch(() => ({}));
+            return res.ok && data.success ? null : (data.error || `Password could not be changed (${res.status}).`);
+        } catch (e) {
+            return 'The portal server cannot be reached. Please try again.';
+        }
+    },
+
+    openChangePasswordModal() {
+        this.openModal(
+            `<i class="fas fa-key" style="color: var(--gold-400);"></i> Change Password`,
+            `<div class="form-group"><label for="cpw-current">Current password</label><input type="password" id="cpw-current" class="form-control" autocomplete="current-password"></div>
+             <div class="form-group"><label for="cpw-new">New password</label><input type="password" id="cpw-new" class="form-control" autocomplete="new-password">
+                <small style="color: var(--text-muted);">At least ${this.MIN_PASSWORD_LENGTH} characters. Other devices signed in to your account will be signed out.</small></div>
+             <div class="form-group"><label for="cpw-confirm">Confirm new password</label><input type="password" id="cpw-confirm" class="form-control" autocomplete="new-password"></div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-gold" onclick="Lms.submitChangePassword(this)"><i class="fas fa-save"></i> Change Password</button>`
+        );
+    },
+
+    async submitChangePassword(btn) {
+        const next = this.val('cpw-new');
+        if (next !== this.val('cpw-confirm')) {
+            window.App.showToast('The two new passwords do not match.', 'warning');
+            return;
+        }
+        const error = await this.busy(btn, () => this.changeOwnPassword(document.getElementById('cpw-current').value, next), 'Saving...');
+        if (error) {
+            window.App.showToast(error, 'danger');
+            return;
+        }
+        window.App.closeModal();
+        window.App.showToast('Your password has been changed.', 'success');
+    },
+
     uid(prefix) {
         return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     },
@@ -114,8 +167,18 @@ const Lms = {
         return window.AuthRBAC.getRole();
     },
 
+    // Whole-institution staff (the office), as opposed to the teacher or student portals
     isStaffAdmin() {
-        return window.AuthRBAC.isAdmin();
+        return window.AuthRBAC.scope() === 'ALL';
+    },
+
+    can(permission) {
+        return window.AuthRBAC.can(permission);
+    },
+
+    // 'staff' | 'teacher' | 'student': which version of a page to show (follows the role's data scope)
+    portal() {
+        return window.AuthRBAC.portal();
     },
 
     user(id) {
@@ -195,10 +258,10 @@ const Lms = {
     // Classes the signed-in user can see / act on
     myClassIds() {
         const me = this.me();
-        if (this.isStaffAdmin()) return (window.LmsData.classes || []).map(c => c.id);
-        if (me.role === 'TEACHER') return this.teacherClassIds(me.id);
-        if (me.role === 'STUDENT') return me.classId ? [me.classId] : [];
-        return [];
+        const portal = this.portal();
+        if (portal === 'staff') return (window.LmsData.classes || []).map(c => c.id);
+        if (portal === 'teacher') return this.teacherClassIds(me.id);
+        return me.classId ? [me.classId] : [];
     },
 
     classOptions(selectedId, ids) {
@@ -229,14 +292,11 @@ const Lms = {
     async uploadFile(file) {
         if (!file) return null;
         if (file.size > 25 * 1024 * 1024) throw new Error(`${file.name} is larger than 25 MB`);
-        const me = this.me();
         const res = await fetch('/api/uploads', {
             method: 'POST',
             headers: {
                 'Content-Type': file.type || 'application/octet-stream',
-                'X-File-Name': encodeURIComponent(file.name),
-                'X-User-Id': me.id || '',
-                'X-User-Role': me.role || ''
+                'X-File-Name': encodeURIComponent(file.name)
             },
             body: file
         });
@@ -302,11 +362,7 @@ const Lms = {
         try {
             const res = await fetch('/api/notifications', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-Id': me.id || '',
-                    'X-User-Role': me.role || ''
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ notifications: payload })
             });
             if (res.status >= 400 && res.status < 500) {

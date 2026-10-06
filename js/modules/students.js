@@ -16,8 +16,8 @@ const StudentsModule = {
         const user = window.AuthRBAC.currentUser;
         const role = window.AuthRBAC.getRole();
 
-        // RBAC Check: Only Super Admin and Academic Nazim can manage student roster
-        if (role === 'STUDENT') {
+        // Students page: needs students.view (the server sends only the students within the role's scope)
+        if (!window.AuthRBAC.can('students.view')) {
             return `
                 <div class="card" style="border: 2px solid var(--danger); text-align: center; padding: 48px 24px;">
                     <i class="fas fa-lock" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
@@ -85,12 +85,12 @@ const StudentsModule = {
                     <p>Directory of resident scholars, LMS account administration, credential controls, and granular student profiles</p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="StudentsModule.exportStudentsCSV()">
+                    ${Lms.can('students.export') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.exportStudentsCSV()">
                         <i class="fas fa-file-csv"></i> Export Students CSV
-                    </button>
-                    <button class="btn btn-gold btn-sm" onclick="StudentsModule.openDirectEnrollmentModal()">
+                    </button>` : ''}
+                    ${Lms.can('students.create') ? `<button class="btn btn-gold btn-sm" onclick="StudentsModule.openDirectEnrollmentModal()">
                         <i class="fas fa-user-plus"></i> Direct Student Enrollment
-                    </button>
+                    </button>` : ''}
                 </div>
             </div>
 
@@ -207,31 +207,31 @@ const StudentsModule = {
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 10px;">
                                                 <div class="user-avatar" style="width: 38px; height: 38px; font-size: 0.85rem; background: var(--primary-700); border: 2px solid ${status === 'ACTIVE' ? 'var(--primary-400)' : 'var(--danger)'};">
-                                                    ${s.avatar || 'ST'}
+                                                    ${Lms.esc(s.avatar || 'ST')}
                                                 </div>
                                                 <div>
                                                     <div style="font-weight: 700; color: var(--primary-950);">
-                                                        <a href="javascript:void(0)" onclick="StudentsModule.viewProfile('${s.id}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--primary-600)'" onmouseout="this.style.color='var(--primary-950)'">
-                                                            ${s.name}
+                                                        <a href="javascript:void(0)" onclick="StudentsModule.viewProfile('${Lms.esc(s.id)}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--primary-600)'" onmouseout="this.style.color='var(--primary-950)'">
+                                                            ${Lms.esc(s.name)}
                                                         </a>
                                                     </div>
-                                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${s.urduName || ''}</div>
-                                                    <div style="font-size: 0.72rem; color: var(--text-muted);">${s.email || 'No email set'}</div>
+                                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${Lms.esc(s.urduName || '')}</div>
+                                                    <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(s.email || 'No email set')}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
                                             <span class="status-pill primary" style="font-family: monospace; font-size: 0.82rem; font-weight: 700;">
-                                                ${s.rollNo || 'N/A'}
+                                                ${Lms.esc(s.rollNo || 'N/A')}
                                             </span>
                                         </td>
                                         <td style="color: var(--text-secondary); font-size: 0.85rem;">
-                                            <div style="font-weight: 600; color: var(--primary-950);">${s.program || 'Dars-e-Nizami'}</div>
-                                            <span style="font-size: 0.72rem; color: var(--text-muted);">${s.classId || 'cls_dawra_a'}</span>
+                                            <div style="font-weight: 600; color: var(--primary-950);">${Lms.esc(s.program || 'Dars-e-Nizami')}</div>
+                                            <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(s.classId || 'cls_dawra_a')}</span>
                                         </td>
                                         <td style="font-size: 0.82rem;">
                                             ${s.hostel && s.hostel.toLowerCase().includes('hostel') ? `
-                                                <span class="status-pill danger" style="font-size: 0.72rem;"><i class="fas fa-bed"></i> ${s.hostel}</span>
+                                                <span class="status-pill danger" style="font-size: 0.72rem;"><i class="fas fa-bed"></i> ${Lms.esc(s.hostel)}</span>
                                             ` : `
                                                 <span class="status-pill" style="font-size: 0.72rem;"><i class="fas fa-home"></i> Day Scholar</span>
                                             `}
@@ -239,12 +239,12 @@ const StudentsModule = {
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 6px;">
                                                 <strong style="color: ${s.attendancePct >= 85 ? 'var(--primary-300)' : (s.attendancePct >= 75 ? 'var(--gold-300)' : 'var(--danger)')};">
-                                                    ${s.attendancePct || 92}%
+                                                    ${Lms.esc(s.attendancePct || 92)}%
                                                 </strong>
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="status-pill gold" style="font-size: 0.75rem;">${s.gpa || 'Mumtaz'}</span>
+                                            <span class="status-pill gold" style="font-size: 0.75rem;">${Lms.esc(s.gpa || 'Mumtaz')}</span>
                                         </td>
                                         <td>
                                             <span class="status-pill ${badgeClass}">
@@ -255,30 +255,30 @@ const StudentsModule = {
                                         <td style="text-align: right; white-space: nowrap;">
                                             <div style="display: inline-flex; gap: 5px; align-items: center;">
                                                 <!-- MANAGE PROFILE & ACCOUNT -->
-                                                <button class="btn btn-gold btn-sm" onclick="StudentsModule.viewProfile('${s.id}')" title="Manage Profile & Account Settings">
+                                                <button class="btn btn-gold btn-sm" onclick="StudentsModule.viewProfile('${Lms.esc(s.id)}')" title="Manage Profile & Account Settings">
                                                     <i class="fas fa-user-cog"></i> Profile
                                                 </button>
 
                                                 <!-- QUICK TOGGLE STATUS -->
-                                                ${status === 'ACTIVE' ? `
-                                                    <button class="btn btn-secondary btn-sm" onclick="StudentsModule.quickToggleStatus('${s.id}', 'SUSPENDED')" title="Deactivate / Suspend Student" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.3);">
+                                                ${!Lms.can('students.deactivate') ? '' : status === 'ACTIVE' ? `
+                                                    <button class="btn btn-secondary btn-sm" onclick="StudentsModule.quickToggleStatus('${Lms.esc(s.id)}', 'SUSPENDED')" title="Deactivate / Suspend Student" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.3);">
                                                         <i class="fas fa-user-slash"></i>
                                                     </button>
                                                 ` : `
-                                                    <button class="btn btn-secondary btn-sm" onclick="StudentsModule.quickToggleStatus('${s.id}', 'ACTIVE')" title="Activate Student" style="color: var(--primary-400); border-color: rgba(16, 185, 129, 0.3);">
+                                                    <button class="btn btn-secondary btn-sm" onclick="StudentsModule.quickToggleStatus('${Lms.esc(s.id)}', 'ACTIVE')" title="Activate Student" style="color: var(--primary-400); border-color: rgba(16, 185, 129, 0.3);">
                                                         <i class="fas fa-user-check"></i>
                                                     </button>
                                                 `}
 
                                                 <!-- RESET PASSWORD -->
-                                                <button class="btn btn-secondary btn-sm" onclick="StudentsModule.openResetPasswordModal('${s.id}')" title="Reset Student Password">
+                                                ${Lms.can('students.reset_password') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.openResetPasswordModal('${Lms.esc(s.id)}')" title="Reset Student Password">
                                                     <i class="fas fa-key"></i>
-                                                </button>
+                                                </button>` : ''}
 
                                                 <!-- MORE ACTIONS -->
-                                                <button class="btn btn-secondary btn-sm" onclick="StudentsModule.openMoreActionsModal('${s.id}')" title="Additional Student Operations">
+                                                ${Lms.can('students.update') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.openMoreActionsModal('${Lms.esc(s.id)}')" title="Additional Student Operations">
                                                     <i class="fas fa-ellipsis-v"></i>
-                                                </button>
+                                                </button>` : ''}
                                             </div>
                                         </td>
                                     </tr>
@@ -350,10 +350,10 @@ const StudentsModule = {
         if (footerEl) {
             footerEl.innerHTML = `
                 <button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
-                <button class="btn btn-secondary" onclick="StudentsModule.printStudentCard('${student.id}')">
+                <button class="btn btn-secondary" onclick="StudentsModule.printStudentCard('${Lms.esc(student.id)}')">
                     <i class="fas fa-id-card"></i> Print Student ID
                 </button>
-                <button class="btn btn-gold" onclick="StudentsModule.testStudentPersona('${student.id}')">
+                <button class="btn btn-gold" onclick="StudentsModule.testStudentPersona('${Lms.esc(student.id)}')">
                     <i class="fas fa-exchange-alt"></i> Login as Student
                 </button>
             `;
@@ -383,61 +383,61 @@ const StudentsModule = {
             <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.35) 0%, rgba(17, 24, 39, 0.8) 100%); border: 1px solid var(--border-prominent); border-radius: var(--radius-md); padding: 18px; margin-bottom: 20px;">
                 <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap;">
                     <div class="user-avatar" style="width: 70px; height: 70px; font-size: 1.6rem; background: var(--primary-700); border: 3px solid ${currentStatus === 'ACTIVE' ? 'var(--gold-400)' : 'var(--danger)'};">
-                        ${student.avatar || 'ST'}
+                        ${Lms.esc(student.avatar || 'ST')}
                     </div>
                     <div style="flex: 1; min-width: 240px;">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem;">${student.name}</h3>
+                            <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem;">${Lms.esc(student.name)}</h3>
                             <span class="status-pill ${currentStatus === 'ACTIVE' ? 'success' : (isSuspended ? 'danger' : 'gold')}">
                                 <i class="fas ${currentStatus === 'ACTIVE' ? 'fa-check-circle' : 'fa-ban'}"></i> ${currentStatus}
                             </span>
                         </div>
                         <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-700); margin-top: 2px;">
-                            ${student.urduName || ''}
+                            ${Lms.esc(student.urduName || '')}
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 0.82rem; color: var(--text-secondary); flex-wrap: wrap;">
-                            <span><strong>Roll No:</strong> <code style="color: var(--primary-800); font-weight: 700;">${student.rollNo || 'N/A'}</code></span>
-                            <span><strong>Program:</strong> ${student.program || 'Dars-e-Nizami'}</span>
-                            <span><strong>Class:</strong> ${student.classId || 'Dawra-e-Hadith'}</span>
+                            <span><strong>Roll No:</strong> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(student.rollNo || 'N/A')}</code></span>
+                            <span><strong>Program:</strong> ${Lms.esc(student.program || 'Dars-e-Nizami')}</span>
+                            <span><strong>Class:</strong> ${Lms.esc(student.classId || 'Dawra-e-Hadith')}</span>
                         </div>
                     </div>
 
                     <!-- QUICK ACTIONS IN HEADER -->
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button class="btn btn-secondary btn-sm" onclick="StudentsModule.openResetPasswordModal('${student.id}')" title="Reset Login Password">
+                        ${Lms.can('students.reset_password') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.openResetPasswordModal('${Lms.esc(student.id)}')" title="Reset Login Password">
                             <i class="fas fa-key"></i> Reset Password
-                        </button>
-                        ${currentStatus === 'ACTIVE' ? `
-                            <button class="btn btn-danger btn-sm" onclick="StudentsModule.toggleStudentStatus('${student.id}', 'SUSPENDED')">
+                        </button>` : ''}
+                        ${!Lms.can('students.deactivate') ? '' : currentStatus === 'ACTIVE' ? `
+                            <button class="btn btn-danger btn-sm" onclick="StudentsModule.toggleStudentStatus('${Lms.esc(student.id)}', 'SUSPENDED')">
                                 <i class="fas fa-user-slash"></i> Suspend
                             </button>
                         ` : `
-                            <button class="btn btn-primary btn-sm" onclick="StudentsModule.toggleStudentStatus('${student.id}', 'ACTIVE')">
+                            <button class="btn btn-primary btn-sm" onclick="StudentsModule.toggleStudentStatus('${Lms.esc(student.id)}', 'ACTIVE')">
                                 <i class="fas fa-user-check"></i> Activate
                             </button>
                         `}
-                        <button class="btn btn-gold btn-sm" onclick="StudentsModule.openEditStudentModal('${student.id}')">
+                        ${Lms.can('students.update') ? `<button class="btn btn-gold btn-sm" onclick="StudentsModule.openEditStudentModal('${Lms.esc(student.id)}')">
                             <i class="fas fa-edit"></i> Edit Info
-                        </button>
+                        </button>` : ''}
                     </div>
                 </div>
             </div>
 
             <!-- PROFILE NAVIGATION TABS -->
             <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 10px; flex-wrap: wrap;">
-                <button class="btn ${this.activeProfileTab === 'overview' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('overview', '${student.id}')">
+                <button class="btn ${this.activeProfileTab === 'overview' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('overview', '${Lms.esc(student.id)}')">
                     <i class="fas fa-chart-pie"></i> Overview
                 </button>
-                <button class="btn ${this.activeProfileTab === 'account' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('account', '${student.id}')">
+                <button class="btn ${this.activeProfileTab === 'account' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('account', '${Lms.esc(student.id)}')">
                     <i class="fas fa-user-lock"></i> Account & Access
                 </button>
-                <button class="btn ${this.activeProfileTab === 'academic' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('academic', '${student.id}')">
+                <button class="btn ${this.activeProfileTab === 'academic' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('academic', '${Lms.esc(student.id)}')">
                     <i class="fas fa-graduation-cap"></i> Academic & Courses
                 </button>
-                <button class="btn ${this.activeProfileTab === 'personal' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('personal', '${student.id}')">
+                <button class="btn ${this.activeProfileTab === 'personal' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('personal', '${Lms.esc(student.id)}')">
                     <i class="fas fa-address-card"></i> Contact & Residence
                 </button>
-                <button class="btn ${this.activeProfileTab === 'attendance' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('attendance', '${student.id}')">
+                <button class="btn ${this.activeProfileTab === 'attendance' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('attendance', '${Lms.esc(student.id)}')">
                     <i class="fas fa-calendar-check"></i> Attendance Logs (${studentAttendance.length})
                 </button>
             </div>
@@ -456,7 +456,7 @@ const StudentsModule = {
                         <h4 style="color: var(--gold-400); margin-bottom: 12px;"><i class="fas fa-shield-alt"></i> Account Status & LMS Access Level</h4>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px;">
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);">
-                                <input type="radio" name="student-status-radio" value="ACTIVE" ${student.status === 'ACTIVE' || !student.status ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${student.id}', this.value)">
+                                <input type="radio" name="student-status-radio" value="ACTIVE" ${student.status === 'ACTIVE' || !student.status ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${Lms.esc(student.id)}', this.value)">
                                 <div>
                                     <div style="font-weight: 700; color: var(--primary-300);">Active (Full Access)</div>
                                     <div style="font-size: 0.72rem; color: var(--text-muted);">Can log in, attend dars, and submit exams</div>
@@ -464,7 +464,7 @@ const StudentsModule = {
                             </label>
 
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);">
-                                <input type="radio" name="student-status-radio" value="SUSPENDED" ${student.status === 'SUSPENDED' ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${student.id}', this.value)">
+                                <input type="radio" name="student-status-radio" value="SUSPENDED" ${student.status === 'SUSPENDED' ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${Lms.esc(student.id)}', this.value)">
                                 <div>
                                     <div style="font-weight: 700; color: var(--warning);">Suspended (Locked)</div>
                                     <div style="font-size: 0.72rem; color: var(--text-muted);">Temporarily blocked from portal login</div>
@@ -472,7 +472,7 @@ const StudentsModule = {
                             </label>
 
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);">
-                                <input type="radio" name="student-status-radio" value="INACTIVE" ${student.status === 'INACTIVE' ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${student.id}', this.value)">
+                                <input type="radio" name="student-status-radio" value="INACTIVE" ${student.status === 'INACTIVE' ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${Lms.esc(student.id)}', this.value)">
                                 <div>
                                     <div style="font-weight: 700; color: var(--danger);">Inactive (Deactivated)</div>
                                     <div style="font-size: 0.72rem; color: var(--text-muted);">Credentials disabled</div>
@@ -480,7 +480,7 @@ const StudentsModule = {
                             </label>
 
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);">
-                                <input type="radio" name="student-status-radio" value="GRADUATED" ${student.status === 'GRADUATED' ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${student.id}', this.value)">
+                                <input type="radio" name="student-status-radio" value="GRADUATED" ${student.status === 'GRADUATED' ? 'checked' : ''} onchange="StudentsModule.toggleStudentStatus('${Lms.esc(student.id)}', this.value)">
                                 <div>
                                     <div style="font-weight: 700; color: var(--gold-300);">Graduated (Alumni)</div>
                                     <div style="font-size: 0.72rem; color: var(--text-muted);">Completed Dars-e-Nizami sanad</div>
@@ -495,15 +495,15 @@ const StudentsModule = {
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px;">
                             <div>
                                 <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Login Email / Username</label>
-                                <input type="text" class="form-control" value="${student.email || ''}" id="st-edit-email" placeholder="student@jamiaashrafia.org">
+                                <input type="text" class="form-control" value="${Lms.esc(student.email || '')}" id="st-edit-email" placeholder="student@jamiaashrafia.org">
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Password Status</label>
                                 <div style="display: flex; gap: 8px;">
-                                    <input type="password" class="form-control" value="${student.password || '********'}" readonly style="letter-spacing: 2px;">
-                                    <button class="btn btn-gold btn-sm" onclick="StudentsModule.openResetPasswordModal('${student.id}')">
+                                    <input type="text" class="form-control" value="Hidden (stored securely)" readonly title="Passwords are never shown. Use Reset to issue a temporary one.">
+                                    ${Lms.can('students.reset_password') ? `<button class="btn btn-gold btn-sm" onclick="StudentsModule.openResetPasswordModal('${Lms.esc(student.id)}')">
                                         <i class="fas fa-sync-alt"></i> Reset
-                                    </button>
+                                    </button>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -542,14 +542,14 @@ const StudentsModule = {
                         <h4 style="color: var(--gold-600); margin-bottom: 10px;"><i class="fas fa-university"></i> Academic Enrollment Details</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem;">
                             <div>
-                                <div><strong>Enrolled Program:</strong> ${student.program || 'Dars-e-Nizami'}</div>
-                                <div><strong>Assigned Class:</strong> ${student.classId || 'Dawra-e-Hadith Final'}</div>
+                                <div><strong>Enrolled Program:</strong> ${Lms.esc(student.program || 'Dars-e-Nizami')}</div>
+                                <div><strong>Assigned Class:</strong> ${Lms.esc(student.classId || 'Dawra-e-Hadith Final')}</div>
                                 <div><strong>Campus / Branch:</strong> Main Campus (Ferozepur Road, Lahore)</div>
                             </div>
                             <div>
-                                <div><strong>Wifaq Registration No:</strong> <code style="color: var(--gold-700); font-weight: 700;">${student.wifaqReg || 'W-1445-98210'}</code></div>
+                                <div><strong>Wifaq Registration No:</strong> <code style="color: var(--gold-700); font-weight: 700;">${Lms.esc(student.wifaqReg || 'W-1445-98210')}</code></div>
                                 <div><strong>Session:</strong> 1446-1447 AH / 2026</div>
-                                <div><strong>Academic Standing:</strong> <span class="status-pill gold">${student.gpa || 'Mumtaz (88%)'}</span></div>
+                                <div><strong>Academic Standing:</strong> <span class="status-pill gold">${Lms.esc(student.gpa || 'Mumtaz (88%)')}</span></div>
                             </div>
                         </div>
                     </div>
@@ -590,27 +590,27 @@ const StudentsModule = {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem;">
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-card"></i> Candidate Identity</h4>
-                        <div><strong>Full Name:</strong> ${student.name}</div>
-                        <div><strong>Father's Name:</strong> ${student.guardianName || student.fatherName || 'Maulana Muhammad'}</div>
+                        <div><strong>Full Name:</strong> ${Lms.esc(student.name)}</div>
+                        <div><strong>Father's Name:</strong> ${Lms.esc(student.guardianName || student.fatherName || 'Maulana Muhammad')}</div>
                         <div><strong>Student Category:</strong> <span class="status-pill ${isIntl ? 'gold' : 'success'}">${isIntl ? '<i class="fas fa-globe-americas"></i> International Student' : '<i class="fas fa-flag"></i> Local Student'}</span></div>
                         ${isIntl ? `
-                            <div><strong>Passport Number:</strong> <code style="color: var(--gold-300); font-weight: 700;">${student.passport || 'N/A'}</code></div>
-                            <div><strong>Country of Residence:</strong> <strong>${student.country || 'International'}</strong></div>
+                            <div><strong>Passport Number:</strong> <code style="color: var(--gold-300); font-weight: 700;">${Lms.esc(student.passport || 'N/A')}</code></div>
+                            <div><strong>Country of Residence:</strong> <strong>${Lms.esc(student.country || 'International')}</strong></div>
                         ` : `
-                            <div><strong>CNIC / B-Form:</strong> <code>${student.cnic || '35201-8934521-3'}</code></div>
+                            <div><strong>CNIC / B-Form:</strong> <code>${Lms.esc(student.cnic || '35201-8934521-3')}</code></div>
                             <div><strong>Nationality:</strong> Pakistan</div>
                         `}
-                        <div><strong>Date of Birth:</strong> ${student.dob || '2004-05-12'}</div>
+                        <div><strong>Date of Birth:</strong> ${Lms.esc(student.dob || '2004-05-12')}</div>
                         <div><strong>Hafiz-ul-Quran:</strong> <span class="status-pill success" style="font-size: 0.72rem;">Hafiz Verified</span></div>
                     </div>
 
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-phone-alt"></i> Contact & Residence</h4>
-                        <div><strong>WhatsApp / Phone:</strong> ${student.phone || '+92 300 4589211'}</div>
-                        <div><strong>Email Address:</strong> ${student.email || 'N/A'}</div>
-                        <div><strong>Residence:</strong> ${student.hostel || 'Day Scholar'}</div>
-                        <div><strong>Emergency Contact:</strong> ${student.emergencyPhone || student.phone || '+92 321 0000000'}</div>
-                        <div><strong>Previous Madrasa:</strong> ${student.previousMadrasa || 'Jamia Farooqia'}</div>
+                        <div><strong>WhatsApp / Phone:</strong> ${Lms.esc(student.phone || '+92 300 4589211')}</div>
+                        <div><strong>Email Address:</strong> ${Lms.esc(student.email || 'N/A')}</div>
+                        <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
+                        <div><strong>Emergency Contact:</strong> ${Lms.esc(student.emergencyPhone || student.phone || '+92 321 0000000')}</div>
+                        <div><strong>Previous Madrasa:</strong> ${Lms.esc(student.previousMadrasa || 'Jamia Farooqia')}</div>
                     </div>
                 </div>
             `;
@@ -621,7 +621,7 @@ const StudentsModule = {
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
                         <h4 style="color: var(--primary-950); margin: 0;"><i class="fas fa-calendar-check" style="color: var(--primary-600);"></i> Attendance Timestamp Records</h4>
-                        <span style="font-size: 0.82rem; color: var(--gold-300);">Overall Attendance: <strong>${student.attendancePct || 92}%</strong></span>
+                        <span style="font-size: 0.82rem; color: var(--gold-300);">Overall Attendance: <strong>${Lms.esc(student.attendancePct || 92)}%</strong></span>
                     </div>
 
                     <div class="table-responsive">
@@ -670,21 +670,21 @@ const StudentsModule = {
                 <!-- ACADEMIC INFO -->
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
                     <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-university"></i> Academic Status</h4>
-                    <div><strong>Program:</strong> ${student.program || 'Dars-e-Nizami'}</div>
-                    <div><strong>Current Class:</strong> ${student.classId || 'Dawra-e-Hadith'}</div>
-                    <div><strong>Enrollment Date:</strong> ${student.enrollmentDate || '2024-08-15'}</div>
+                    <div><strong>Program:</strong> ${Lms.esc(student.program || 'Dars-e-Nizami')}</div>
+                    <div><strong>Current Class:</strong> ${Lms.esc(student.classId || 'Dawra-e-Hadith')}</div>
+                    <div><strong>Enrollment Date:</strong> ${Lms.esc(student.enrollmentDate || '2024-08-15')}</div>
                     <div><strong>Campus:</strong> Main Campus (Ferozepur Rd)</div>
-                    <div><strong>Wifaq Sanad Standing:</strong> <span class="status-pill gold">${student.gpa || 'Mumtaz (88%)'}</span></div>
+                    <div><strong>Wifaq Sanad Standing:</strong> <span class="status-pill gold">${Lms.esc(student.gpa || 'Mumtaz (88%)')}</span></div>
                 </div>
 
                 <!-- CONTACT & RESIDENCE -->
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
                     <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-badge"></i> Personal & Residence</h4>
-                    <div><strong>Guardian:</strong> ${student.guardianName || student.fatherName || 'Maulana Muhammad'}</div>
-                    <div><strong>Email:</strong> ${student.email || 'N/A'}</div>
-                    <div><strong>Phone:</strong> ${student.phone || '+92 300 4589211'}</div>
-                    <div><strong>Residence:</strong> ${student.hostel || 'Day Scholar'}</div>
-                    <div><strong>Account Status:</strong> <span class="status-pill ${student.status === 'ACTIVE' || !student.status ? 'success' : 'danger'}">${student.status || 'ACTIVE'}</span></div>
+                    <div><strong>Guardian:</strong> ${Lms.esc(student.guardianName || student.fatherName || 'Maulana Muhammad')}</div>
+                    <div><strong>Email:</strong> ${Lms.esc(student.email || 'N/A')}</div>
+                    <div><strong>Phone:</strong> ${Lms.esc(student.phone || '+92 300 4589211')}</div>
+                    <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
+                    <div><strong>Account Status:</strong> <span class="status-pill ${student.status === 'ACTIVE' || !student.status ? 'success' : 'danger'}">${Lms.esc(student.status || 'ACTIVE')}</span></div>
                 </div>
             </div>
 
@@ -692,7 +692,7 @@ const StudentsModule = {
             <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 18px;">
                 <h4 style="color: var(--primary-950); margin-bottom: 10px; display: flex; justify-content: space-between;">
                     <span><i class="fas fa-calendar-check" style="color: var(--primary-400);"></i> Attendance Overview</span>
-                    <span style="color: var(--gold-300); font-weight: 700;">${student.attendancePct || 92}% Overall</span>
+                    <span style="color: var(--gold-300); font-weight: 700;">${Lms.esc(student.attendancePct || 92)}% Overall</span>
                 </h4>
                 <div style="display: flex; gap: 20px; font-size: 0.85rem; color: var(--text-secondary); flex-wrap: wrap;">
                     <span><i class="fas fa-check-circle" style="color: var(--primary-400);"></i> On-Time: <strong>${presentCount}</strong></span>
@@ -717,11 +717,11 @@ const StudentsModule = {
         Lms.openModal(
             `<i class="fas fa-ellipsis-v" style="color: var(--gold-400);"></i> ${Lms.esc(s.name)} (${Lms.esc(s.rollNo || '')})`,
             `<div style="display: flex; flex-direction: column; gap: 8px;">
-                ${action('fas fa-user-edit', 'Edit student details', `StudentsModule.openEditStudentModal('${s.id}')`)}
+                ${action('fas fa-user-edit', 'Edit student details', `StudentsModule.openEditStudentModal('${Lms.esc(s.id)}')`)}
                 ${action('fas fa-school', `Change class (current: ${Lms.esc(s.classId ? Lms.className(s.classId) : 'not enrolled')})`, `App.navigate('classes'); setTimeout(() => ClassesCoursesModule.openEnrollModal('${Lms.esc(s.classId || (window.LmsData.classes[0] || {}).id)}'), 50)`)}
-                ${action('fas fa-calendar-check', 'Attendance history', `StudentsModule.viewAttendance('${s.id}')`)}
-                ${window.AuthRBAC.canAccessModule('fees') ? action('fas fa-file-invoice-dollar', 'Issue a fee challan', `App.navigate('fees'); setTimeout(() => { FeesDonationsModule.openGenerateChallanModal(); document.getElementById('gen-target').value = '${s.id}'; }, 50)`) : ''}
-                ${action('fas fa-id-card', 'Print student ID card', `StudentsModule.printStudentCard('${s.id}')`)}
+                ${action('fas fa-calendar-check', 'Attendance history', `StudentsModule.viewAttendance('${Lms.esc(s.id)}')`)}
+                ${Lms.can('fees.challans.generate') ? action('fas fa-file-invoice-dollar', 'Issue a fee challan', `App.navigate('fees'); setTimeout(() => { FeesDonationsModule.openGenerateChallanModal(); document.getElementById('gen-target').value = '${Lms.esc(s.id)}'; }, 50)`) : ''}
+                ${action('fas fa-id-card', 'Print student ID card', `StudentsModule.printStudentCard('${Lms.esc(s.id)}')`)}
             </div>`
         );
     },
@@ -761,35 +761,35 @@ const StudentsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${student.name}`;
+            titleEl.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${Lms.esc(student.name)}`;
         }
 
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <div style="margin-bottom: 16px;">
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 14px;">
-                        Reset LMS login credentials for scholar <strong>${student.name}</strong> (<code style="color: var(--gold-700);">${student.rollNo}</code>).
+                        Reset LMS login credentials for scholar <strong>${Lms.esc(student.name)}</strong> (<code style="color: var(--gold-700);">${Lms.esc(student.rollNo)}</code>).
                     </p>
                     <div style="margin-bottom: 16px;">
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Student Login Email
                         </label>
-                        <input type="text" class="form-control" value="${student.email || ''}" disabled style="opacity: 0.8;">
+                        <input type="text" class="form-control" value="${Lms.esc(student.email || '')}" disabled style="opacity: 0.8;">
                     </div>
                     <div style="margin-bottom: 16px;">
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             New Password *
                         </label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="reset-student-pwd" class="form-control" value="ashrafia${Math.floor(100 + Math.random() * 900)}" required>
-                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('reset-student-pwd').value = 'Ashrafia@' + Math.floor(1000 + Math.random() * 9000);">
+                            <input type="text" id="reset-student-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('reset-student-pwd').value = Lms.tempPassword();">
                                 <i class="fas fa-random"></i> Generate
                             </button>
                         </div>
                     </div>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; color: var(--text-secondary);">
                         <input type="checkbox" id="reset-force-change" checked style="accent-color: var(--primary-500);">
-                        <span>Notify student via broadcast and require password change on next login</span>
+                        <span>Notify the student (they must choose a new password at next sign-in)</span>
                     </label>
                 </div>
             `;
@@ -798,7 +798,7 @@ const StudentsModule = {
         if (footerEl) {
             footerEl.innerHTML = `
                 <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-                <button class="btn btn-gold" onclick="StudentsModule.confirmResetPassword('${student.id}')">
+                <button class="btn btn-gold" onclick="StudentsModule.confirmResetPassword('${Lms.esc(student.id)}')">
                     <i class="fas fa-check-circle"></i> Save New Password
                 </button>
             `;
@@ -812,15 +812,15 @@ const StudentsModule = {
         if (!student) return;
 
         const newPwd = document.getElementById('reset-student-pwd').value.trim();
-        if (!newPwd) {
-            App.showToast("Please enter a valid password.", "warning");
+        if (newPwd.length < Lms.MIN_PASSWORD_LENGTH) {
+            App.showToast(`The temporary password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters.`, "warning");
             return;
         }
 
         student.password = newPwd;
         window.DataStore.save(window.LmsData);
         App.closeModal();
-        App.showToast(`Password successfully reset for ${student.name}!`, "success");
+        App.showToast(`Temporary password for ${student.name}: ${newPwd} (must be changed at next sign-in).`, "success");
     },
 
     openEditStudentModal(studentId) {
@@ -833,12 +833,12 @@ const StudentsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> Edit Scholar Information: ${student.name}`;
+            titleEl.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> Edit Scholar Information: ${Lms.esc(student.name)}`;
         }
 
         if (bodyEl) {
             bodyEl.innerHTML = `
-                <form id="form-edit-student" onsubmit="StudentsModule.handleEditStudentSubmit(event, '${student.id}')">
+                <form id="form-edit-student" onsubmit="StudentsModule.handleEditStudentSubmit(event, '${Lms.esc(student.id)}')">
                     <!-- STUDENT TYPE SELECTION -->
                     <div style="margin-bottom: 14px;">
                         <label class="form-label" style="font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 6px;">
@@ -866,22 +866,22 @@ const StudentsModule = {
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Candidate Name (English) *</label>
-                            <input type="text" id="edit-st-name" class="form-control" value="${student.name || ''}" required>
+                            <input type="text" id="edit-st-name" class="form-control" value="${Lms.esc(student.name || '')}" required>
                         </div>
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Name in Urdu (طالب علم)</label>
-                            <input type="text" id="edit-st-urdu" class="form-control" value="${student.urduName || ''}" style="font-family: 'Amiri', serif;">
+                            <input type="text" id="edit-st-urdu" class="form-control" value="${Lms.esc(student.urduName || '')}" style="font-family: 'Amiri', serif;">
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father / Guardian Name *</label>
-                            <input type="text" id="edit-st-guardian" class="form-control" value="${student.guardianName || student.fatherName || ''}" required>
+                            <input type="text" id="edit-st-guardian" class="form-control" value="${Lms.esc(student.guardianName || student.fatherName || '')}" required>
                         </div>
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Roll Number *</label>
-                            <input type="text" id="edit-st-roll" class="form-control" value="${student.rollNo || ''}" required>
+                            <input type="text" id="edit-st-roll" class="form-control" value="${Lms.esc(student.rollNo || '')}" required>
                         </div>
                     </div>
 
@@ -892,7 +892,7 @@ const StudentsModule = {
                                 <span>CNIC / B-Form Number *</span>
                                 <span style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">XXXXX-XXXXXXX-X</span>
                             </label>
-                            <input type="text" id="edit-st-cnic" class="form-control" value="${student.cnic || ''}" placeholder="35201-1234567-1" maxlength="15" ${!isIntl ? 'required' : ''}>
+                            <input type="text" id="edit-st-cnic" class="form-control" value="${Lms.esc(student.cnic || '')}" placeholder="35201-1234567-1" maxlength="15" ${!isIntl ? 'required' : ''}>
                         </div>
                         <div id="edit-st-intl-group" style="display: ${isIntl ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 14px;">
                             <div>
@@ -900,14 +900,14 @@ const StudentsModule = {
                                     <span>Passport Number *</span>
                                     <span style="font-size: 0.72rem; color: var(--gold-700);">Alphanumeric</span>
                                 </label>
-                                <input type="text" id="edit-st-passport" class="form-control" value="${student.passport || ''}" placeholder="e.g. A12345678" maxlength="30" ${isIntl ? 'required' : ''}>
+                                <input type="text" id="edit-st-passport" class="form-control" value="${Lms.esc(student.passport || '')}" placeholder="e.g. A12345678" maxlength="30" ${isIntl ? 'required' : ''}>
                             </div>
                             <div>
                                 <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 4px;">
                                     <span>Country of Residence *</span>
                                     <span style="font-size: 0.72rem; color: var(--gold-700);">Searchable</span>
                                 </label>
-                                <input type="text" id="edit-st-country" list="edit-st-country-datalist" class="form-control" value="${student.country || (isIntl ? 'United Kingdom' : 'Pakistan')}" placeholder="Select country..." ${isIntl ? 'required' : ''}>
+                                <input type="text" id="edit-st-country" list="edit-st-country-datalist" class="form-control" value="${Lms.esc(student.country || (isIntl ? 'United Kingdom' : 'Pakistan'))}" placeholder="Select country..." ${isIntl ? 'required' : ''}>
                                 <datalist id="edit-st-country-datalist">
                                     ${(window.WORLD_COUNTRIES || []).map(c => `<option value="${c}">`).join('')}
                                 </datalist>
@@ -942,7 +942,7 @@ const StudentsModule = {
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Contact Phone / WhatsApp</label>
-                            <input type="text" id="edit-st-phone" class="form-control" value="${student.phone || ''}">
+                            <input type="text" id="edit-st-phone" class="form-control" value="${Lms.esc(student.phone || '')}">
                         </div>
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Residence / Hostel</label>
@@ -1197,7 +1197,7 @@ const StudentsModule = {
                         </div>
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Initial Password *</label>
-                            <input type="text" id="direct-st-pwd" class="form-control" value="ashrafia123" required>
+                            <input type="text" id="direct-st-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
                         </div>
                     </div>
 
@@ -1280,6 +1280,10 @@ const StudentsModule = {
         const email = document.getElementById('direct-st-email').value.trim();
         const pwd = document.getElementById('direct-st-pwd').value.trim();
         const hostel = document.getElementById('direct-st-hostel').value;
+        if (pwd.length < Lms.MIN_PASSWORD_LENGTH) {
+            App.showToast(`The temporary password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters.`, "warning");
+            return;
+        }
 
         let cnic = '';
         let passport = '';
@@ -1369,13 +1373,13 @@ const StudentsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-calendar-alt" style="color: var(--gold-400);"></i> Attendance History: ${student.name} (${student.rollNo})`;
+            titleEl.innerHTML = `<i class="fas fa-calendar-alt" style="color: var(--gold-400);"></i> Attendance History: ${Lms.esc(student.name)} (${Lms.esc(student.rollNo)})`;
         }
 
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <div style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-secondary);">
-                    Viewing attendance timestamps, check-in/out hours, and session notes for <strong>${student.name}</strong>.
+                    Viewing attendance timestamps, check-in/out hours, and session notes for <strong>${Lms.esc(student.name)}</strong>.
                 </div>
                 <div class="table-responsive">
                     <table class="data-table">
@@ -1458,11 +1462,11 @@ const StudentsModule = {
                                 <span style="font-size: 0.65rem; color: var(--primary-800); font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Photo</span>
                             </div>
                             <div style="flex: 1; font-size: 0.84rem; line-height: 1.65; color: var(--text-primary);">
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${student.name}</strong></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${student.rollNo || 'N/A'}</span></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Program:</span> <span style="font-weight: 600;">${student.program || 'Dars-e-Nizami'}</span></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Class:</span> <span style="font-weight: 600;">${student.classId || 'Dawra-e-Hadith'}</span></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Residence:</span> <span style="font-weight: 600;">${student.hostel || 'Day Scholar'}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${Lms.esc(student.name)}</strong></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${Lms.esc(student.rollNo || 'N/A')}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Program:</span> <span style="font-weight: 600;">${Lms.esc(student.program || 'Dars-e-Nizami')}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Class:</span> <span style="font-weight: 600;">${Lms.esc(student.classId || 'Dawra-e-Hadith')}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Residence:</span> <span style="font-weight: 600;">${Lms.esc(student.hostel || 'Day Scholar')}</span></div>
                             </div>
                         </div>
 
@@ -1472,7 +1476,7 @@ const StudentsModule = {
                                 <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 2px; color: var(--primary-950); font-weight: 700;">
                                     ||| | |||| | |||||| || |
                                 </div>
-                                <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${student.id || 'JAL-ST-CARD'}</div>
+                                <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${Lms.esc(student.id || 'JAL-ST-CARD')}</div>
                             </div>
                             <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: right; line-height: 1.35;">
                                 <div>Valid Session: <strong>1446-1447 AH</strong></div>

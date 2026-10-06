@@ -61,6 +61,22 @@ async function runTests() {
     const localCnic = `35201-${testTimestamp}1-1`;
     const intlPassport = `AB${testTimestamp}9`;
 
+    // Requests are authenticated by a real session: a throw-away Academic Admin account is created for the run
+    const auth = require('./server/auth');
+    await require('./server/lms-api').ensureSchema();
+    const adminId = `usr_admin_test_${testTimestamp}`;
+    const adminPassword = auth.temporaryPassword(12);
+    await db.query(
+        `INSERT INTO lms_records (collection, id, data, deleted, updated_by, updated_at) VALUES ('users', ?, ?, 0, 'test', NOW(3))`,
+        [adminId, JSON.stringify({ id: adminId, name: 'Test Admin', role: 'ACADEMIC_ADMIN', status: 'ACTIVE', email: `${adminId}@test.local` })]
+    );
+    await auth.setPassword(null, adminId, adminPassword, false);
+    const adminLogin = await makeRequest({
+        hostname: '127.0.0.1', port: TEST_PORT, path: '/api/auth/login', method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    }, { identifier: adminId, password: adminPassword });
+    const adminCookie = String([].concat(adminLogin.headers['set-cookie'] || [])[0] || '').split(';')[0];
+
     try {
         // Test 8: Existing admissions remain intact before we start
         const [existingBefore] = await db.query('SELECT count(*) as cnt FROM student_admissions');
@@ -147,8 +163,7 @@ async function runTests() {
             path: '/api/admissions?studentType=ALL&status=ALL',
             method: 'GET',
             headers: {
-                'X-User-Role': 'ACADEMIC_ADMIN',
-                'X-User-Id': 'usr_admin_test'
+                'Cookie': adminCookie
             }
         });
 
@@ -166,8 +181,7 @@ async function runTests() {
             path: '/api/notifications',
             method: 'GET',
             headers: {
-                'X-User-Role': 'ACADEMIC_ADMIN',
-                'X-User-Id': 'usr_admin_test'
+                'Cookie': adminCookie
             }
         });
 
@@ -194,8 +208,7 @@ async function runTests() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-User-Role': 'ACADEMIC_ADMIN',
-                    'X-User-Id': 'usr_admin_test'
+                    'Cookie': adminCookie
                 }
             }, { notificationId: unreadNotif.id });
 
@@ -205,8 +218,7 @@ async function runTests() {
                 path: '/api/notifications',
                 method: 'GET',
                 headers: {
-                    'X-User-Role': 'ACADEMIC_ADMIN',
-                    'X-User-Id': 'usr_admin_test'
+                    'Cookie': adminCookie
                 }
             });
             assert('Test 5b: Marking notification as read updates database & unread count',
@@ -232,7 +244,7 @@ async function runTests() {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'X-User-Role': 'ACADEMIC_ADMIN'
+                'Cookie': adminCookie
             }
         }, {
             status: 'ENROLLED',
@@ -276,8 +288,8 @@ async function runTests() {
         });
 
         assert('Test 10: Unauthorized users blocked (RBAC enforcement)',
-            unauthAdmissions.statusCode === 403 && unauthAdmissionsNoHeader.statusCode === 403 && unauthNotifications.statusCode === 401,
-            `(HTTP 403 / 401 correctly returned for unauthorized requests)`
+            unauthAdmissions.statusCode === 401 && unauthAdmissionsNoHeader.statusCode === 401 && unauthNotifications.statusCode === 401,
+            `(HTTP 401: identity headers grant nothing without a session)`
         );
 
         // Test 12: Database failure does not produce a false successful registration
@@ -376,6 +388,9 @@ async function runTests() {
         console.error('Test Suite encountered unhandled error:', err);
         failed++;
     } finally {
+        await db.query(`DELETE FROM lms_records WHERE collection = 'users' AND id = ?`, [adminId]).catch(() => {});
+        await db.query(`DELETE FROM user_credentials WHERE user_id = ?`, [adminId]).catch(() => {});
+        await db.query(`DELETE FROM auth_sessions WHERE user_id = ?`, [adminId]).catch(() => {});
         console.log('====================================================');
         console.log(`Results: ${passed} PASSED, ${failed} FAILED`);
         console.log('====================================================');

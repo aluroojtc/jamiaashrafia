@@ -9,15 +9,18 @@ const ClassesCoursesModule = {
     activeTab: 'classes', // 'classes' | 'courses'
     courseSearch: '',
 
+    // Office view: every class and course (whole-institution scope)
     canManage() {
-        return window.AuthRBAC.can('classes:manage') || window.AuthRBAC.can('courses:manage');
+        return window.AuthRBAC.wide('classes.view');
     },
 
-    // Teacher of the course (in any class) or an administrator may edit syllabus & materials
+    // Syllabus & material: course managers, or those with the material permission for a kitab they teach
     canEditCourse(courseId) {
-        if (this.canManage()) return true;
+        if (Lms.can('courses.manage')) return true;
+        if (!Lms.can('courses.materials.manage')) return false;
+        if (Lms.portal() === 'staff') return true;
         const me = Lms.me();
-        return me.role === 'TEACHER' && Lms.teacherCourseIds(me.id).includes(courseId);
+        return Lms.portal() === 'teacher' && Lms.teacherCourseIds(me.id).includes(courseId);
     },
 
     visibleClasses() {
@@ -28,22 +31,20 @@ const ClassesCoursesModule = {
     visibleCourses() {
         const me = Lms.me();
         const all = window.LmsData.courses || [];
-        if (this.canManage()) return all;
-        if (me.role === 'TEACHER') {
+        const portal = Lms.portal();
+        if (portal === 'staff') return all;
+        if (portal === 'teacher') {
             const ids = Lms.teacherCourseIds(me.id);
             return all.filter(c => ids.includes(c.id));
         }
-        if (me.role === 'STUDENT') {
-            const ids = Lms.classCourseIds(me.classId);
-            return all.filter(c => ids.includes(c.id));
-        }
-        return all;
+        const ids = Lms.classCourseIds(me.classId);
+        return all.filter(c => ids.includes(c.id));
     },
 
     render() {
         const canManage = this.canManage();
         const me = Lms.me();
-        const title = me.role === 'STUDENT' ? 'My Class & Kitabs' : me.role === 'TEACHER' ? 'My Classes & Courses' : 'Classes, Courses & Faculty Allocation';
+        const title = Lms.portal() === 'student' ? 'My Class & Kitabs' : Lms.portal() === 'teacher' ? 'My Classes & Courses' : 'Classes, Courses & Faculty Allocation';
 
         return `
             <div class="view-header">
@@ -52,10 +53,11 @@ const ClassesCoursesModule = {
                     <p>Dars-e-Nizami curriculum, class sections, teacher allocation per kitab, enrolled students and study material</p>
                 </div>
                 <div class="view-actions">
-                    ${canManage ? `
+                    ${Lms.can('classes.manage') ? `
                         <button class="btn btn-gold btn-sm" onclick="ClassesCoursesModule.openClassModal()">
                             <i class="fas fa-plus"></i> New Class
-                        </button>
+                        </button>` : ''}
+                    ${Lms.can('courses.manage') ? `
                         <button class="btn btn-primary btn-sm" onclick="ClassesCoursesModule.openCourseModal()">
                             <i class="fas fa-book-medical"></i> New Course / Kitab
                         </button>
@@ -87,9 +89,9 @@ const ClassesCoursesModule = {
     renderClassesTab() {
         const classes = this.visibleClasses();
         if (!classes.length) {
-            return `<div class="card">${window.App.dashEmpty(Lms.role() === 'STUDENT'
+            return `<div class="card">${window.App.dashEmpty(Lms.portal() === 'student'
                 ? 'You are not enrolled in any class yet. Please contact the Academic Office.'
-                : Lms.role() === 'TEACHER' ? 'No classes are assigned to you yet.' : 'No classes created yet. Use "New Class" to add one.')}</div>`;
+                : Lms.portal() === 'teacher' ? 'No classes are assigned to you yet.' : 'No classes created yet. Use "New Class" to add one.')}</div>`;
         }
         if (!classes.some(c => c.id === this.selectedClassId)) this.selectedClassId = classes[0].id;
         const cls = Lms.getClass(this.selectedClassId);
@@ -120,7 +122,7 @@ const ClassesCoursesModule = {
         const students = Lms.studentsInClass(cls.id);
         const program = Lms.program(cls.programId);
         const branch = ((window.LmsData.institution || {}).branches || []).find(b => b.id === cls.branchId);
-        const isStudent = Lms.role() === 'STUDENT';
+        const isStudent = Lms.portal() === 'student';
 
         return `
             <div class="card">
@@ -134,7 +136,7 @@ const ClassesCoursesModule = {
                             <i class="fas fa-user-tie"></i> Class Teacher: <strong>${Lms.esc(Lms.userName(cls.teacherId, 'Not assigned'))}</strong>
                         </div>
                     </div>
-                    ${canManage ? `
+                    ${Lms.can('classes.manage') ? `
                         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <button class="btn btn-secondary btn-sm" onclick="ClassesCoursesModule.openClassModal('${cls.id}')"><i class="fas fa-edit"></i> Edit Class</button>
                             <button class="btn btn-secondary btn-sm" onclick="ClassesCoursesModule.deleteClass('${cls.id}')" style="color: var(--danger);"><i class="fas fa-trash"></i> Delete</button>
@@ -146,7 +148,7 @@ const ClassesCoursesModule = {
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-book"></i> Kitabs & Assigned Teachers</h3>
-                        ${canManage ? `<button class="btn btn-gold btn-sm" onclick="ClassesCoursesModule.openAllocateModal('${cls.id}')"><i class="fas fa-user-tag"></i> Add Kitab / Assign Teacher</button>` : ''}
+                        ${Lms.can('classes.assign_teachers') ? `<button class="btn btn-gold btn-sm" onclick="ClassesCoursesModule.openAllocateModal('${cls.id}')"><i class="fas fa-user-tag"></i> Add Kitab / Assign Teacher</button>` : ''}
                     </div>
                     <div class="table-responsive">
                         <table class="data-table">
@@ -170,7 +172,7 @@ const ClassesCoursesModule = {
                                             <td>
                                                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                                     <button class="btn btn-secondary btn-sm" onclick="ClassesCoursesModule.viewCourseModal('${course.id}', '${cls.id}')"><i class="fas fa-file-alt"></i> ${isStudent ? 'Syllabus & Material' : 'Details'}</button>
-                                                    ${canManage ? `
+                                                    ${Lms.can('classes.assign_teachers') ? `
                                                         <button class="btn btn-secondary btn-sm" title="Change teacher" onclick="ClassesCoursesModule.openAllocateModal('${cls.id}', '${course.id}')"><i class="fas fa-user-edit"></i></button>
                                                         <button class="btn btn-secondary btn-sm" title="Remove kitab from class" onclick="ClassesCoursesModule.removeCourseFromClass('${cls.id}', '${course.id}')"><i class="fas fa-times" style="color: var(--danger);"></i></button>
                                                     ` : ''}
@@ -188,7 +190,7 @@ const ClassesCoursesModule = {
                         <h3 class="card-title"><i class="fas fa-user-graduate"></i> Enrolled Students</h3>
                         <div style="display: flex; gap: 6px; align-items: center;">
                             <span class="status-pill gold">${students.length}${cls.capacity ? ' / ' + cls.capacity : ''}</span>
-                            ${canManage ? `<button class="btn btn-primary btn-sm" onclick="ClassesCoursesModule.openEnrollModal('${cls.id}')"><i class="fas fa-user-plus"></i> Enroll</button>` : ''}
+                            ${Lms.can('classes.enroll') ? `<button class="btn btn-primary btn-sm" onclick="ClassesCoursesModule.openEnrollModal('${cls.id}')"><i class="fas fa-user-plus"></i> Enroll</button>` : ''}
                         </div>
                     </div>
                     ${isStudent ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">${students.length} classmates in your section.</div>` : ''}
@@ -202,7 +204,7 @@ const ClassesCoursesModule = {
                                         <div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(s.rollNo || '')}</div>
                                     </div>
                                 </div>
-                                ${canManage ? `<button class="btn btn-secondary btn-sm" title="Remove from class" onclick="ClassesCoursesModule.unenrollStudent('${s.id}')"><i class="fas fa-user-minus" style="color: var(--danger);"></i></button>` : ''}
+                                ${Lms.can('classes.enroll') ? `<button class="btn btn-secondary btn-sm" title="Remove from class" onclick="ClassesCoursesModule.unenrollStudent('${s.id}')"><i class="fas fa-user-minus" style="color: var(--danger);"></i></button>` : ''}
                             </div>
                         `).join('') : window.App.dashEmpty('No students enrolled yet.')}
                     </div>
@@ -473,7 +475,7 @@ const ClassesCoursesModule = {
                                         <td>
                                             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                                 <button class="btn btn-secondary btn-sm" onclick="ClassesCoursesModule.viewCourseModal('${c.id}')"><i class="fas fa-folder-open"></i> Syllabus & Material</button>
-                                                ${canManage ? `
+                                                ${Lms.can('courses.manage') ? `
                                                     <button class="btn btn-secondary btn-sm" title="Edit" onclick="ClassesCoursesModule.openCourseModal('${c.id}')"><i class="fas fa-edit"></i></button>
                                                     <button class="btn btn-secondary btn-sm" title="Delete" onclick="ClassesCoursesModule.deleteCourse('${c.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>
                                                 ` : ''}

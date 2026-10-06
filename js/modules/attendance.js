@@ -62,22 +62,8 @@ const AttendanceModule = {
 
         if (!window.LmsData.attendance) window.LmsData.attendance = [];
         window.LmsData.attendance.unshift(newRecord);
+        // Saved through the shared record store; the server checks it is today's check-in for this account
         window.DataStore.save(window.LmsData);
-
-        // Sync with backend API
-        try {
-            await fetch('/api/attendance/checkin', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-Role': user.role,
-                    'X-User-Id': user.id
-                },
-                body: JSON.stringify(newRecord)
-            });
-        } catch (e) {
-            console.warn("Backend attendance sync offline, saved locally.");
-        }
 
         App.playChime();
         App.showToast(`Check-In recorded successfully: ${status} at ${timeStr}`, isLate ? "warning" : "success");
@@ -111,22 +97,8 @@ const AttendanceModule = {
         record.checkOutTime = timeStr;
         record.updatedAt = now.toISOString();
 
+        // Saved through the shared record store; after check-in only the check-out time can change
         window.DataStore.save(window.LmsData);
-
-        // Sync with backend API
-        try {
-            await fetch('/api/attendance/checkout', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-Role': record.role,
-                    'X-User-Id': record.userId
-                },
-                body: JSON.stringify({ userId: record.userId, date: today, checkOutTime: timeStr })
-            });
-        } catch (e) {
-            console.warn("Backend checkout sync offline, saved locally.");
-        }
 
         App.showToast(`Check-Out recorded successfully at ${timeStr}. Fee Amanillah!`, "gold");
 
@@ -152,18 +124,18 @@ const AttendanceModule = {
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="status-pill ${isCheckedIn ? (record.status === 'LATE' ? 'warning' : 'success') : 'danger'}" style="font-size: 0.75rem;">
                                 <i class="fas ${isCheckedIn ? 'fa-check-circle' : 'fa-clock'}"></i>
-                                ${isCheckedIn ? `Checked In: ${record.status}` : 'Not Checked In Yet'}
+                                ${isCheckedIn ? `Checked In: ${Lms.esc(record.status)}` : 'Not Checked In Yet'}
                             </span>
                             <span style="font-size: 0.82rem; color: var(--text-muted);"><i class="fas fa-calendar-day"></i> Today: ${today} (1446 AH)</span>
                         </div>
                         <h3 style="font-size: 1.15rem; color: var(--primary-950); margin-top: 6px;">
-                            ${isCheckedIn ? `Marked Present at ${record.checkInTime}` : 'Daily Attendance Check-In Required'}
+                            ${isCheckedIn ? `Marked Present at ${Lms.esc(record.checkInTime)}` : 'Daily Attendance Check-In Required'}
                         </h3>
                         <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
                             ${isCheckedIn ? (
                                 isCheckedOut ? 
-                                `<span style="color: var(--gold-700);"><i class="fas fa-sign-out-alt"></i> Checked Out at ${record.checkOutTime}</span>` : 
-                                `<span>Active Session: In Campus (${record.session || 'Academic Dars'})</span>`
+                                `<span style="color: var(--gold-700);"><i class="fas fa-sign-out-alt"></i> Checked Out at ${Lms.esc(record.checkOutTime)}</span>` : 
+                                `<span>Active Session: In Campus (${Lms.esc(record.session || 'Academic Dars')})</span>`
                             ) : (
                                 `Attendance is not marked on login. Please click Check In to record your attendance.`
                             )}
@@ -172,12 +144,12 @@ const AttendanceModule = {
 
                     <div style="display: flex; gap: 10px; align-items: center;">
                         ${!isCheckedIn ? `
-                            <button class="btn btn-gold" onclick="AttendanceModule.performCheckIn('${user.id}')" style="box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4); padding: 10px 20px;">
+                            <button class="btn btn-gold" onclick="AttendanceModule.performCheckIn('${Lms.esc(user.id)}')" style="box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4); padding: 10px 20px;">
                                 <i class="fas fa-sign-in-alt"></i> Check In Now
                             </button>
                         ` : (
                             !isCheckedOut ? `
-                                <button class="btn btn-secondary btn-sm" onclick="AttendanceModule.performCheckOut('${user.id}')" title="Record departure check-out">
+                                <button class="btn btn-secondary btn-sm" onclick="AttendanceModule.performCheckOut('${Lms.esc(user.id)}')" title="Record departure check-out">
                                     <i class="fas fa-sign-out-alt"></i> Check Out
                                 </button>
                                 <span class="status-pill success"><i class="fas fa-check"></i> Recorded</span>
@@ -196,8 +168,8 @@ const AttendanceModule = {
         const user = window.AuthRBAC.currentUser;
         const role = window.AuthRBAC.getRole();
 
-        // RBAC: Students only see their own attendance history
-        if (role === 'STUDENT') {
+        // Own history only: the student portal, or roles that can check in but not view others' attendance
+        if (Lms.portal() === 'student' || !window.AuthRBAC.can('attendance.view')) {
             return this.renderStudentPersonalAttendance(user);
         }
 
@@ -249,9 +221,9 @@ const AttendanceModule = {
                     <p>Live attendance logs, check-in timestamps, punctuality metrics, and absence tracking across Jamia Ashrafia</p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="AttendanceModule.exportAttendanceCSV()">
+                    ${window.AuthRBAC.can('attendance.export') ? `<button class="btn btn-secondary btn-sm" onclick="AttendanceModule.exportAttendanceCSV()">
                         <i class="fas fa-file-csv"></i> Export Attendance CSV
-                    </button>
+                    </button>` : ''}
                     <button class="btn btn-gold btn-sm" onclick="window.print()">
                         <i class="fas fa-print"></i> Print Official Sheet
                     </button>
@@ -350,33 +322,33 @@ const AttendanceModule = {
                             ${filtered.length > 0 ? filtered.map(r => `
                                 <tr>
                                     <td>
-                                        <div style="font-weight: 700; color: var(--primary-950);">${r.userName}</div>
+                                        <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(r.userName)}</div>
                                     </td>
                                     <td>
-                                        <span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}" style="font-size: 0.72rem;">${r.role}</span>
-                                        <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 4px;">${r.identifier || 'N/A'}</span>
+                                        <span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}" style="font-size: 0.72rem;">${Lms.esc(r.role)}</span>
+                                        <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 4px;">${Lms.esc(r.identifier || 'N/A')}</span>
                                     </td>
                                     <td style="color: var(--text-secondary); font-size: 0.82rem;">
-                                        ${r.className || 'General'}
+                                        ${Lms.esc(r.className || 'General')}
                                     </td>
                                     <td style="font-size: 0.82rem; color: var(--text-primary);">
-                                        ${r.date}
+                                        ${Lms.esc(r.date)}
                                     </td>
                                     <td>
-                                        <strong style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-700)'};">${r.checkInTime || '—'}</strong>
+                                        <strong style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-700)'};">${Lms.esc(r.checkInTime || '—')}</strong>
                                     </td>
                                     <td>
-                                        <span style="color: var(--text-muted); font-size: 0.82rem;">${r.checkOutTime || 'In Session'}</span>
+                                        <span style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(r.checkOutTime || 'In Session')}</span>
                                     </td>
                                     <td>
                                         <span class="status-pill ${r.status === 'PRESENT' ? 'success' : (r.status === 'LATE' ? 'warning' : 'danger')}">
                                             <i class="fas ${r.status === 'PRESENT' ? 'fa-check' : (r.status === 'LATE' ? 'fa-clock' : 'fa-times')}"></i>
-                                            ${r.status}
+                                            ${Lms.esc(r.status)}
                                         </span>
                                     </td>
                                     <td style="font-size: 0.78rem; color: var(--text-muted);">
-                                        <div>${r.session || 'DAILY'}</div>
-                                        <div style="font-style: italic;">${r.notes || ''}</div>
+                                        <div>${Lms.esc(r.session || 'DAILY')}</div>
+                                        <div style="font-style: italic;">${Lms.esc(r.notes || '')}</div>
                                     </td>
                                 </tr>
                             `).join('') : `
@@ -410,7 +382,7 @@ const AttendanceModule = {
                         <i class="fas fa-calendar-check" style="color: var(--gold-400);"></i>
                         My Attendance Record & History
                     </h1>
-                    <p>Talib-e-Ilm: <strong>${user.name}</strong> • Roll No: <strong>${user.rollNo || 'ASH-2024-001'}</strong></p>
+                    <p>Talib-e-Ilm: <strong>${Lms.esc(user.name)}</strong> • Roll No: <strong>${Lms.esc(user.rollNo || 'ASH-2024-001')}</strong></p>
                 </div>
             </div>
 
@@ -473,16 +445,16 @@ const AttendanceModule = {
                         <tbody>
                             ${records.map(r => `
                                 <tr>
-                                    <td><strong>${r.date}</strong></td>
-                                    <td style="color: var(--primary-300);">${r.checkInTime || '—'}</td>
-                                    <td style="color: var(--text-muted);">${r.checkOutTime || '—'}</td>
+                                    <td><strong>${Lms.esc(r.date)}</strong></td>
+                                    <td style="color: var(--primary-300);">${Lms.esc(r.checkInTime || '—')}</td>
+                                    <td style="color: var(--text-muted);">${Lms.esc(r.checkOutTime || '—')}</td>
                                     <td>
                                         <span class="status-pill ${r.status === 'PRESENT' ? 'success' : (r.status === 'LATE' ? 'warning' : 'danger')}">
-                                            ${r.status}
+                                            ${Lms.esc(r.status)}
                                         </span>
                                     </td>
-                                    <td>${r.session || 'DAILY'}</td>
-                                    <td style="color: var(--text-muted); font-size: 0.8rem;">${r.notes || 'Routine check-in'}</td>
+                                    <td>${Lms.esc(r.session || 'DAILY')}</td>
+                                    <td style="color: var(--text-muted); font-size: 0.8rem;">${Lms.esc(r.notes || 'Routine check-in')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>

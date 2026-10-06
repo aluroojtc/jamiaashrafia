@@ -31,7 +31,7 @@ const AdmissionsModule = {
 
     renderAdmissionWindowBanner() {
         const st = this.admissionSettings;
-        const canEdit = window.AuthRBAC.can('admissions:manage') || window.AuthRBAC.isSuperAdmin();
+        const canEdit = Lms.can('settings.admissions');
         if (!st) {
             return `<div id="admission-window-banner" class="card" style="padding: 12px 16px; color: var(--text-muted); font-size: 0.85rem;"><i class="fas fa-spinner fa-spin"></i> Loading admission window...</div>`;
         }
@@ -63,7 +63,7 @@ const AdmissionsModule = {
         const me = Lms.me();
         const res = await fetch('/api/settings/admissions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-User-Role': me.role, 'X-User-Id': me.id },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));
@@ -137,7 +137,6 @@ const AdmissionsModule = {
         if (this.isLoading) return;
         this.isLoading = true;
         try {
-            const role = window.AuthRBAC ? window.AuthRBAC.getRole() : 'ACADEMIC_ADMIN';
             const params = new URLSearchParams();
             if (this.activeCategoryFilter && this.activeCategoryFilter !== 'ALL') {
                 params.set('studentType', this.activeCategoryFilter);
@@ -150,10 +149,7 @@ const AdmissionsModule = {
             }
 
             const res = await fetch('/api/admissions?' + params.toString(), {
-                headers: {
-                    'X-User-Role': role,
-                    'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
-                }
+                cache: 'no-store'
             });
 
             if (res.ok) {
@@ -186,14 +182,11 @@ const AdmissionsModule = {
 
     async syncAdmissionToBackend(item) {
         try {
-            const role = window.AuthRBAC ? window.AuthRBAC.getRole() : 'ACADEMIC_ADMIN';
             const id = item.id || item.applicationNo;
             const res = await fetch(`/api/admissions/${encodeURIComponent(id)}`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-Role': role,
-                    'Authorization': 'Bearer ' + (localStorage.getItem('JAMIA_AUTH_TOKEN') || '')
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(item)
             });
@@ -207,7 +200,7 @@ const AdmissionsModule = {
     },
 
     render() {
-        const canApprove = window.AuthRBAC.can("admissions:approve");
+        const canApprove = Lms.can('admissions.decide');
 
         // Trigger asynchronous background fetch from database if not yet loaded
         if (!this.hasInitialFetched) {
@@ -431,7 +424,7 @@ const AdmissionsModule = {
             `;
         }
 
-        const canApprove = window.AuthRBAC.can("admissions:approve");
+        const canApprove = Lms.can('admissions.decide');
 
         return list.map(item => {
             const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: 'Dars-e-Nizami' };
@@ -457,19 +450,19 @@ const AdmissionsModule = {
                 <tr>
                     <td>
                         <div style="font-weight: 700; color: var(--primary-950);">
-                            <a href="javascript:void(0)" onclick="AdmissionsModule.viewApplication('${item.id}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--gold-600)'" onmouseout="this.style.color='var(--primary-950)'">
-                                ${item.name}
+                            <a href="javascript:void(0)" onclick="AdmissionsModule.viewApplication('${Lms.esc(item.id)}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--gold-600)'" onmouseout="this.style.color='var(--primary-950)'">
+                                ${Lms.esc(item.name)}
                             </a>
                         </div>
-                        <div style="font-size: 0.75rem; color: var(--gold-700); font-family: monospace; font-weight: 700;">${item.applicationNo}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">S/O ${item.fatherName}</div>
+                        <div style="font-size: 0.75rem; color: var(--gold-700); font-family: monospace; font-weight: 700;">${Lms.esc(item.applicationNo)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">S/O ${Lms.esc(item.fatherName)}</div>
                     </td>
                     <td>
                         ${isIntl ? `
                             <span class="status-pill gold" style="font-size: 0.72rem; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;">
                                 <i class="fas fa-globe-americas"></i> International
                             </span>
-                            <div style="font-size: 0.72rem; color: var(--gold-700); margin-top: 2px;">${item.country || 'Overseas'}</div>
+                            <div style="font-size: 0.72rem; color: var(--gold-700); margin-top: 2px;">${Lms.esc(item.country || 'Overseas')}</div>
                         ` : `
                             <span class="status-pill info" style="font-size: 0.72rem; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;">
                                 <i class="fas fa-flag"></i> Local
@@ -478,32 +471,32 @@ const AdmissionsModule = {
                         `}
                     </td>
                     <td>
-                        <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${prog.name}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-map-marker-alt"></i> ${branch.name}</div>
+                        <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${Lms.esc(prog.name)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-map-marker-alt"></i> ${Lms.esc(branch.name)}</div>
                         ${item.hostelRequired ? '<span class="status-pill danger" style="font-size: 0.65rem; margin-top: 3px;"><i class="fas fa-bed"></i> Hostel Needed</span>' : ''}
                     </td>
                     <td>
                         ${isIntl ? `
                             <div style="font-family: monospace; font-size: 0.8rem; color: var(--gold-300);" title="Passport Number">
-                                <i class="fas fa-passport" style="font-size: 0.72rem; margin-right: 3px;"></i>${item.passport || 'N/A'}
+                                <i class="fas fa-passport" style="font-size: 0.72rem; margin-right: 3px;"></i>${Lms.esc(item.passport || 'N/A')}
                             </div>
                         ` : `
                             <div style="font-family: monospace; font-size: 0.8rem; color: var(--text-primary);" title="CNIC / B-Form">
-                                <i class="fas fa-id-card" style="font-size: 0.72rem; margin-right: 3px; color: var(--primary-400);"></i>${item.cnic || 'N/A'}
+                                <i class="fas fa-id-card" style="font-size: 0.72rem; margin-right: 3px; color: var(--primary-400);"></i>${Lms.esc(item.cnic || 'N/A')}
                             </div>
                         `}
-                        <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;"><i class="fas fa-phone"></i> ${item.phone}</div>
+                        <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;"><i class="fas fa-phone"></i> ${Lms.esc(item.phone)}</div>
                     </td>
                     <td>
-                        <div style="font-size: 0.8rem; max-width: 200px;">${item.previousMadrasa || 'Fresh Applicant'}</div>
+                        <div style="font-size: 0.8rem; max-width: 200px;">${Lms.esc(item.previousMadrasa || 'Fresh Applicant')}</div>
                         ${item.hafizStatus ? '<span class="status-pill success" style="font-size: 0.65rem; margin-top: 3px;"><i class="fas fa-quran"></i> Hafiz-ul-Quran</span>' : ''}
                     </td>
                     <td>
                         ${item.interviewScore ? `
-                            <div><strong style="color: var(--gold-300); font-size: 0.9rem;">${item.interviewScore} / 100</strong></div>
+                            <div><strong style="color: var(--gold-300); font-size: 0.9rem;">${Lms.esc(item.interviewScore)} / 100</strong></div>
                             <div style="font-size: 0.72rem; color: var(--text-muted);"><i class="fas fa-check"></i> Evaluated</div>
                         ` : (item.interviewDate ? `
-                            <div style="font-size: 0.78rem; color: var(--warning);"><i class="fas fa-clock"></i> ${item.interviewDate}</div>
+                            <div style="font-size: 0.78rem; color: var(--warning);"><i class="fas fa-clock"></i> ${Lms.esc(item.interviewDate)}</div>
                         ` : `
                             <span style="font-size: 0.75rem; color: var(--text-muted);">Pending</span>
                         `)}
@@ -512,55 +505,57 @@ const AdmissionsModule = {
                     <td style="text-align: right; white-space: nowrap;">
                         <div style="display: inline-flex; gap: 5px; align-items: center;">
                             <!-- VIEW DOSSIER BUTTON -->
-                            <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.viewApplication('${item.id}')" title="Inspect Complete Application Dossier">
+                            <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.viewApplication('${Lms.esc(item.id)}')" title="Inspect Complete Application Dossier">
                                 <i class="fas fa-folder-open"></i> Dossier
                             </button>
-                            <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.openEditApplicationModal('${item.id}')" title="Edit Application">
+                            ${Lms.can('admissions.update') ? `<button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.openEditApplicationModal('${Lms.esc(item.id)}')" title="Edit Application">
                                 <i class="fas fa-edit"></i> Edit
-                            </button>
+                            </button>` : ''}
 
                             <!-- STAGE SPECIFIC ACTIONS -->
-                            ${item.status === 'APPLIED' ? `
-                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.scheduleInterviewModal('${item.id}')" title="Schedule Academic Interview">
+                            ${item.status === 'APPLIED' && Lms.can('admissions.schedule_interview') ? `
+                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.scheduleInterviewModal('${Lms.esc(item.id)}')" title="Schedule Academic Interview">
                                     <i class="fas fa-calendar-alt"></i> Interview
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.setUnderReview('${item.id}')" title="Mark Under Review">
+                                </button>` : ''}
+                            ${item.status === 'APPLIED' && Lms.can('admissions.update') ? `
+                                <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.setUnderReview('${Lms.esc(item.id)}')" title="Mark Under Review">
                                     <i class="fas fa-search"></i>
                                 </button>
                             ` : ''}
 
-                            ${item.status === 'UNDER_REVIEW' ? `
-                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.scheduleInterviewModal('${item.id}')" title="Schedule Academic Interview">
+                            ${item.status === 'UNDER_REVIEW' && Lms.can('admissions.schedule_interview') ? `
+                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.scheduleInterviewModal('${Lms.esc(item.id)}')" title="Schedule Academic Interview">
                                     <i class="fas fa-calendar-alt"></i> Interview
-                                </button>
-                                <button class="btn btn-primary btn-sm" onclick="AdmissionsModule.quickApproveModal('${item.id}')" title="Direct Approve">
+                                </button>` : ''}
+                            ${item.status === 'UNDER_REVIEW' && Lms.can('admissions.decide') ? `
+                                <button class="btn btn-primary btn-sm" onclick="AdmissionsModule.quickApproveModal('${Lms.esc(item.id)}')" title="Direct Approve">
                                     <i class="fas fa-check"></i> Approve
                                 </button>
                             ` : ''}
 
-                            ${item.status === 'INTERVIEW_SCHEDULED' ? `
-                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.openInterviewEvaluationModal('${item.id}')" title="Enter Interview Scores & Make Decision">
+                            ${item.status === 'INTERVIEW_SCHEDULED' && Lms.can('admissions.schedule_interview') ? `
+                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.openInterviewEvaluationModal('${Lms.esc(item.id)}')" title="Enter Interview Scores & Make Decision">
                                     <i class="fas fa-clipboard-check"></i> Evaluate
                                 </button>
                             ` : ''}
 
-                            ${item.status === 'APPROVED' ? `
-                                <button class="btn btn-primary btn-sm" onclick="AdmissionsModule.openEnrollmentModal('${item.id}')" title="Convert to Active Scholar & Generate LMS Account">
+                            ${item.status === 'APPROVED' && Lms.can('admissions.enroll') ? `
+                                <button class="btn btn-primary btn-sm" onclick="AdmissionsModule.openEnrollmentModal('${Lms.esc(item.id)}')" title="Convert to Active Scholar & Generate LMS Account">
                                     <i class="fas fa-user-plus"></i> Enroll Student
                                 </button>
                             ` : ''}
 
                             ${item.status === 'ENROLLED' ? `
-                                <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.printStudentCard('${item.id}')" title="Print Student ID Card">
+                                <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.printStudentCard('${Lms.esc(item.id)}')" title="Print Student ID Card">
                                     <i class="fas fa-id-card"></i> ID Card
                                 </button>
-                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.viewEnrolledStudent('${item.id}')" title="View Student in Roster">
+                                <button class="btn btn-gold btn-sm" onclick="AdmissionsModule.viewEnrolledStudent('${Lms.esc(item.id)}')" title="View Student in Roster">
                                     <i class="fas fa-user"></i>
                                 </button>
                             ` : ''}
 
-                            ${item.status === 'REJECTED' ? `
-                                <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.reopenApplication('${item.id}')" title="Reopen Application for Review">
+                            ${item.status === 'REJECTED' && Lms.can('admissions.decide') ? `
+                                <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.reopenApplication('${Lms.esc(item.id)}')" title="Reopen Application for Review">
                                     <i class="fas fa-redo"></i> Reopen
                                 </button>
                             ` : ''}
@@ -587,7 +582,7 @@ const AdmissionsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-file-alt" style="color: var(--gold-400);"></i> Applicant Dossier: ${item.name} (${item.applicationNo})`;
+            titleEl.innerHTML = `<i class="fas fa-file-alt" style="color: var(--gold-400);"></i> Applicant Dossier: ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)})`;
         }
 
         if (bodyEl) {
@@ -597,20 +592,20 @@ const AdmissionsModule = {
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                         <div>
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <h3 style="color: var(--primary-950); margin: 0; font-size: 1.25rem;">${item.name}</h3>
-                                <span class="status-pill gold" style="font-family: monospace;">${item.applicationNo}</span>
+                                <h3 style="color: var(--primary-950); margin: 0; font-size: 1.25rem;">${Lms.esc(item.name)}</h3>
+                                <span class="status-pill gold" style="font-family: monospace;">${Lms.esc(item.applicationNo)}</span>
                             </div>
                             <div style="font-size: 0.85rem; color: var(--gold-700); margin-top: 4px;">
-                                Son of ${item.fatherName}
+                                Son of ${Lms.esc(item.fatherName)}
                             </div>
                             <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
-                                Applied: ${item.appliedAt || '2026-09-24'} &bull; Branch: ${branch.name}
+                                Applied: ${Lms.esc(item.appliedAt || '2026-09-24')} &bull; Branch: ${Lms.esc(branch.name)}
                             </div>
                         </div>
 
                         <div>
                             <span class="status-pill ${item.status === 'ENROLLED' ? 'success' : (item.status === 'APPROVED' ? 'gold' : (item.status === 'REJECTED' ? 'danger' : 'warning'))}" style="font-size: 0.85rem; padding: 6px 14px;">
-                                Status: <strong>${item.status}</strong>
+                                Status: <strong>${Lms.esc(item.status)}</strong>
                             </span>
                         </div>
                     </div>
@@ -621,28 +616,28 @@ const AdmissionsModule = {
                     <!-- PERSONAL & IDENTITY -->
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--primary-950); margin-bottom: 8px;"><i class="fas fa-id-card"></i> Personal Information</h4>
-                        <div><strong>Candidate Name:</strong> ${item.name}</div>
-                        <div><strong>Father's Name:</strong> ${item.fatherName}</div>
+                        <div><strong>Candidate Name:</strong> ${Lms.esc(item.name)}</div>
+                        <div><strong>Father's Name:</strong> ${Lms.esc(item.fatherName)}</div>
                         <div><strong>Student Category:</strong> ${isIntl ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
                         ${isIntl ? `
-                            <div><strong>Passport Number:</strong> <code style="color: var(--gold-700); font-weight: 700;">${item.passport || 'N/A'}</code></div>
-                            <div><strong>Country of Residence:</strong> <span style="color: var(--text-primary); font-weight: 600;">${item.country || 'International'}</span></div>
+                            <div><strong>Passport Number:</strong> <code style="color: var(--gold-700); font-weight: 700;">${Lms.esc(item.passport || 'N/A')}</code></div>
+                            <div><strong>Country of Residence:</strong> <span style="color: var(--text-primary); font-weight: 600;">${Lms.esc(item.country || 'International')}</span></div>
                         ` : `
-                            <div><strong>CNIC / B-Form:</strong> <code style="color: var(--gold-700); font-weight: 700;">${item.cnic || 'N/A'}</code></div>
+                            <div><strong>CNIC / B-Form:</strong> <code style="color: var(--gold-700); font-weight: 700;">${Lms.esc(item.cnic || 'N/A')}</code></div>
                             <div><strong>Country:</strong> Pakistan</div>
                         `}
-                        <div><strong>Contact Phone:</strong> ${item.phone}</div>
-                        <div><strong>Email Address:</strong> ${item.email || 'N/A'}</div>
+                        <div><strong>Contact Phone:</strong> ${Lms.esc(item.phone)}</div>
+                        <div><strong>Email Address:</strong> ${Lms.esc(item.email || 'N/A')}</div>
                     </div>
 
                     <!-- ACADEMIC BACKGROUND -->
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--gold-700); margin-bottom: 8px;"><i class="fas fa-university"></i> Educational Background</h4>
-                        <div><strong>Program Sought:</strong> ${prog.name}</div>
-                        <div><strong>Previous Madrasa:</strong> ${item.previousMadrasa || 'None'}</div>
+                        <div><strong>Program Sought:</strong> ${Lms.esc(prog.name)}</div>
+                        <div><strong>Previous Madrasa:</strong> ${Lms.esc(item.previousMadrasa || 'None')}</div>
                         <div><strong>Hafiz-ul-Quran:</strong> ${item.hafizStatus ? '<span class="status-pill success" style="font-size: 0.7rem;">Verified Hafiz</span>' : 'No'}</div>
                         <div><strong>Hostel Required:</strong> ${item.hostelRequired ? '<span class="status-pill danger" style="font-size: 0.7rem;">Boarding Requested</span>' : 'Day Scholar'}</div>
-                        <div><strong>Allotted Roll No:</strong> <code style="color: var(--primary-700);">${item.allottedRollNo || 'Pending Enrollment'}</code></div>
+                        <div><strong>Allotted Roll No:</strong> <code style="color: var(--primary-700);">${Lms.esc(item.allottedRollNo || 'Pending Enrollment')}</code></div>
                     </div>
                 </div>
 
@@ -651,15 +646,15 @@ const AdmissionsModule = {
                     <h4 style="color: var(--primary-950); margin-bottom: 10px;"><i class="fas fa-user-check" style="color: var(--gold-600);"></i> Admission Committee & Evaluation Record</h4>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem; line-height: 1.8;">
                         <div>
-                            <div><strong>Interview Date & Time:</strong> ${item.interviewDate || 'Not yet scheduled'}</div>
+                            <div><strong>Interview Date & Time:</strong> ${Lms.esc(item.interviewDate || 'Not yet scheduled')}</div>
                             <div><strong>Interviewing Board:</strong> Nazim-e-Taleemat & Hadith Faculty Board</div>
                             <div><strong>Overall Score:</strong> <strong style="color: var(--gold-700);">${item.interviewScore ? item.interviewScore + ' / 100' : 'Pending Evaluation'}</strong></div>
                         </div>
                         <div>
-                            <div><strong>Committee Remarks:</strong> ${item.committeeRemarks || 'Candidate meets baseline prerequisites for testing.'}</div>
+                            <div><strong>Committee Remarks:</strong> ${Lms.esc(item.committeeRemarks || 'Candidate meets baseline prerequisites for testing.')}</div>
                             ${item.rejectionReason ? `
                                 <div style="color: var(--danger); margin-top: 6px;">
-                                    <strong>Rejection Reason:</strong> ${item.rejectionReason}
+                                    <strong>Rejection Reason:</strong> ${Lms.esc(item.rejectionReason)}
                                 </div>
                             ` : ''}
                         </div>
@@ -671,39 +666,38 @@ const AdmissionsModule = {
         if (footerEl) {
             let actionButtons = `<button class="btn btn-secondary" onclick="App.closeModal()">Close</button>`;
 
-            actionButtons += `
-                <button class="btn btn-secondary" onclick="AdmissionsModule.openEditApplicationModal('${item.id}')">
+            const can = p => Lms.can(p);
+            const reject = can('admissions.decide') ? `<button class="btn btn-danger" onclick="AdmissionsModule.openRejectModal('${Lms.esc(item.id)}')">${item.status === 'APPROVED' ? 'Revoke Approval' : 'Reject'}</button>` : '';
+            if (can('admissions.update')) actionButtons += `
+                <button class="btn btn-secondary" onclick="AdmissionsModule.openEditApplicationModal('${Lms.esc(item.id)}')">
                     <i class="fas fa-edit"></i> Edit Details
                 </button>
             `;
 
             if (item.status === 'APPLIED' || item.status === 'UNDER_REVIEW') {
-                actionButtons += `
-                    <button class="btn btn-danger" onclick="AdmissionsModule.openRejectModal('${item.id}')">Reject</button>
-                    <button class="btn btn-gold" onclick="AdmissionsModule.scheduleInterviewModal('${item.id}')">
+                actionButtons += reject + (can('admissions.schedule_interview') ? `
+                    <button class="btn btn-gold" onclick="AdmissionsModule.scheduleInterviewModal('${Lms.esc(item.id)}')">
                         <i class="fas fa-calendar-alt"></i> Schedule Interview
                     </button>
-                `;
+                ` : '');
             } else if (item.status === 'INTERVIEW_SCHEDULED') {
-                actionButtons += `
-                    <button class="btn btn-danger" onclick="AdmissionsModule.openRejectModal('${item.id}')">Reject</button>
-                    <button class="btn btn-gold" onclick="AdmissionsModule.openInterviewEvaluationModal('${item.id}')">
+                actionButtons += reject + (can('admissions.schedule_interview') ? `
+                    <button class="btn btn-gold" onclick="AdmissionsModule.openInterviewEvaluationModal('${Lms.esc(item.id)}')">
                         <i class="fas fa-clipboard-check"></i> Evaluate & Decide
                     </button>
-                `;
+                ` : '');
             } else if (item.status === 'APPROVED') {
-                actionButtons += `
-                    <button class="btn btn-danger" onclick="AdmissionsModule.openRejectModal('${item.id}')">Revoke Approval</button>
-                    <button class="btn btn-primary" onclick="AdmissionsModule.openEnrollmentModal('${item.id}')">
+                actionButtons += reject + (can('admissions.enroll') ? `
+                    <button class="btn btn-primary" onclick="AdmissionsModule.openEnrollmentModal('${Lms.esc(item.id)}')">
                         <i class="fas fa-user-plus"></i> Enroll as Active Student
                     </button>
-                `;
+                ` : '');
             } else if (item.status === 'ENROLLED') {
                 actionButtons += `
-                    <button class="btn btn-gold" onclick="AdmissionsModule.printStudentCard('${item.id}')">
+                    <button class="btn btn-gold" onclick="AdmissionsModule.printStudentCard('${Lms.esc(item.id)}')">
                         <i class="fas fa-id-card"></i> Print Student ID
                     </button>
-                    <button class="btn btn-primary" onclick="AdmissionsModule.viewEnrolledStudent('${item.id}')">
+                    <button class="btn btn-primary" onclick="AdmissionsModule.viewEnrolledStudent('${Lms.esc(item.id)}')">
                         <i class="fas fa-user"></i> View Profile in Students
                     </button>
                 `;
@@ -746,10 +740,10 @@ const AdmissionsModule = {
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
                 <p style="color: var(--text-primary); font-size: 0.95rem; margin-bottom: 6px;">
-                    Schedule interview for candidate <strong>${item.name}</strong> (<code style="color: var(--gold-700);">${item.applicationNo}</code>).
+                    Schedule interview for candidate <strong>${Lms.esc(item.name)}</strong> (<code style="color: var(--gold-700);">${Lms.esc(item.applicationNo)}</code>).
                 </p>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
-                    Father: ${item.fatherName} &bull; CNIC: ${item.cnic}
+                    Father: ${Lms.esc(item.fatherName)} &bull; CNIC: ${Lms.esc(item.cnic)}
                 </div>
             </div>
 
@@ -818,13 +812,13 @@ const AdmissionsModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-clipboard-check" style="color: var(--gold-400);"></i> Candidate Interview Evaluation: ${item.name}`;
+        modalTitle.innerHTML = `<i class="fas fa-clipboard-check" style="color: var(--gold-400);"></i> Candidate Interview Evaluation: ${Lms.esc(item.name)}`;
 
         modalBody.innerHTML = `
             <form id="form-interview-eval" onsubmit="AdmissionsModule.handleEvaluationSubmit(event, '${id}')">
                 <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle); margin-bottom: 16px; font-size: 0.85rem;">
-                    <div><strong>Candidate:</strong> ${item.name} (${item.applicationNo}) &bull; S/O ${item.fatherName}</div>
-                    <div style="color: var(--text-muted);">Interview Date: ${item.interviewDate || 'Current Session'}</div>
+                    <div><strong>Candidate:</strong> ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)}) &bull; S/O ${Lms.esc(item.fatherName)}</div>
+                    <div style="color: var(--text-muted);">Interview Date: ${Lms.esc(item.interviewDate || 'Current Session')}</div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
@@ -832,7 +826,7 @@ const AdmissionsModule = {
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Overall Evaluation Score (0 - 100) *
                         </label>
-                        <input type="number" id="eval-score" class="form-control" min="0" max="100" value="${item.interviewScore || 88}" required>
+                        <input type="number" id="eval-score" class="form-control" min="0" max="100" value="${Lms.esc(item.interviewScore || 88)}" required>
                     </div>
 
                     <div>
@@ -868,7 +862,7 @@ const AdmissionsModule = {
                     <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Committee Remarks / Examination Notes
                     </label>
-                    <textarea id="eval-remarks" class="form-control" rows="3" placeholder="Enter notes from the interviewing committee...">${item.committeeRemarks || 'Candidate demonstrates sound foundational knowledge in Arabic and Quranic recitation.'}</textarea>
+                    <textarea id="eval-remarks" class="form-control" rows="3" placeholder="Enter notes from the interviewing committee...">${Lms.esc(item.committeeRemarks || 'Candidate demonstrates sound foundational knowledge in Arabic and Quranic recitation.')}</textarea>
                 </div>
             </form>
         `;
@@ -962,9 +956,9 @@ const AdmissionsModule = {
                 <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.15) 100%); border-left: 4px solid var(--gold-400); padding: 12px 16px; border-radius: 4px; margin-bottom: 18px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                         <div>
-                            <strong style="color: var(--primary-950); font-size: 1rem;">${item.name}</strong>
-                            <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; S/O ${item.fatherName}</span>
-                            <div style="font-size: 0.78rem; color: var(--gold-700);">CNIC: ${item.cnic} &bull; Score: ${item.interviewScore || 90}%</div>
+                            <strong style="color: var(--primary-950); font-size: 1rem;">${Lms.esc(item.name)}</strong>
+                            <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; S/O ${Lms.esc(item.fatherName)}</span>
+                            <div style="font-size: 0.78rem; color: var(--gold-700);">CNIC: ${Lms.esc(item.cnic)} &bull; Score: ${Lms.esc(item.interviewScore || 90)}%</div>
                         </div>
                         <span class="status-pill success"><i class="fas fa-check"></i> Interview Cleared</span>
                     </div>
@@ -1006,7 +1000,7 @@ const AdmissionsModule = {
                         </div>
                         <div>
                             <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Initial Password *</label>
-                            <input type="text" id="enroll-pwd" class="form-control" value="ashrafia123" required>
+                            <input type="text" id="enroll-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
                         </div>
                     </div>
                 </div>
@@ -1069,6 +1063,10 @@ const AdmissionsModule = {
         const email = document.getElementById('enroll-email').value.trim();
         const password = document.getElementById('enroll-pwd').value.trim();
         const hostel = document.getElementById('enroll-hostel').value;
+        if (password.length < Lms.MIN_PASSWORD_LENGTH) {
+            App.showToast(`The temporary password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters.`, "warning");
+            return;
+        }
         const feeCategory = document.getElementById('enroll-fee-cat').value;
 
         // Roll numbers and login emails identify the account, so they must be unique
@@ -1145,7 +1143,7 @@ const AdmissionsModule = {
         window.DataStore.save(window.LmsData);
         window.DataStore.syncNow().then(() => {
             Lms.notifyUser(newStudentUserId, `Welcome to Jamia Ashrafia, ${item.name}`,
-                `Your admission to ${prog.name} is confirmed. Roll No: ${rollNo}.${feeChallan && feeChallan.netPayable > 0 ? ` Your admission fee challan ${feeChallan.challanNumber} (${Lms.money(feeChallan.netPayable)}) is in Fees & Payments.` : ''}`,
+                `Your admission to ${Lms.esc(prog.name)} is confirmed. Roll No: ${rollNo}.${feeChallan && feeChallan.netPayable > 0 ? ` Your admission fee challan ${feeChallan.challanNumber} (${Lms.money(feeChallan.netPayable)}) is in Fees & Payments.` : ''}`,
                 'ACADEMIC', 'dashboard');
         });
         App.closeModal();
@@ -1175,16 +1173,16 @@ const AdmissionsModule = {
                 </div>
                 <h3 style="color: var(--primary-950); margin-bottom: 6px;">Enrollment Completed Successfully</h3>
                 <p style="color: var(--text-secondary); font-size: 0.9rem; max-width: 500px; margin: 0 auto 20px;">
-                    Candidate <strong>${studentUser.name}</strong> is now an active scholar of Jamia Ashrafia Lahore.
+                    Candidate <strong>${Lms.esc(studentUser.name)}</strong> is now an active scholar of Jamia Ashrafia Lahore.
                 </p>
 
                 <!-- CREDENTIALS CARD -->
                 <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 16px; max-width: 480px; margin: 0 auto; text-align: left; line-height: 1.9; font-size: 0.85rem;">
-                    <div><strong>Scholar Name:</strong> ${studentUser.name}</div>
-                    <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-700); font-weight: 700; font-size: 0.95rem;">${studentUser.rollNo}</code></div>
-                    <div><strong>Class & Section:</strong> ${studentUser.classId}</div>
-                    <div><strong>Portal Login Email:</strong> <code style="color: var(--primary-700);">${studentUser.email}</code></div>
-                    <div><strong>Initial Password:</strong> <code style="color: var(--primary-800); font-weight: 700;">${studentUser.password}</code></div>
+                    <div><strong>Scholar Name:</strong> ${Lms.esc(studentUser.name)}</div>
+                    <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-700); font-weight: 700; font-size: 0.95rem;">${Lms.esc(studentUser.rollNo)}</code></div>
+                    <div><strong>Class & Section:</strong> ${Lms.esc(studentUser.classId)}</div>
+                    <div><strong>Portal Login Email:</strong> <code style="color: var(--primary-700);">${Lms.esc(studentUser.email)}</code></div>
+                    <div><strong>Initial Password:</strong> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(studentUser.password)}</code> <span style="font-size: 0.75rem; color: var(--text-muted);">(temporary, must be changed at first sign-in)</span></div>
                     <div><strong>Account Status:</strong> <span class="status-pill success"><i class="fas fa-check"></i> Active</span></div>
                 </div>
             </div>
@@ -1234,7 +1232,7 @@ const AdmissionsModule = {
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
                 <p style="color: var(--text-primary); font-size: 0.95rem; margin-bottom: 4px;">
-                    Are you sure you want to mark application <strong>${item.applicationNo}</strong> (${item.name}) as Rejected?
+                    Are you sure you want to mark application <strong>${Lms.esc(item.applicationNo)}</strong> (${Lms.esc(item.name)}) as Rejected?
                 </p>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
                     This decision will be permanently archived in the admissions registry.
@@ -1456,7 +1454,7 @@ const AdmissionsModule = {
                             <label>Academic Program Sought *</label>
                             <select id="adm-program" class="form-control" required>
                                 ${(window.LmsData.programs || []).map(p => `
-                                    <option value="${p.id}">${p.name} (${p.urdu})</option>
+                                    <option value="${Lms.esc(p.id)}">${Lms.esc(p.name)} (${Lms.esc(p.urdu)})</option>
                                 `).join('')}
                             </select>
                         </div>
@@ -1464,7 +1462,7 @@ const AdmissionsModule = {
                             <label>Campus / Branch *</label>
                             <select id="adm-branch" class="form-control" required>
                                 ${(window.LmsData.institution?.branches || []).map(b => `
-                                    <option value="${b.id}">${b.name} - ${b.location}</option>
+                                    <option value="${Lms.esc(b.id)}">${Lms.esc(b.name)} - ${Lms.esc(b.location)}</option>
                                 `).join('')}
                             </select>
                         </div>
@@ -1730,9 +1728,9 @@ const AdmissionsModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-edit" style="color: var(--gold-400);"></i> Edit Application: ${item.name} (${item.applicationNo})`;
+        modalTitle.innerHTML = `<i class="fas fa-edit" style="color: var(--gold-400);"></i> Edit Application: ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)})`;
         modalBody.innerHTML = `
-            <form id="edit-admission-form" onsubmit="event.preventDefault(); AdmissionsModule.saveEditedApplication('${item.id}')">
+            <form id="edit-admission-form" onsubmit="event.preventDefault(); AdmissionsModule.saveEditedApplication('${Lms.esc(item.id)}')">
                 <div class="form-grid">
                     <!-- STUDENT TYPE SELECTION -->
                     <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 6px;">
@@ -1764,11 +1762,11 @@ const AdmissionsModule = {
 
                     <div class="form-group">
                         <label>Candidate Full Name (English) *</label>
-                        <input type="text" id="edit-adm-name" class="form-control" value="${item.name || ''}" required>
+                        <input type="text" id="edit-adm-name" class="form-control" value="${Lms.esc(item.name || '')}" required>
                     </div>
                     <div class="form-group">
                         <label>Father's Name *</label>
-                        <input type="text" id="edit-adm-father" class="form-control" value="${item.fatherName || ''}" required>
+                        <input type="text" id="edit-adm-father" class="form-control" value="${Lms.esc(item.fatherName || '')}" required>
                     </div>
 
                     <!-- LOCAL: CNIC FIELD -->
@@ -1777,7 +1775,7 @@ const AdmissionsModule = {
                             <span>CNIC / B-Form Number *</span>
                             <span style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">XXXXX-XXXXXXX-X</span>
                         </label>
-                        <input type="text" id="edit-adm-cnic" class="form-control" value="${item.cnic || ''}" placeholder="35201-1234567-1" maxlength="15" ${!isIntl ? 'required' : ''}>
+                        <input type="text" id="edit-adm-cnic" class="form-control" value="${Lms.esc(item.cnic || '')}" placeholder="35201-1234567-1" maxlength="15" ${!isIntl ? 'required' : ''}>
                     </div>
 
                     <!-- INTERNATIONAL: PASSPORT NUMBER FIELD -->
@@ -1786,7 +1784,7 @@ const AdmissionsModule = {
                             <span>Passport Number *</span>
                             <span style="font-size: 0.72rem; color: var(--gold-300);">Alphanumeric</span>
                         </label>
-                        <input type="text" id="edit-adm-passport" class="form-control" value="${item.passport || ''}" placeholder="e.g. A12345678 or L98765432" maxlength="30" ${isIntl ? 'required' : ''}>
+                        <input type="text" id="edit-adm-passport" class="form-control" value="${Lms.esc(item.passport || '')}" placeholder="e.g. A12345678 or L98765432" maxlength="30" ${isIntl ? 'required' : ''}>
                     </div>
 
                     <!-- INTERNATIONAL: CURRENT COUNTRY / RESIDENCE FIELD -->
@@ -1795,7 +1793,7 @@ const AdmissionsModule = {
                             <span><i class="fas fa-globe" style="color: var(--gold-400); margin-right: 4px;"></i> Current Country / Country of Residence *</span>
                             <span style="font-size: 0.72rem; color: var(--gold-300);">Searchable</span>
                         </label>
-                        <input type="text" id="edit-adm-country" list="edit-adm-country-datalist" class="form-control" value="${item.country || (isIntl ? 'United Kingdom' : 'Pakistan')}" placeholder="Search or select country..." autocomplete="off" ${isIntl ? 'required' : ''}>
+                        <input type="text" id="edit-adm-country" list="edit-adm-country-datalist" class="form-control" value="${Lms.esc(item.country || (isIntl ? 'United Kingdom' : 'Pakistan'))}" placeholder="Search or select country..." autocomplete="off" ${isIntl ? 'required' : ''}>
                         <datalist id="edit-adm-country-datalist">
                             ${(window.WORLD_COUNTRIES || []).map(c => `<option value="${c}">`).join('')}
                         </datalist>
@@ -1803,18 +1801,18 @@ const AdmissionsModule = {
 
                     <div class="form-group">
                         <label>WhatsApp / Mobile Phone *</label>
-                        <input type="tel" id="edit-adm-phone" class="form-control" value="${item.phone || ''}" required>
+                        <input type="tel" id="edit-adm-phone" class="form-control" value="${Lms.esc(item.phone || '')}" required>
                     </div>
                     <div class="form-group">
                         <label>Email Address</label>
-                        <input type="email" id="edit-adm-email" class="form-control" value="${item.email || ''}">
+                        <input type="email" id="edit-adm-email" class="form-control" value="${Lms.esc(item.email || '')}">
                     </div>
 
                     <div class="form-group">
                         <label>Academic Program Sought *</label>
                         <select id="edit-adm-program" class="form-control" required>
                             ${(window.LmsData.programs || []).map(p => `
-                                <option value="${p.id}" ${p.id === item.programId ? 'selected' : ''}>${p.name} (${p.urdu})</option>
+                                <option value="${Lms.esc(p.id)}" ${p.id === item.programId ? 'selected' : ''}>${Lms.esc(p.name)} (${Lms.esc(p.urdu)})</option>
                             `).join('')}
                         </select>
                     </div>
@@ -1822,14 +1820,14 @@ const AdmissionsModule = {
                         <label>Campus / Branch *</label>
                         <select id="edit-adm-branch" class="form-control" required>
                             ${(window.LmsData.institution?.branches || []).map(b => `
-                                <option value="${b.id}" ${b.id === item.branchId ? 'selected' : ''}>${b.name} - ${b.location}</option>
+                                <option value="${Lms.esc(b.id)}" ${b.id === item.branchId ? 'selected' : ''}>${Lms.esc(b.name)} - ${Lms.esc(b.location)}</option>
                             `).join('')}
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label>Previous Madrasa / School Attended</label>
-                        <input type="text" id="edit-adm-prev-madrasa" class="form-control" value="${item.previousMadrasa || ''}">
+                        <input type="text" id="edit-adm-prev-madrasa" class="form-control" value="${Lms.esc(item.previousMadrasa || '')}">
                     </div>
 
                     <div class="form-group" style="display: flex; align-items: center; gap: 20px; padding-top: 15px;">
@@ -1848,7 +1846,7 @@ const AdmissionsModule = {
 
         modalFooter.innerHTML = `
             <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-            <button type="button" class="btn btn-gold" onclick="AdmissionsModule.saveEditedApplication('${item.id}')">
+            <button type="button" class="btn btn-gold" onclick="AdmissionsModule.saveEditedApplication('${Lms.esc(item.id)}')">
                 <i class="fas fa-save"></i> Save Changes
             </button>
         `;
@@ -2042,14 +2040,14 @@ const AdmissionsModule = {
                             <span style="font-size: 0.65rem; color: var(--primary-800); font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Photo</span>
                         </div>
                         <div style="flex: 1; font-size: 0.84rem; line-height: 1.65; color: var(--text-primary);">
-                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${item.name}</strong></div>
-                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${item.allottedRollNo || 'ASH-2026-001'}</span></div>
+                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${Lms.esc(item.name)}</strong></div>
+                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${Lms.esc(item.allottedRollNo || 'ASH-2026-001')}</span></div>
                             <div><span style="color: var(--text-muted); font-size: 0.78rem;">Department:</span> <span style="font-weight: 600;">Dars-e-Nizami</span></div>
                             ${(item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport)) ? `
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Passport:</span> <span style="font-weight: 600;">${item.passport}</span></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Country:</span> <span style="font-weight: 600;">${item.country || 'International'}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Passport:</span> <span style="font-weight: 600;">${Lms.esc(item.passport)}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Country:</span> <span style="font-weight: 600;">${Lms.esc(item.country || 'International')}</span></div>
                             ` : `
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">CNIC:</span> <span style="font-weight: 600;">${item.cnic}</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">CNIC:</span> <span style="font-weight: 600;">${Lms.esc(item.cnic)}</span></div>
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Country:</span> <span style="font-weight: 600;">Pakistan</span></div>
                             `}
                             <div><span style="color: var(--text-muted); font-size: 0.78rem;">Branch:</span> <span style="font-weight: 600;">Main Ferozepur Rd</span></div>
@@ -2062,7 +2060,7 @@ const AdmissionsModule = {
                             <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 2px; color: var(--primary-950); font-weight: 700;">
                                 ||| | |||| | |||||| || |
                             </div>
-                            <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${item.applicationNo || 'JAL-ST-CARD'}</div>
+                            <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${Lms.esc(item.applicationNo || 'JAL-ST-CARD')}</div>
                         </div>
                         <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: right; line-height: 1.35;">
                             <div>Valid Session: <strong>1446-1447 AH</strong></div>

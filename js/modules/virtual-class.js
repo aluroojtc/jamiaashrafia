@@ -31,8 +31,9 @@ const VirtualClassModule = {
             });
         }
         const currentUser = window.AuthRBAC?.currentUser || {};
-        const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
-        const isAdmin = window.AuthRBAC?.isAdmin();
+        // Recording retention & vault administration, and managing every class (not just one's own)
+        const canRetention = window.AuthRBAC.can('settings.recordings');
+        const canManageAll = window.AuthRBAC.can('virtual_classes.manage');
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
@@ -57,7 +58,7 @@ const VirtualClassModule = {
                     <p>HD Interactive Video Conferencing, Class-Restricted Halls, Attendance Sync & Sacred Knowledge Archive</p>
                 </div>
                 <div class="view-actions">
-                    ${(isSuperAdmin || isAdmin || isTeacher) ? `
+                    ${window.AuthRBAC.can('virtual_classes.host') ? `
                         <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.openScheduleModal()">
                             <i class="fas fa-plus-circle"></i> Schedule / Launch Class
                         </button>
@@ -87,7 +88,7 @@ const VirtualClassModule = {
                 <button class="vc-tab-btn ${this.currentTab === 'attendance' ? 'active' : ''}" onclick="VirtualClassModule.switchTab('attendance')">
                     <i class="fas fa-clipboard-check"></i> Attendance & Reports
                 </button>
-                ${(isSuperAdmin || isAdmin) ? `
+                ${canRetention ? `
                     <button class="vc-tab-btn ${this.currentTab === 'retention' ? 'active' : ''}" onclick="VirtualClassModule.switchTab('retention')">
                         <i class="fas fa-database"></i> Storage & Retention
                     </button>
@@ -139,13 +140,14 @@ const VirtualClassModule = {
     // =========================================================================
     renderLobby() {
         const currentUser = window.AuthRBAC?.currentUser || {};
-        const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
-        const isAdmin = window.AuthRBAC?.isAdmin();
+        // Recording retention & vault administration, and managing every class (not just one's own)
+        const canRetention = window.AuthRBAC.can('settings.recordings');
+        const canManageAll = window.AuthRBAC.can('virtual_classes.manage');
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
         const myClassIds = Lms.myClassIds();
-        const allSessions = (window.LmsData?.virtualClasses || []).filter(s => isAdmin || myClassIds.includes(s.classId) || s.hostId === currentUser.id);
+        const allSessions = (window.LmsData?.virtualClasses || []).filter(s => canManageAll || myClassIds.includes(s.classId) || s.hostId === currentUser.id);
         const studentEnrolledClass = currentUser.classId || '';
 
         // Filter sessions by search & status
@@ -220,7 +222,7 @@ const VirtualClassModule = {
                         ${isStudent ? `
                             You are signed in as <strong>${Lms.esc(currentUser.name)}</strong> (Class: <em>${Lms.esc(studentEnrolledClass ? Lms.className(studentEnrolledClass) : 'not enrolled')}</em>). Only your own class's live sessions can be joined.
                         ` : isTeacher ? `
-                            You are instructing as <strong>${currentUser.name}</strong>. You possess host moderation authority over your designated Dars-e-Nizami sections.
+                            You are instructing as <strong>${Lms.esc(currentUser.name)}</strong>. You possess host moderation authority over your designated Dars-e-Nizami sections.
                         ` : `
                             Super Admin Global Oversight active. Full supervisory authority, moderation override, and storage retention privileges enabled.
                         `}
@@ -270,8 +272,9 @@ const VirtualClassModule = {
     },
 
     renderClassroomCard(session, currentUser) {
-        const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
-        const isAdmin = window.AuthRBAC?.isAdmin();
+        // Recording retention & vault administration, and managing every class (not just one's own)
+        const canRetention = window.AuthRBAC.can('settings.recordings');
+        const canManageAll = window.AuthRBAC.can('virtual_classes.manage');
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
@@ -295,36 +298,36 @@ const VirtualClassModule = {
                 <div class="vc-card-header">
                     <div style="display: flex; flex-direction: column; gap: 4px;">
                         <span style="font-size: 0.74rem; font-family: monospace; font-weight: 700; color: var(--primary-800);">
-                            ${session.meetingUuid}
+                            ${Lms.esc(session.meetingUuid)}
                         </span>
                         <span class="status-pill ${isEnrolledClass ? 'success' : 'neutral'}" style="font-size: 0.7rem; align-self: flex-start;">
                             <i class="fas ${isEnrolledClass ? 'fa-check' : 'fa-lock'}"></i>
-                            ${session.className}
+                            ${Lms.esc(session.className)}
                         </span>
                     </div>
                     ${badgeHtml}
                 </div>
 
                 <div class="vc-card-body">
-                    <div class="vc-class-title">${session.title}</div>
-                    <div class="vc-class-urdu">${session.urduTitle || ''}</div>
+                    <div class="vc-class-title">${Lms.esc(session.title)}</div>
+                    <div class="vc-class-urdu">${Lms.esc(session.urduTitle || '')}</div>
 
                     <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
                         <div class="vc-meta-item">
                             <i class="fas fa-user-tie"></i>
-                            <span><strong>Sheikh / Ustad:</strong> ${session.hostTeacher}</span>
+                            <span><strong>Sheikh / Ustad:</strong> ${Lms.esc(session.hostTeacher)}</span>
                         </div>
                         <div class="vc-meta-item">
                             <i class="fas fa-map-marker-alt"></i>
-                            <span><strong>Virtual Studio:</strong> ${session.roomName || 'Studio 1'}</span>
+                            <span><strong>Virtual Studio:</strong> ${Lms.esc(session.roomName || 'Studio 1')}</span>
                         </div>
                         <div class="vc-meta-item">
                             <i class="fas fa-clock"></i>
-                            <span><strong>Time:</strong> ${session.scheduledStart} (${session.durationMinutes} mins)</span>
+                            <span><strong>Time:</strong> ${Lms.esc(session.scheduledStart)} (${Lms.esc(session.durationMinutes)} mins)</span>
                         </div>
                         <div class="vc-meta-item">
                             <i class="fas fa-users"></i>
-                            <span><strong>Attendance:</strong> ${session.activeParticipants || 0} scholars present</span>
+                            <span><strong>Attendance:</strong> ${Lms.esc(session.activeParticipants || 0)} scholars present</span>
                         </div>
                     </div>
                 </div>
@@ -333,32 +336,32 @@ const VirtualClassModule = {
                     <div style="display: flex; align-items: center; gap: 6px;">
                         <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Passcode:</span>
                         <code class="vc-passcode-badge">
-                            ${session.passcode}
+                            ${Lms.esc(session.passcode)}
                         </code>
                     </div>
 
                     <div>
                         ${isLive ? (
                             isEnrolledClass || isSessionHost ? `
-                                <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.enterClassroom('${session.id}')">
+                                <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.enterClassroom('${Lms.esc(session.id)}')">
                                     <i class="fas fa-sign-in-alt"></i> ${isSessionHost ? 'Open Live Room' : 'Join Live Class'}
                                 </button>
-                                ${isSessionHost ? `<button class="btn btn-secondary btn-sm" title="End this session" onclick="VirtualClassModule.endSession('${session.id}')"><i class="fas fa-stop-circle" style="color: var(--danger);"></i></button>` : ''}
+                                ${isSessionHost ? `<button class="btn btn-secondary btn-sm" title="End this session" onclick="VirtualClassModule.endSession('${Lms.esc(session.id)}')"><i class="fas fa-stop-circle" style="color: var(--danger);"></i></button>` : ''}
                             ` : `
-                                <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.showRestrictedNotice('${session.className}')" title="Class restricted to enrolled scholars">
+                                <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.showRestrictedNotice('${Lms.esc(session.className)}')" title="Class restricted to enrolled scholars">
                                     <i class="fas fa-lock"></i> Restricted Section
                                 </button>
                             `
                         ) : session.status === 'UPCOMING' ? (
                             isSessionHost ? `
-                                <button class="btn btn-gold btn-sm" onclick="VirtualClassModule.startSessionEarly('${session.id}')">
+                                <button class="btn btn-gold btn-sm" onclick="VirtualClassModule.startSessionEarly('${Lms.esc(session.id)}')">
                                     <i class="fas fa-play"></i> Start Lecture
                                 </button>
                             ` : `
                                 <span class="status-pill gold" style="font-size: 0.72rem;"><i class="fas fa-clock"></i> Starts ${Lms.esc(session.scheduledStart || '')}</span>
                             `
                         ) : `
-                            <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.viewCompletedSession('${session.id}')">
+                            <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.viewCompletedSession('${Lms.esc(session.id)}')">
                                 <i class="fas fa-history"></i> Session Log
                             </button>
                         `}
@@ -400,8 +403,9 @@ const VirtualClassModule = {
         }
 
         const currentUser = window.AuthRBAC?.currentUser || {};
-        const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
-        const isAdmin = window.AuthRBAC?.isAdmin();
+        // Recording retention & vault administration, and managing every class (not just one's own)
+        const canRetention = window.AuthRBAC.can('settings.recordings');
+        const canManageAll = window.AuthRBAC.can('virtual_classes.manage');
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
@@ -410,10 +414,7 @@ const VirtualClassModule = {
             const verifyRes = await fetch('/api/virtual-class/verify-access', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-id': currentUser.id,
-                    'x-user-role': currentUser.role,
-                    'x-user-class': currentUser.classId || 'cls_dawra_a'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     sessionId: session.id,
@@ -500,25 +501,7 @@ const VirtualClassModule = {
                 window.DataStore?.save(window.LmsData);
             }
         }
-
-        // Sync with backend API
-        fetch('/api/virtual-class/join', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-user-id': currentUser.id,
-                'x-user-role': currentUser.role
-            },
-            body: JSON.stringify({
-                sessionId: session.id,
-                classId: session.classId,
-                className: session.className,
-                userId: currentUser.id,
-                userName: currentUser.name,
-                rollNo: currentUser.rollNo,
-                role: currentUser.role
-            })
-        }).catch(err => console.warn("Backend attendance sync queued", err));
+        // The attendance record reaches the server through the shared record store
     },
 
     renderStudio() {
@@ -561,7 +544,7 @@ const VirtualClassModule = {
                     </div>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()"><i class="fas fa-link"></i> Copy Link</button>
-                        ${isHost && session.status === 'LIVE' ? `<button class="btn btn-danger btn-sm" onclick="VirtualClassModule.endSession('${session.id}')"><i class="fas fa-stop-circle"></i> End Class for Everyone</button>` : ''}
+                        ${isHost && session.status === 'LIVE' ? `<button class="btn btn-danger btn-sm" onclick="VirtualClassModule.endSession('${Lms.esc(session.id)}')"><i class="fas fa-stop-circle"></i> End Class for Everyone</button>` : ''}
                         <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.leaveClass()"><i class="fas fa-sign-out-alt"></i> Leave</button>
                     </div>
                 </div>
@@ -606,8 +589,9 @@ const VirtualClassModule = {
     // =========================================================================
     renderRecordings() {
         const currentUser = window.AuthRBAC?.currentUser || {};
-        const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
-        const isAdmin = window.AuthRBAC?.isAdmin();
+        // Recording retention & vault administration, and managing every class (not just one's own)
+        const canRetention = window.AuthRBAC.can('settings.recordings');
+        const canManageAll = window.AuthRBAC.can('virtual_classes.manage');
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
@@ -703,36 +687,36 @@ const VirtualClassModule = {
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-                                    <h4 style="color: var(--primary-950); margin: 0; font-size: 1.05rem; font-weight: 700;">${rec.title}</h4>
-                                    <span class="status-pill neutral" style="font-size: 0.72rem;">${rec.className}</span>
+                                    <h4 style="color: var(--primary-950); margin: 0; font-size: 1.05rem; font-weight: 700;">${Lms.esc(rec.title)}</h4>
+                                    <span class="status-pill neutral" style="font-size: 0.72rem;">${Lms.esc(rec.className)}</span>
                                     <span class="vc-retention-pill ${rec.daysRemaining < 15 ? 'warning' : ''}">
-                                        <i class="fas fa-hourglass-half"></i> ${rec.daysRemaining} days remaining in vault
+                                        <i class="fas fa-hourglass-half"></i> ${Lms.esc(rec.daysRemaining)} days remaining in vault
                                     </span>
                                 </div>
                                 <div style="font-family: 'Amiri', serif; color: var(--gold-700); font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
-                                    ${rec.urduTitle || ''}
+                                    ${Lms.esc(rec.urduTitle || '')}
                                 </div>
                                 <div style="display: flex; gap: 16px; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap;">
-                                    <span><i class="fas fa-user-tie" style="color: var(--primary-400);"></i> ${rec.teacherName}</span>
-                                    <span><i class="fas fa-calendar" style="color: var(--primary-400);"></i> ${rec.recordedDate} at ${rec.recordedTime}</span>
-                                    <span><i class="fas fa-clock" style="color: var(--primary-400);"></i> Duration: ${rec.durationFormatted}</span>
-                                    <span><i class="fas fa-file-video" style="color: var(--primary-400);"></i> ${rec.fileSizeFormatted} (${rec.format})</span>
-                                    <span><i class="fas fa-eye" style="color: var(--primary-400);"></i> ${rec.viewsCount || 0} views</span>
+                                    <span><i class="fas fa-user-tie" style="color: var(--primary-400);"></i> ${Lms.esc(rec.teacherName)}</span>
+                                    <span><i class="fas fa-calendar" style="color: var(--primary-400);"></i> ${Lms.esc(rec.recordedDate)} at ${Lms.esc(rec.recordedTime)}</span>
+                                    <span><i class="fas fa-clock" style="color: var(--primary-400);"></i> Duration: ${Lms.esc(rec.durationFormatted)}</span>
+                                    <span><i class="fas fa-file-video" style="color: var(--primary-400);"></i> ${Lms.esc(rec.fileSizeFormatted)} (${Lms.esc(rec.format)})</span>
+                                    <span><i class="fas fa-eye" style="color: var(--primary-400);"></i> ${Lms.esc(rec.viewsCount || 0)} views</span>
                                 </div>
                             </div>
                         </div>
 
                         <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-                            <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.openVideoPlayer('${rec.id}')">
+                            <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.openVideoPlayer('${Lms.esc(rec.id)}')">
                                 <i class="fas fa-play"></i> Watch Lecture
                             </button>
-                            ${(isSuperAdmin || isAdmin || isTeacher || settings.allowStudentDownload) ? `
-                                <a href="${rec.downloadUrl || '#'}" target="_blank" download class="btn btn-secondary btn-sm" title="Download High-Res Lecture">
+                            ${(window.AuthRBAC.can('recordings.download') || settings.allowStudentDownload) ? `
+                                <a href="${Lms.esc(rec.downloadUrl || '#')}" target="_blank" download class="btn btn-secondary btn-sm" title="Download High-Res Lecture">
                                     <i class="fas fa-download"></i> Download
                                 </a>
                             ` : ''}
-                            ${isSuperAdmin ? `
-                                <button class="btn btn-secondary btn-sm" style="color: #f87171;" onclick="VirtualClassModule.deleteRecording('${rec.id}')" title="Delete recording immediately">
+                            ${window.AuthRBAC.can('recordings.manage') ? `
+                                <button class="btn btn-secondary btn-sm" style="color: #f87171;" onclick="VirtualClassModule.deleteRecording('${Lms.esc(rec.id)}')" title="Delete recording immediately">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             ` : ''}
@@ -760,8 +744,9 @@ const VirtualClassModule = {
     // =========================================================================
     renderAttendance() {
         const currentUser = window.AuthRBAC?.currentUser || {};
-        const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
-        const isAdmin = window.AuthRBAC?.isAdmin();
+        // Recording retention & vault administration, and managing every class (not just one's own)
+        const canRetention = window.AuthRBAC.can('settings.recordings');
+        const canManageAll = window.AuthRBAC.can('virtual_classes.manage');
         const isTeacher = window.AuthRBAC?.isTeacher();
         const isStudent = window.AuthRBAC?.isStudent();
 
@@ -845,29 +830,29 @@ const VirtualClassModule = {
                         ` : virtualAtt.map(att => `
                             <tr>
                                 <td>
-                                    <div style="font-weight: 700; color: var(--text-primary);">${att.userName}</div>
+                                    <div style="font-weight: 700; color: var(--text-primary);">${Lms.esc(att.userName)}</div>
                                 </td>
                                 <td>
                                     <span class="status-pill ${att.role === 'TEACHER' ? 'gold' : 'neutral'}" style="font-size: 0.72rem;">
-                                        ${att.role}
+                                        ${Lms.esc(att.role)}
                                     </span>
                                     <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 4px;">
-                                        ${att.identifier || ''}
+                                        ${Lms.esc(att.identifier || '')}
                                     </span>
                                 </td>
                                 <td>
-                                    <span style="font-weight: 600; color: var(--text-primary);">${att.className || att.classId}</span>
+                                    <span style="font-weight: 600; color: var(--text-primary);">${Lms.esc(att.className || att.classId)}</span>
                                 </td>
-                                <td>${att.date}</td>
+                                <td>${Lms.esc(att.date)}</td>
                                 <td>
                                     <span style="font-family: monospace; font-weight: 700; color: var(--gold-800);">
-                                        <i class="fas fa-clock" style="font-size: 0.72rem;"></i> ${att.checkInTime || '11:00 AM'}
+                                        <i class="fas fa-clock" style="font-size: 0.72rem;"></i> ${Lms.esc(att.checkInTime || '11:00 AM')}
                                     </span>
                                 </td>
                                 <td>
                                     <span class="status-pill ${att.status === 'PRESENT' ? 'success' : 'danger'}">
                                         <i class="fas ${att.status === 'PRESENT' ? 'fa-check-circle' : 'fa-times-circle'}"></i>
-                                        ${att.status}
+                                        ${Lms.esc(att.status)}
                                     </span>
                                 </td>
                                 <td>
@@ -911,8 +896,7 @@ const VirtualClassModule = {
     // =========================================================================
     renderRetention() {
         const currentUser = window.AuthRBAC?.currentUser || {};
-        const isSuperAdmin = (window.AuthRBAC?.isSuperAdmin ? window.AuthRBAC.isSuperAdmin() : (currentUser.role === 'SUPER_ADMIN'));
-        if (!isSuperAdmin) {
+        if (!window.AuthRBAC.can('settings.recordings')) {
             return `
                 <div class="vc-access-denied">
                     <div class="vc-access-denied-icon"><i class="fas fa-lock"></i></div>
@@ -1089,10 +1073,7 @@ const VirtualClassModule = {
         try {
             await fetch('/api/virtual-class/retention', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-role': 'SUPER_ADMIN'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     retentionDays: Number(retentionDays),
                     triggerCleanup: false
@@ -1115,8 +1096,7 @@ const VirtualClassModule = {
             const res = await fetch('/api/virtual-class/cleanup', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-role': 'SUPER_ADMIN'
+                    'Content-Type': 'application/json'
                 }
             });
 
@@ -1178,7 +1158,7 @@ const VirtualClassModule = {
         const classId = Lms.val('sch-class-id');
         const me = window.AuthRBAC?.currentUser || {};
         let ids = Lms.classCourseIds(classId);
-        if (me.role === 'TEACHER') {
+        if (Lms.portal() === 'teacher') {
             const mine = Lms.teacherCourseIds(me.id, classId);
             const cls = Lms.getClass(classId);
             if (!(cls && cls.teacherId === me.id) && mine.length) ids = mine;
@@ -1276,9 +1256,9 @@ const VirtualClassModule = {
                     <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.08);">
                         <div class="modal-title-group">
                             <h3 style="color: #ffffff; margin: 0; font-size: 1.1rem;">
-                                <i class="fas fa-play-circle" style="color: var(--primary-500);"></i> ${recording.title}
+                                <i class="fas fa-play-circle" style="color: var(--primary-500);"></i> ${Lms.esc(recording.title)}
                             </h3>
-                            <div style="font-size: 0.8rem; color: var(--gold-300);">${recording.urduTitle || ''}</div>
+                            <div style="font-size: 0.8rem; color: var(--gold-300);">${Lms.esc(recording.urduTitle || '')}</div>
                         </div>
                         <button class="modal-close-btn" onclick="VirtualClassModule.closeVideoPlayer()">&times;</button>
                     </div>
@@ -1290,12 +1270,12 @@ const VirtualClassModule = {
                         <div style="padding: 16px 20px; background: var(--bg-surface-elevated, #162026); border-top: 1px solid rgba(255,255,255,0.08);">
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                                 <div>
-                                    <div style="font-weight: 600; color: #ffffff; font-size: 0.95rem;">${recording.teacherName}</div>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);">${recording.className} &bull; Recorded on ${recording.recordedDate}</div>
+                                    <div style="font-weight: 600; color: #ffffff; font-size: 0.95rem;">${Lms.esc(recording.teacherName)}</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">${Lms.esc(recording.className)} &bull; Recorded on ${Lms.esc(recording.recordedDate)}</div>
                                 </div>
                                 <div style="display: flex; gap: 8px;">
                                     <span class="status-pill success"><i class="fas fa-shield-alt"></i> AES-256 Cloud Vault</span>
-                                    <span class="status-pill gold"><i class="fas fa-clock"></i> ${recording.durationFormatted}</span>
+                                    <span class="status-pill gold"><i class="fas fa-clock"></i> ${Lms.esc(recording.durationFormatted)}</span>
                                 </div>
                             </div>
                         </div>
@@ -1371,7 +1351,7 @@ const VirtualClassModule = {
         try {
             const res = await fetch('/api/settings/meeting', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-User-Id': me.id || '', 'X-User-Role': me.role || '' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ domain: Lms.val('meeting-domain'), embed: document.getElementById('meeting-embed').checked })
             });
             const data = await res.json().catch(() => ({}));
@@ -1474,8 +1454,8 @@ const VirtualClassModule = {
 
     canHost(session) {
         const me = window.AuthRBAC?.currentUser || {};
-        if (window.AuthRBAC?.isAdmin()) return true;
-        return me.role === 'TEACHER' && (session.hostId === me.id || Lms.teacherClassIds(me.id).includes(session.classId));
+        if (window.AuthRBAC.can('virtual_classes.manage')) return true;
+        return window.AuthRBAC.can('virtual_classes.host') && (session.hostId === me.id || Lms.portal() === 'staff' || Lms.teacherClassIds(me.id).includes(session.classId));
     },
 
     startSessionEarly(sessionId) {
@@ -1517,7 +1497,7 @@ const VirtualClassModule = {
                 ${session.startedAt ? `<div><strong>Started:</strong> ${Lms.fmtDateTime(session.startedAt)}${session.endedAt ? ` • <strong>Ended:</strong> ${Lms.fmtDateTime(session.endedAt)}` : ''}</div>` : ''}
                 <div><strong>Attendance:</strong> ${attendees.filter(a => a.role === 'STUDENT').length} of ${roster.length} students joined</div>
             </div>
-            ${recording ? `<button class="btn btn-gold btn-sm" style="margin-bottom: 12px;" onclick="App.closeModal(); VirtualClassModule.openVideoPlayer('${recording.id}')"><i class="fas fa-play"></i> Watch Recording</button>` : ''}
+            ${recording ? `<button class="btn btn-gold btn-sm" style="margin-bottom: 12px;" onclick="App.closeModal(); VirtualClassModule.openVideoPlayer('${Lms.esc(recording.id)}')"><i class="fas fa-play"></i> Watch Recording</button>` : ''}
             <div class="table-responsive">
                 <table class="data-table">
                     <thead><tr><th>Participant</th><th>Joined</th></tr></thead>
@@ -1530,7 +1510,7 @@ const VirtualClassModule = {
             ${roster.length ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;"><strong>Did not join:</strong> ${roster.filter(s => !attendees.some(a => a.userId === s.id)).map(s => Lms.esc(s.name)).join(', ') || 'None'}</div>` : ''}`,
             this.canHost(session) ? `
                 <button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
-                <button class="btn btn-gold" onclick="VirtualClassModule.openAddRecordingModal('${session.id}')"><i class="fas fa-upload"></i> ${recording ? 'Replace' : 'Add'} Recording</button>` : null
+                <button class="btn btn-gold" onclick="VirtualClassModule.openAddRecordingModal('${Lms.esc(session.id)}')"><i class="fas fa-upload"></i> ${recording ? 'Replace' : 'Add'} Recording</button>` : null
         );
     },
 
@@ -1565,7 +1545,7 @@ const VirtualClassModule = {
             <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-bottom: 12px;">— or upload the video file —</div>
             ${Lms.fileInput('rec-file', { label: 'Upload MP4 / WebM / MP3 (max 25 MB)', accept: '.mp4,.webm,.mp3,.m4a', hint: 'For longer lectures upload to YouTube or Drive and paste the link above' })}`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-             <button class="btn btn-gold" onclick="VirtualClassModule.saveRecording(this, '${session.id}')"><i class="fas fa-save"></i> Save Recording</button>`
+             <button class="btn btn-gold" onclick="VirtualClassModule.saveRecording(this, '${Lms.esc(session.id)}')"><i class="fas fa-save"></i> Save Recording</button>`
         );
     },
 
@@ -1598,4 +1578,11 @@ const VirtualClassModule = {
             });
             window.DataStore.save(window.LmsData);
             Lms.notifyClass(session.classId, `Recording available: ${session.title}`, 'The lecture recording is now in Online Classes → Recordings Vault.', 'LIVE_CLASS', 'virtual-class');
-            window.App.
+            window.App.showToast('Recording saved to the Recordings Vault', 'success');
+            window.App.closeModal();
+            this.switchTab('recordings');
+        }, 'Uploading...');
+    }
+};
+
+window.VirtualClassModule = VirtualClassModule;

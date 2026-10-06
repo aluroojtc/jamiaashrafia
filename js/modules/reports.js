@@ -12,16 +12,16 @@ const ReportsModule = {
     filterStatus: 'ALL',
 
     categories: [
-        { id: 'STUDENTS', label: 'Student Reports', icon: 'fas fa-user-graduate', urdu: 'رپورٹ برائے طلبہ' },
-        { id: 'TEACHERS', label: 'Teacher Reports', icon: 'fas fa-chalkboard-teacher', urdu: 'رپورٹ برائے اساتذہ' },
-        { id: 'ATTENDANCE', label: 'Attendance Reports', icon: 'fas fa-calendar-check', urdu: 'رپورٹ حاضری و اوقات' },
-        { id: 'CLASSES', label: 'Class & Course Reports', icon: 'fas fa-book', urdu: 'رپورٹ نصاب و کتب' },
-        { id: 'ASSIGNMENTS', label: 'Assignment Reports', icon: 'fas fa-edit', urdu: 'رپورٹ واجبات و تمرینات' },
-        { id: 'EXAMS', label: 'Exam & Result Reports', icon: 'fas fa-award', urdu: 'رپورٹ وفاق امتحانات' },
-        { id: 'ADMISSIONS', label: 'Admission Reports', icon: 'fas fa-user-plus', urdu: 'رپورٹ داخلہ امیدواران' },
-        { id: 'FEES', label: 'Fee & Payment Reports', icon: 'fas fa-hand-holding-heart', urdu: 'رپورٹ مالیات و صدقات' },
-        { id: 'LIBRARY', label: 'Library Reports', icon: 'fas fa-book-reader', urdu: 'رپورٹ مکتبہ اشرفیہ' },
-        { id: 'ONLINE_CLASSES', label: 'Online Class Reports', icon: 'fas fa-video', urdu: 'رپورٹ زوم دروس' }
+        { id: 'STUDENTS', perm: 'reports.academic', label: 'Student Reports', icon: 'fas fa-user-graduate', urdu: 'رپورٹ برائے طلبہ' },
+        { id: 'TEACHERS', perm: 'reports.academic', label: 'Teacher Reports', icon: 'fas fa-chalkboard-teacher', urdu: 'رپورٹ برائے اساتذہ' },
+        { id: 'ATTENDANCE', perm: 'reports.attendance', label: 'Attendance Reports', icon: 'fas fa-calendar-check', urdu: 'رپورٹ حاضری و اوقات' },
+        { id: 'CLASSES', perm: 'reports.academic', label: 'Class & Course Reports', icon: 'fas fa-book', urdu: 'رپورٹ نصاب و کتب' },
+        { id: 'ASSIGNMENTS', perm: 'reports.academic', label: 'Assignment Reports', icon: 'fas fa-edit', urdu: 'رپورٹ واجبات و تمرینات' },
+        { id: 'EXAMS', perm: 'reports.academic', label: 'Exam & Result Reports', icon: 'fas fa-award', urdu: 'رپورٹ وفاق امتحانات' },
+        { id: 'ADMISSIONS', perm: 'reports.admissions', label: 'Admission Reports', icon: 'fas fa-user-plus', urdu: 'رپورٹ داخلہ امیدواران' },
+        { id: 'FEES', perm: 'reports.finance', label: 'Fee & Payment Reports', icon: 'fas fa-hand-holding-heart', urdu: 'رپورٹ مالیات و صدقات' },
+        { id: 'LIBRARY', perm: 'reports.library', label: 'Library Reports', icon: 'fas fa-book-reader', urdu: 'رپورٹ مکتبہ اشرفیہ' },
+        { id: 'ONLINE_CLASSES', perm: 'reports.academic', label: 'Online Class Reports', icon: 'fas fa-video', urdu: 'رپورٹ زوم دروس' }
     ],
 
     render() {
@@ -29,7 +29,7 @@ const ReportsModule = {
         const role = window.AuthRBAC.getRole();
 
         // RBAC Enforcement
-        if (!window.AuthRBAC.canAccessModule('reports', role)) {
+        if (!window.AuthRBAC.canAccessModule('reports')) {
             return `
                 <div class="card" style="border: 2px solid var(--danger); text-align: center; padding: 48px 24px;">
                     <i class="fas fa-lock" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
@@ -42,7 +42,11 @@ const ReportsModule = {
             `;
         }
 
-        const cat = this.categories.find(c => c.id === this.activeCategory) || this.categories[0];
+        // Each report category needs its own permission (academic, attendance, admissions, finance, library)
+        const allowed = this.categories.filter(c => window.AuthRBAC.can(c.perm));
+        const cat = allowed.find(c => c.id === this.activeCategory) || allowed[0];
+        if (!cat) return `<div class="card">${window.App.dashEmpty('No reports are available to your role.')}</div>`;
+        this.activeCategory = cat.id;
 
         return `
             <!-- HEADER -->
@@ -55,9 +59,9 @@ const ReportsModule = {
                     <p>Searchable institutional analytics, cross-modular audit summaries, and accredited Wifaq reporting data</p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="ReportsModule.exportCSV()">
+                    ${window.AuthRBAC.can('reports.export') ? `<button class="btn btn-secondary btn-sm" onclick="ReportsModule.exportCSV()">
                         <i class="fas fa-file-csv"></i> Export Current Report (CSV)
-                    </button>
+                    </button>` : ''}
                     <button class="btn btn-gold btn-sm" onclick="window.print()">
                         <i class="fas fa-print"></i> Print Official Report
                     </button>
@@ -67,11 +71,11 @@ const ReportsModule = {
             <!-- REPORT CATEGORY NAVIGATION BAR -->
             <div class="card" style="padding: 14px; margin-bottom: 20px; overflow-x: auto;">
                 <div style="display: flex; gap: 8px; flex-wrap: nowrap; min-width: 900px;">
-                    ${this.categories.map(c => `
+                    ${allowed.map(c => `
                         <button class="btn ${this.activeCategory === c.id ? 'btn-gold' : 'btn-secondary'} btn-sm" 
-                                onclick="ReportsModule.setCategory('${c.id}')" 
+                                onclick="ReportsModule.setCategory('${Lms.esc(c.id)}')" 
                                 style="white-space: nowrap; font-size: 0.8rem; padding: 8px 14px;">
-                            <i class="${c.icon}"></i> ${c.label}
+                            <i class="${Lms.esc(c.icon)}"></i> ${Lms.esc(c.label)}
                         </button>
                     `).join('')}
                 </div>
@@ -203,17 +207,17 @@ const ReportsModule = {
                     <tbody>
                         ${filtered.map(s => `
                             <tr>
-                                <td><span class="status-pill primary" style="font-family: monospace;">${s.rollNo || 'N/A'}</span></td>
+                                <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(s.rollNo || 'N/A')}</span></td>
                                 <td>
-                                    <div style="font-weight: 700; color: var(--primary-950);">${s.name}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 0.9rem; color: var(--gold-700);">${s.urduName || ''}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(s.name)}</div>
+                                    <div style="font-family: 'Amiri', serif; font-size: 0.9rem; color: var(--gold-700);">${Lms.esc(s.urduName || '')}</div>
                                 </td>
-                                <td>${s.program || 'Dars-e-Nizami'}</td>
-                                <td style="color: var(--text-muted); font-size: 0.82rem;">${s.hostel || 'Day Scholar'}</td>
-                                <td>${s.enrollmentDate || '2024-08-15'}</td>
-                                <td><strong style="color: var(--primary-300);">${s.attendancePct || 92}%</strong></td>
-                                <td><span class="status-pill gold">${s.gpa || 'Jayyid'}</span></td>
-                                <td><span class="status-pill success">${s.status || 'ACTIVE'}</span></td>
+                                <td>${Lms.esc(s.program || 'Dars-e-Nizami')}</td>
+                                <td style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(s.hostel || 'Day Scholar')}</td>
+                                <td>${Lms.esc(s.enrollmentDate || '2024-08-15')}</td>
+                                <td><strong style="color: var(--primary-300);">${Lms.esc(s.attendancePct || 92)}%</strong></td>
+                                <td><span class="status-pill gold">${Lms.esc(s.gpa || 'Jayyid')}</span></td>
+                                <td><span class="status-pill success">${Lms.esc(s.status || 'ACTIVE')}</span></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -242,13 +246,13 @@ const ReportsModule = {
                         ${teachers.map(t => `
                             <tr>
                                 <td>
-                                    <div style="font-weight: 700; color: var(--primary-950);">${t.name}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${t.urduName || ''}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(t.name)}</div>
+                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${Lms.esc(t.urduName || '')}</div>
                                 </td>
-                                <td><span class="status-pill gold">${t.designation}</span></td>
-                                <td style="color: var(--text-secondary);">${t.specialization}</td>
-                                <td style="font-size: 0.82rem; color: var(--text-muted);">${t.email}</td>
-                                <td><span class="status-pill success">${t.sanad}</span></td>
+                                <td><span class="status-pill gold">${Lms.esc(t.designation)}</span></td>
+                                <td style="color: var(--text-secondary);">${Lms.esc(t.specialization)}</td>
+                                <td style="font-size: 0.82rem; color: var(--text-muted);">${Lms.esc(t.email)}</td>
+                                <td><span class="status-pill success">${Lms.esc(t.sanad)}</span></td>
                                 <td>${(t.assignedCourses || []).join(', ')}</td>
                             </tr>
                         `).join('')}
@@ -279,18 +283,18 @@ const ReportsModule = {
                     <tbody>
                         ${records.map(r => `
                             <tr>
-                                <td><strong>${r.date}</strong></td>
-                                <td style="font-weight: 700; color: var(--primary-950);">${r.userName}</td>
-                                <td><span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}">${r.role}</span></td>
-                                <td style="font-size: 0.82rem; color: var(--text-secondary);">${r.className || 'General'}</td>
-                                <td style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-300)'};">${r.checkInTime || '—'}</td>
-                                <td style="color: var(--text-muted);">${r.checkOutTime || '—'}</td>
+                                <td><strong>${Lms.esc(r.date)}</strong></td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(r.userName)}</td>
+                                <td><span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}">${Lms.esc(r.role)}</span></td>
+                                <td style="font-size: 0.82rem; color: var(--text-secondary);">${Lms.esc(r.className || 'General')}</td>
+                                <td style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-300)'};">${Lms.esc(r.checkInTime || '—')}</td>
+                                <td style="color: var(--text-muted);">${Lms.esc(r.checkOutTime || '—')}</td>
                                 <td>
                                     <span class="status-pill ${r.status === 'PRESENT' ? 'success' : (r.status === 'LATE' ? 'warning' : 'danger')}">
-                                        ${r.status}
+                                        ${Lms.esc(r.status)}
                                     </span>
                                 </td>
-                                <td style="font-size: 0.8rem; color: var(--text-muted);">${r.session || 'DAILY'}</td>
+                                <td style="font-size: 0.8rem; color: var(--text-muted);">${Lms.esc(r.session || 'DAILY')}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -318,12 +322,12 @@ const ReportsModule = {
                     <tbody>
                         ${courses.map(c => `
                             <tr>
-                                <td><span class="status-pill primary" style="font-family: monospace;">${c.code}</span></td>
-                                <td style="font-weight: 700; color: var(--primary-950);">${c.title}</td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-700);">${c.urduTitle || ''}</td>
-                                <td style="color: var(--text-muted); font-size: 0.82rem;">${c.kitabAuthor}</td>
-                                <td>Year ${c.year}</td>
-                                <td><strong>${c.credits} Credits</strong></td>
+                                <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(c.code)}</span></td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(c.title)}</td>
+                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-700);">${Lms.esc(c.urduTitle || '')}</td>
+                                <td style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(c.kitabAuthor)}</td>
+                                <td>Year ${Lms.esc(c.year)}</td>
+                                <td><strong>${Lms.esc(c.credits)} Credits</strong></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -449,13 +453,13 @@ const ReportsModule = {
                     <tbody>
                         ${challans.map(c => `
                             <tr>
-                                <td><span class="status-pill primary" style="font-family: monospace;">${c.challanNumber}</span></td>
-                                <td style="font-weight: 700; color: var(--primary-950);">${c.studentName}</td>
-                                <td>${c.monthYear}</td>
-                                <td>PKR ${c.tuitionFee}</td>
-                                <td>PKR ${c.hostelFee}</td>
-                                <td><strong style="color: var(--gold-300);">PKR ${c.totalAmount}</strong></td>
-                                <td><span class="status-pill ${c.status === 'PAID' ? 'success' : 'danger'}">${c.status}</span></td>
+                                <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(c.challanNumber)}</span></td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(c.studentName)}</td>
+                                <td>${Lms.esc(c.monthYear)}</td>
+                                <td>PKR ${Lms.esc(c.tuitionFee)}</td>
+                                <td>PKR ${Lms.esc(c.hostelFee)}</td>
+                                <td><strong style="color: var(--gold-300);">PKR ${Lms.esc(c.totalAmount)}</strong></td>
+                                <td><span class="status-pill ${c.status === 'PAID' ? 'success' : 'danger'}">${Lms.esc(c.status)}</span></td>
                             </tr>
                         `).join('')}
                     </tbody>

@@ -28,8 +28,19 @@ const FeesDonationsModule = {
 
     BANK: { name: 'Meezan Bank / HBL', title: 'Jamia Ashrafia Lahore', account: '0142-7901452203' },
 
+    // Issue and edit challans
     canManage() {
-        return window.AuthRBAC.can('fees:manage') || window.AuthRBAC.isAccountant() || window.AuthRBAC.isSuperAdmin();
+        return Lms.can('fees.challans.generate');
+    },
+
+    // The office view of every student's challans
+    seesAllChallans() {
+        return window.AuthRBAC.wide('fees.challans.view');
+    },
+
+    // The whole donations ledger (anonymous donors stay hidden by the server without the identity permission)
+    seesLedger() {
+        return window.AuthRBAC.wide('donations.view');
     },
 
     challans() {
@@ -54,9 +65,10 @@ const FeesDonationsModule = {
     },
 
     render() {
-        const isStudent = Lms.role() === 'STUDENT';
+        const isStudent = Lms.portal() === 'student';
         const canManage = this.canManage();
-        if (!canManage && !isStudent && this.tab === 'challans') this.tab = 'donations';
+        const seesChallans = this.seesAllChallans();
+        if (!seesChallans && !isStudent && this.tab === 'challans') this.tab = 'donations';
 
         return `
             <div class="view-header">
@@ -65,7 +77,7 @@ const FeesDonationsModule = {
                     <p>${isStudent ? 'View your fee challans, pay at the bank or online and upload the receipt for verification' : 'Fee structures, challan generation, payment verification and Zakat / Sadaqah ledger'}</p>
                 </div>
                 <div class="view-actions">
-                    <button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.openDonateModal()"><i class="fas fa-donate"></i> ${canManage ? 'Record Donation' : 'Donate / Zakat'}</button>
+                    ${Lms.can('donations.record') || Lms.can('donations.give') ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.openDonateModal()"><i class="fas fa-donate"></i> ${Lms.can('donations.record') ? 'Record Donation' : 'Donate / Zakat'}</button>` : ''}
                     ${canManage ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.openGenerateChallanModal()"><i class="fas fa-file-invoice-dollar"></i> Generate Challans</button>` : ''}
                 </div>
             </div>
@@ -73,9 +85,9 @@ const FeesDonationsModule = {
             ${this.renderMetrics()}
 
             <div class="tabs-nav">
-                ${canManage || isStudent ? `<button class="tab-btn ${this.tab === 'challans' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('challans')"><i class="fas fa-receipt"></i> ${isStudent ? 'My Challans' : 'Fee Challans'}</button>` : ''}
+                ${seesChallans || isStudent ? `<button class="tab-btn ${this.tab === 'challans' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('challans')"><i class="fas fa-receipt"></i> ${isStudent ? 'My Challans' : 'Fee Challans'}</button>` : ''}
                 <button class="tab-btn ${this.tab === 'structure' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('structure')"><i class="fas fa-list-alt"></i> Fee Structure</button>
-                <button class="tab-btn ${this.tab === 'donations' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('donations')"><i class="fas fa-hand-holding-usd"></i> ${canManage ? 'Donations Ledger' : 'My Donations'}</button>
+                <button class="tab-btn ${this.tab === 'donations' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('donations')"><i class="fas fa-hand-holding-usd"></i> ${this.seesLedger() ? 'Donations Ledger' : 'My Donations'}</button>
             </div>
 
             ${this.tab === 'challans' ? this.renderChallans() : this.tab === 'structure' ? this.renderStructure() : this.renderDonations()}
@@ -89,7 +101,7 @@ const FeesDonationsModule = {
 
     renderMetrics() {
         const me = Lms.me();
-        if (Lms.role() === 'STUDENT') {
+        if (Lms.portal() === 'student') {
             const mine = this.challans().filter(c => c.studentId === me.id);
             const due = mine.filter(c => c.status !== 'PAID');
             return `
@@ -136,7 +148,7 @@ const FeesDonationsModule = {
     // CHALLANS
     // ---------------------------------------------------------------------
     renderChallans() {
-        const isStudent = Lms.role() === 'STUDENT';
+        const isStudent = Lms.portal() === 'student';
         const me = Lms.me();
         const q = this.search.toLowerCase();
         let list = this.challans().filter(c => !isStudent || c.studentId === me.id);
@@ -191,9 +203,9 @@ const FeesDonationsModule = {
                                         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                             <button class="btn btn-secondary btn-sm" onclick="FeesDonationsModule.printChallan('${ch.id}')"><i class="fas fa-print"></i> Voucher</button>
                                             ${isStudent && (ch.status === 'PENDING' || !ch.status) ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.payChallanModal('${ch.id}')"><i class="fas fa-upload"></i> Upload Payment Proof</button>` : ''}
-                                            ${!isStudent && ch.status === 'VERIFICATION_PENDING' ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.openVerifyModal('${ch.id}')"><i class="fas fa-user-check"></i> Verify</button>` : ''}
-                                            ${!isStudent && ch.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.openVerifyModal('${ch.id}')"><i class="fas fa-cash-register"></i> Record Payment</button>` : ''}
-                                            ${!isStudent && ch.status !== 'PAID' ? `<button class="btn btn-secondary btn-sm" title="Edit / waiver" onclick="FeesDonationsModule.openEditChallanModal('${ch.id}')"><i class="fas fa-edit"></i></button>
+                                            ${!isStudent && Lms.can('fees.challans.verify') && ch.status === 'VERIFICATION_PENDING' ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.openVerifyModal('${ch.id}')"><i class="fas fa-user-check"></i> Verify</button>` : ''}
+                                            ${!isStudent && Lms.can('fees.challans.verify') && ch.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.openVerifyModal('${ch.id}')"><i class="fas fa-cash-register"></i> Record Payment</button>` : ''}
+                                            ${!isStudent && this.canManage() && ch.status !== 'PAID' ? `<button class="btn btn-secondary btn-sm" title="Edit / waiver" onclick="FeesDonationsModule.openEditChallanModal('${ch.id}')"><i class="fas fa-edit"></i></button>
                                                 <button class="btn btn-secondary btn-sm" title="Cancel challan" onclick="FeesDonationsModule.deleteChallan('${ch.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                                             ${ch.status === 'PAID' ? `<button class="btn btn-secondary btn-sm" onclick="FeesDonationsModule.printPaymentReceipt('${ch.id}')"><i class="fas fa-receipt"></i> Receipt</button>` : ''}
                                         </div>
@@ -582,9 +594,9 @@ const FeesDonationsModule = {
     // FEE STRUCTURE
     // ---------------------------------------------------------------------
     renderStructure() {
-        const canManage = this.canManage();
+        const canManage = Lms.can('fees.structures.manage');
         const me = Lms.me();
-        const myProgram = me.role === 'STUDENT' ? (Lms.getClass(me.classId) || {}).programId : null;
+        const myProgram = Lms.portal() === 'student' ? (Lms.getClass(me.classId) || {}).programId : null;
         const programs = (window.LmsData.programs || []).filter(p => !myProgram || p.id === myProgram);
         const cell = v => `<td style="text-align: right;">${Lms.money(v)}</td>`;
         return `
@@ -656,7 +668,7 @@ const FeesDonationsModule = {
     // DONATIONS
     // ---------------------------------------------------------------------
     renderDonations() {
-        const canManage = this.canManage();
+        const canManage = this.seesLedger();
         const me = Lms.me();
         const list = (window.LmsData.donations || []).filter(d => canManage || d.donorUserId === me.id)
             .sort((a, b) => String(b.receivedAt).localeCompare(String(a.receivedAt)));
@@ -683,7 +695,7 @@ const FeesDonationsModule = {
                                     <td>${d.status === 'PENDING_CONFIRMATION' ? '<span class="status-pill warning">Awaiting confirmation</span>' : '<span class="status-pill success">Received</span>'}</td>
                                     <td>
                                         <div style="display: flex; gap: 6px;">
-                                            ${d.status === 'PENDING_CONFIRMATION' && canManage ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.confirmDonation('${d.id}')"><i class="fas fa-check"></i> Confirm</button>` : ''}
+                                            ${d.status === 'PENDING_CONFIRMATION' && Lms.can('donations.confirm') ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.confirmDonation('${d.id}')"><i class="fas fa-check"></i> Confirm</button>` : ''}
                                             ${d.proof ? Lms.fileLinks([d.proof]) : ''}
                                             ${d.status !== 'PENDING_CONFIRMATION' ? `<button class="btn btn-secondary btn-sm" onclick="FeesDonationsModule.printDonationReceipt('${d.id}')"><i class="fas fa-receipt"></i> Receipt</button>` : ''}
                                         </div>
@@ -697,7 +709,8 @@ const FeesDonationsModule = {
     },
 
     openDonateModal() {
-        const canManage = this.canManage();
+        // Office staff record donations received; everyone else reports their own gift for confirmation
+        const canManage = Lms.can('donations.record');
         const me = Lms.me();
         Lms.openModal(
             `<i class="fas fa-hand-holding-heart" style="color: var(--gold-400);"></i> ${canManage ? 'Record Donation Received' : 'Donate Zakat, Sadaqah or Waqf'}`,
@@ -730,7 +743,7 @@ const FeesDonationsModule = {
     },
 
     async saveDonation(btn) {
-        const canManage = this.canManage();
+        const canManage = Lms.can('donations.record');
         const amount = Number(Lms.val('don-amount'));
         const name = Lms.val('don-name');
         const ref = Lms.val('don-ref');

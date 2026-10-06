@@ -20,25 +20,35 @@ const ExamsModule = {
     },
 
     canManage() {
-        return window.AuthRBAC.isAdmin() || window.AuthRBAC.can('exams:manage') || window.AuthRBAC.can('exams:grade');
+        return Lms.can('exams.create');
+    },
+
+    // Within the role's data scope: the whole institution, or classes the teacher teaches / exams they set
+    inScope(ex) {
+        const portal = Lms.portal();
+        if (portal === 'staff') return true;
+        const me = Lms.me();
+        return portal === 'teacher' && (ex.createdBy === me.id || Lms.teacherClassIds(me.id).includes(ex.classId));
     },
 
     canManageExam(ex) {
-        if (window.AuthRBAC.isAdmin() || window.AuthRBAC.can('exams:manage')) return true;
-        const me = Lms.me();
-        return me.role === 'TEACHER' && (ex.createdBy === me.id || Lms.teacherClassIds(me.id).includes(ex.classId));
+        return this.inScope(ex) && Lms.can('exams.update');
+    },
+
+    canExam(ex, permission) {
+        return this.inScope(ex) && Lms.can(permission);
     },
 
     visibleExams() {
         const me = Lms.me();
         const all = window.LmsData.exams || [];
-        if (window.AuthRBAC.isAdmin()) return all;
-        if (me.role === 'TEACHER') {
+        const portal = Lms.portal();
+        if (portal === 'staff') return all;
+        if (portal === 'teacher') {
             const ids = Lms.teacherClassIds(me.id);
             return all.filter(e => e.createdBy === me.id || ids.includes(e.classId));
         }
-        if (me.role === 'STUDENT') return all.filter(e => e.classId === me.classId);
-        return [];
+        return all.filter(e => e.classId === me.classId);
     },
 
     examTotal(ex) {
@@ -79,7 +89,7 @@ const ExamsModule = {
 
     render() {
         if (this.attempt) return this.renderAttempt();
-        const isStudent = Lms.role() === 'STUDENT';
+        const isStudent = Lms.portal() === 'student';
         const exams = this.visibleExams().slice().sort((a, b) => String(b.examDate).localeCompare(String(a.examDate)));
 
         return `
@@ -108,7 +118,7 @@ const ExamsModule = {
     },
 
     renderExamCards(exams) {
-        const isStudent = Lms.role() === 'STUDENT';
+        const isStudent = Lms.portal() === 'student';
         const me = Lms.me();
         if (!exams.length) {
             return `<div class="card">${window.App.dashEmpty(isStudent ? 'No exams scheduled for your class yet.' : 'No exams yet. Use "Create Exam / Quiz" to add one.')}</div>`;
@@ -139,19 +149,22 @@ const ExamsModule = {
                             </div>
                             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                 ${isStudent ? this.studentExamActions(ex, mySub, myRes) : `
-                                    ${ex.mode === 'ONLINE' ? `<button class="btn btn-gold btn-sm" style="flex: 1;" onclick="ExamsModule.openSubmissionsModal('${ex.id}')"><i class="fas fa-pen-nib"></i> Online Marking (${subs.length}${toMark ? `, ${toMark} to mark` : ''})</button>` : ''}
+                                    ${ex.mode === 'ONLINE' && this.canExam(ex, 'exams.mark') ? `<button class="btn btn-gold btn-sm" style="flex: 1;" onclick="ExamsModule.openSubmissionsModal('${ex.id}')"><i class="fas fa-pen-nib"></i> Online Marking (${subs.length}${toMark ? `, ${toMark} to mark` : ''})</button>` : ''}
                                     <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="ExamsModule.openMarksSheet('${ex.id}')"><i class="fas fa-table"></i> Marks Sheet</button>
+                                    ${this.canExam(ex, 'exams.questions.manage') ? `
+                                        <button class="btn btn-secondary btn-sm" title="Paper preview" onclick="ExamsModule.viewQuestionPaperModal('${ex.id}')"><i class="fas fa-file-alt"></i></button>` : ''}
                                     ${this.canManageExam(ex) ? `
-                                        <button class="btn btn-secondary btn-sm" title="Paper preview" onclick="ExamsModule.viewQuestionPaperModal('${ex.id}')"><i class="fas fa-file-alt"></i></button>
-                                        <button class="btn btn-secondary btn-sm" title="Edit" onclick="ExamsModule.openExamEditor('${ex.id}')"><i class="fas fa-edit"></i></button>
+                                        <button class="btn btn-secondary btn-sm" title="Edit" onclick="ExamsModule.openExamEditor('${ex.id}')"><i class="fas fa-edit"></i></button>` : ''}
+                                    ${this.canExam(ex, 'exams.schedule') ? `
                                         ${ex.mode === 'ONLINE' && !ex.resultsPublished ? (ex.status === 'OPEN'
                                             ? `<button class="btn btn-secondary btn-sm" onclick="ExamsModule.setExamStatus('${ex.id}', 'CLOSED')"><i class="fas fa-lock"></i> Close</button>`
-                                            : `<button class="btn btn-primary btn-sm" onclick="ExamsModule.setExamStatus('${ex.id}', 'OPEN')"><i class="fas fa-unlock"></i> Open Now</button>`) : ''}
-                                        ${!ex.resultsPublished
-                                            ? `<button class="btn btn-primary btn-sm" onclick="ExamsModule.publishResults('${ex.id}')"><i class="fas fa-bullhorn"></i> Publish Results</button>`
-                                            : `<button class="btn btn-secondary btn-sm" onclick="ExamsModule.unpublishResults('${ex.id}')"><i class="fas fa-eye-slash"></i> Unpublish</button>`}
-                                        <button class="btn btn-secondary btn-sm" title="Delete" onclick="ExamsModule.deleteExam('${ex.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>
-                                    ` : ''}
+                                            : `<button class="btn btn-primary btn-sm" onclick="ExamsModule.setExamStatus('${ex.id}', 'OPEN')"><i class="fas fa-unlock"></i> Open Now</button>`) : ''}` : ''}
+                                    ${!ex.resultsPublished && this.canExam(ex, 'exams.results.publish')
+                                        ? `<button class="btn btn-primary btn-sm" onclick="ExamsModule.publishResults('${ex.id}')"><i class="fas fa-bullhorn"></i> Publish Results</button>` : ''}
+                                    ${ex.resultsPublished && this.canExam(ex, 'exams.results.unpublish')
+                                        ? `<button class="btn btn-secondary btn-sm" onclick="ExamsModule.unpublishResults('${ex.id}')"><i class="fas fa-eye-slash"></i> Unpublish</button>` : ''}
+                                    ${this.canExam(ex, 'exams.delete') ? `
+                                        <button class="btn btn-secondary btn-sm" title="Delete" onclick="ExamsModule.deleteExam('${ex.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                                 `}
                             </div>
                         </div>`;
@@ -251,7 +264,7 @@ const ExamsModule = {
         const classId = Lms.val('ex-class');
         const me = Lms.me();
         let ids = Lms.classCourseIds(classId);
-        if (me.role === 'TEACHER') {
+        if (Lms.portal() === 'teacher') {
             const mine = Lms.teacherCourseIds(me.id, classId);
             const cls = Lms.getClass(classId);
             if (!(cls && cls.teacherId === me.id) && mine.length) ids = mine;
@@ -612,7 +625,7 @@ const ExamsModule = {
         const sub = (window.LmsData.examSubmissions || []).find(s => s.id === subId);
         const ex = sub && (window.LmsData.exams || []).find(e => e.id === sub.examId);
         if (!sub || !ex) return;
-        if (!this.canManageExam(ex)) {
+        if (!this.canExam(ex, 'exams.mark')) {
             window.App.showToast('Only the exam\'s teacher can mark this paper.', 'warning');
             return;
         }
@@ -723,7 +736,7 @@ const ExamsModule = {
         if (!ex) return;
         const total = this.examTotal(ex);
         const students = Lms.studentsInClass(ex.classId);
-        const canEdit = this.canManageExam(ex);
+        const canEdit = this.canExam(ex, 'exams.mark');
         Lms.openModal(
             `<i class="fas fa-table" style="color: var(--gold-400);"></i> Marks Sheet: ${Lms.esc(ex.title)}`,
             `<div style="background: var(--bg-surface-elevated); padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 0.82rem;">
@@ -813,7 +826,7 @@ const ExamsModule = {
     // RESULTS
     // ---------------------------------------------------------------------
     renderResults(exams) {
-        const isStudent = Lms.role() === 'STUDENT';
+        const isStudent = Lms.portal() === 'student';
         const me = Lms.me();
         const examIds = new Set(exams.map(e => e.id));
         const results = (window.LmsData.examResults || [])
@@ -893,7 +906,7 @@ const ExamsModule = {
     viewQuestionPaperModal(examId) {
         const ex = (window.LmsData.exams || []).find(e => e.id === examId);
         if (!ex) return;
-        const showKey = this.canManageExam(ex);
+        const showKey = this.canExam(ex, 'exams.questions.manage');
         Lms.openModal(
             `<i class="fas fa-file-alt" style="color: var(--gold-400);"></i> Question Paper: ${Lms.esc(ex.title)}`,
             `<div style="background: #ffffff; color: #111827; padding: 24px; border-radius: 6px; line-height: 2; border: 1px solid #cbd5e1;">

@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./database/db');
 const lmsApi = require('./server/lms-api');
+const auth = require('./server/auth');
+const roles = require('./server/roles');
+const audit = require('./server/audit');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.resolve(__dirname);
@@ -31,262 +34,18 @@ const MIME_TYPES = {
     '.pdf': 'application/pdf'
 };
 
-// In-memory backend permissions store (synchronized with client)
-let systemRolePermissions = {
-    STUDENT: {
-        classes: true,
-        assignments: true,
-        exams: true,
-        timetable: true,
-        virtual_class: true,
-        notifications: true,
-        library: true,
-        attendance: true,
-        students: false,
-        reports: false,
-        users: false,
-        roles: false,
-        admissions: false,
-        teachers: false,
-        fees: true,
-        heritage: true,
-        permissions: false,
-        security: false
-    },
-    TEACHER: {
-        classes: true,
-        assignments: true,
-        exams: true,
-        timetable: true,
-        virtual_class: true,
-        notifications: true,
-        library: true,
-        teachers: true,
-        students: true,
-        attendance: true,
-        reports: false,
-        users: false,
-        roles: false,
-        admissions: false,
-        fees: false,
-        heritage: true,
-        permissions: false,
-        security: false
-    },
-    ACADEMIC_ADMIN: {
-        classes: true,
-        assignments: true,
-        exams: true,
-        timetable: true,
-        virtual_class: true,
-        notifications: true,
-        library: true,
-        teachers: true,
-        students: true,
-        attendance: true,
-        reports: true,
-        users: false,
-        roles: false,
-        admissions: true,
-        fees: false,
-        heritage: true,
-        permissions: false,
-        security: false
-    },
-    ACCOUNTANT: {
-        classes: false,
-        assignments: false,
-        exams: false,
-        timetable: false,
-        virtual_class: false,
-        notifications: true,
-        library: false,
-        teachers: false,
-        students: false,
-        attendance: true,
-        reports: true,
-        users: false,
-        roles: false,
-        admissions: false,
-        fees: true,
-        heritage: true,
-        permissions: false,
-        security: false
-    },
-    SUPER_ADMIN: {
-        classes: true,
-        assignments: true,
-        exams: true,
-        timetable: true,
-        virtual_class: true,
-        notifications: true,
-        library: true,
-        admissions: true,
-        teachers: true,
-        students: true,
-        attendance: true,
-        reports: true,
-        users: true,
-        roles: true,
-        fees: true,
-        heritage: true,
-        permissions: true,
-        security: true
-    }
-};
+// What the signed-in user may do comes from the roles tables (server/roles.js)
+function can(req, permission) {
+    return !!req.auth && roles.effectiveForAuth(req.auth).permissions.has(permission);
+}
 
-// In-memory backend attendance store
-let systemAttendance = [
-    {
-        id: "att_today_1",
-        userId: "u_student_2",
-        userName: "Hafiz Usman Tariq",
-        role: "STUDENT",
-        identifier: "ASH-2024-042",
-        classId: "cls_aaliyah",
-        className: "Aaliyah (1st Year)",
-        date: "2026-09-28",
-        checkInTime: "07:45 AM",
-        checkOutTime: null,
-        status: "PRESENT",
-        session: "DAILY_ACADEMIC"
-    },
-    {
-        id: "att_today_5",
-        userId: "u_teacher_2",
-        userName: "Mufti Ahmadur Rahman",
-        role: "TEACHER",
-        identifier: "darulifta@jamiaashrafia.org",
-        classId: "cls_ifta",
-        className: "Fiqh & Fatawa Dept",
-        date: "2026-09-28",
-        checkInTime: "07:30 AM",
-        checkOutTime: null,
-        status: "PRESENT",
-        session: "DAILY_ACADEMIC"
-    }
-];
-
-// In-memory backend admissions store (seeded with local and international records)
-let systemAdmissions = [
-    {
-        id: "adm_101",
-        applicationNo: "ASH-ADM-2024-089",
-        studentType: "LOCAL",
-        name: "Ahmad Raza Siddiqui",
-        fatherName: "Maulana Muhammad Siddique",
-        cnic: "35201-8934521-3",
-        passport: "",
-        country: "Pakistan",
-        phone: "+92 300 4589211",
-        email: "ahmad.raza@gmail.com",
-        programId: "p1",
-        branchId: "b1",
-        hostelRequired: true,
-        previousMadrasa: "Jamia Farooqia Karachi (Sanawiyyah Passed)",
-        hafizStatus: true,
-        status: "INTERVIEW_SCHEDULED",
-        interviewDate: "2026-10-05 10:00 AM",
-        interviewScore: null,
-        allottedRollNo: null,
-        appliedAt: "2026-09-24"
-    },
-    {
-        id: "adm_102",
-        applicationNo: "ASH-ADM-2024-090",
-        studentType: "LOCAL",
-        name: "Zubair Ahmad Qasmi",
-        fatherName: "Hafiz Abdul Qadir",
-        cnic: "38403-1249872-5",
-        passport: "",
-        country: "Pakistan",
-        phone: "+92 321 7845123",
-        email: "zubair.qasmi@outlook.com",
-        programId: "p2",
-        branchId: "b1",
-        hostelRequired: true,
-        previousMadrasa: "Jamia Ashrafia Lahore (Dawra-e-Hadith Mumtaz)",
-        hafizStatus: true,
-        status: "APPROVED",
-        interviewDate: "2026-09-20 11:30 AM",
-        interviewScore: 94.5,
-        allottedRollNo: "ASH-IFT-018",
-        appliedAt: "2026-09-18"
-    },
-    {
-        id: "adm_103",
-        applicationNo: "ASH-ADM-2024-091",
-        studentType: "LOCAL",
-        name: "Zainab Bint Tariq",
-        fatherName: "Tariq Mahmood",
-        cnic: "35202-6721980-6",
-        passport: "",
-        country: "Pakistan",
-        phone: "+92 333 9812470",
-        email: "zainab.tariq@gmail.com",
-        programId: "p5",
-        branchId: "b2",
-        hostelRequired: false,
-        previousMadrasa: "Madrisatul Faisal Lil Bannat Model Town",
-        hafizStatus: true,
-        status: "ENROLLED",
-        interviewDate: "2026-09-15",
-        interviewScore: 91.0,
-        allottedRollNo: "ASH-B-114",
-        appliedAt: "2026-09-12"
-    },
-    {
-        id: "adm_104",
-        applicationNo: "ASH-ADM-2024-092",
-        studentType: "LOCAL",
-        name: "Abdullah Haroon",
-        fatherName: "Haroon Rashid",
-        cnic: "37405-5544123-1",
-        passport: "",
-        country: "Pakistan",
-        phone: "+92 301 6677889",
-        email: "abdullah.haroon@yahoo.com",
-        programId: "p3",
-        branchId: "b4",
-        hostelRequired: false,
-        previousMadrasa: "Government High School Lahore",
-        hafizStatus: false,
-        status: "UNDER_REVIEW",
-        interviewDate: null,
-        interviewScore: null,
-        allottedRollNo: null,
-        appliedAt: "2026-09-27"
-    },
-    {
-        id: "adm_105",
-        applicationNo: "ASH-ADM-2024-093",
-        studentType: "INTERNATIONAL",
-        name: "Tariq Abdul Majeed",
-        fatherName: "Maulana Abdul Majeed",
-        cnic: "",
-        passport: "GBR-98421054",
-        country: "United Kingdom",
-        phone: "+44 7700 900123",
-        email: "tariq.majeed@gmail.com",
-        programId: "p1",
-        branchId: "b1",
-        hostelRequired: true,
-        previousMadrasa: "Darul Uloom London",
-        hafizStatus: true,
-        status: "APPLIED",
-        interviewDate: null,
-        interviewScore: null,
-        allottedRollNo: null,
-        appliedAt: "2026-09-28"
-    }
-];
+function forbidden(res, message) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: '403 Forbidden', message }));
+}
 
 function legacyHandler(req, res) {
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Role, X-User-Id');
-
+    // The portal and its API share one origin, so no cross-origin (CORS) access is granted
     if (req.method === 'OPTIONS') {
         res.writeHead(204);
         res.end();
@@ -311,61 +70,6 @@ function legacyHandler(req, res) {
             timestamp: new Date().toISOString()
         }));
         return;
-    }
-
-    // API: Permissions Management
-    if (pathname === '/api/permissions') {
-        if (req.method === 'GET') {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                status: 'success',
-                permissions: systemRolePermissions
-            }));
-            return;
-        }
-
-        if (req.method === 'POST') {
-            const userRole = req.headers['x-user-role'];
-            // Backend Enforcement: Only Super Admin can change permissions
-            if (userRole !== 'SUPER_ADMIN') {
-                res.writeHead(403, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    error: '403 Forbidden',
-                    message: 'Access Denied: Only Super Admin can modify institutional role permissions.'
-                }));
-                return;
-            }
-
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', () => {
-                try {
-                    const parsed = JSON.parse(body);
-                    if (parsed && parsed.permissions) {
-                        systemRolePermissions = { ...systemRolePermissions, ...parsed.permissions };
-                        // Hard-code full permissions for SUPER_ADMIN at system level
-                        if (!systemRolePermissions.SUPER_ADMIN) systemRolePermissions.SUPER_ADMIN = {};
-                        ['classes', 'assignments', 'exams', 'timetable', 'virtual_class', 'notifications',
-                         'library', 'admissions', 'teachers', 'students', 'attendance', 'reports', 'users',
-                         'roles', 'fees', 'heritage', 'permissions', 'security'].forEach(m => {
-                            systemRolePermissions.SUPER_ADMIN[m] = true;
-                        });
-                    }
-                    lmsApi.saveSetting('rolePermissions', systemRolePermissions)
-                        .catch(err => console.warn('[DB] Could not persist role permissions:', err.message));
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({
-                        status: 'success',
-                        message: 'Role permissions successfully saved on server.',
-                        permissions: systemRolePermissions
-                    }));
-                } catch (e) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Invalid JSON payload' }));
-                }
-            });
-            return;
-        }
     }
 
     // =========================================================================
@@ -503,13 +207,8 @@ function legacyHandler(req, res) {
 
     // GET /api/admissions (Protected: Retrieves admissions from database with category, status & search filtering)
     if (pathname === '/api/admissions' && req.method === 'GET') {
-        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
-        if (userRole !== 'SUPER_ADMIN' && userRole !== 'ACADEMIC_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-                error: '403 Forbidden', 
-                message: 'Access Denied: Only Super Admin and Academic Nazim can access the admissions registry.' 
-            }));
+        if (!can(req, 'admissions.view')) {
+            forbidden(res, 'Access Denied: You are not allowed to see the admissions registry.');
             return;
         }
 
@@ -591,10 +290,8 @@ function legacyHandler(req, res) {
 
     // GET /api/admissions/:id (Protected: Retrieves a single admission from database)
     if (pathname.startsWith('/api/admissions/') && req.method === 'GET') {
-        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
-        if (userRole !== 'SUPER_ADMIN' && userRole !== 'ACADEMIC_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: '403 Forbidden', message: 'Access Denied.' }));
+        if (!can(req, 'admissions.view')) {
+            forbidden(res, 'Access Denied: You are not allowed to see admission applications.');
             return;
         }
 
@@ -839,10 +536,9 @@ function legacyHandler(req, res) {
     // PUT /api/admissions/:id or POST /api/admissions/update (Admin updates admission details in database)
     if ((pathname.startsWith('/api/admissions/') && (req.method === 'PUT' || req.method === 'PATCH')) ||
         (pathname === '/api/admissions/update' && req.method === 'POST')) {
-        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
-        if (userRole !== 'SUPER_ADMIN' && userRole !== 'ACADEMIC_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: '403 Forbidden', message: 'Access Denied.' }));
+        const editors = ['admissions.update', 'admissions.schedule_interview', 'admissions.decide', 'admissions.enroll'];
+        if (!editors.some(p => can(req, p))) {
+            forbidden(res, 'Access Denied: You are not allowed to change admission applications.');
             return;
         }
 
@@ -897,6 +593,29 @@ function legacyHandler(req, res) {
                     const interviewScore = data.interviewScore !== undefined ? data.interviewScore : existing.interview_score;
                     const allottedRollNo = data.allottedRollNo !== undefined ? data.allottedRollNo : existing.allotted_roll_number;
 
+                    // Each step of the admission workflow needs its own permission
+                    const statusChanged = status !== existing.status;
+                    const needed = new Set();
+                    if (statusChanged && ['APPROVED', 'REJECTED'].includes(status)) needed.add('admissions.decide');
+                    if (statusChanged && status === 'ENROLLED') needed.add('admissions.enroll');
+                    if ((statusChanged && status === 'INTERVIEW_SCHEDULED')
+                        || (data.interviewScore !== undefined && Number(data.interviewScore || 0) !== Number(existing.interview_score || 0))) {
+                        needed.add('admissions.schedule_interview');
+                    }
+                    if (statusChanged && !needed.size) needed.add('admissions.update');
+                    const details = [[candidateName, existing.candidate_name], [fatherName, existing.father_name], [phone, existing.phone],
+                        [email, existing.email], [cnic, existing.cnic_bform], [passport, existing.passport_number], [country, existing.country],
+                        [programId, existing.program_id], [branchId, existing.branch_id], [hostel, existing.hostel_required],
+                        [hafiz, existing.hafiz_status], [prev, existing.previous_madrasa]];
+                    if (details.some(([a, b]) => String(a === null || a === undefined ? '' : a) !== String(b === null || b === undefined ? '' : b))) {
+                        needed.add('admissions.update');
+                    }
+                    const missing = Array.from(needed).filter(p => !can(req, p));
+                    if (missing.length) {
+                        forbidden(res, `You are not allowed to make this change (${missing.join(', ')}).`);
+                        return;
+                    }
+
                     await db.query(
                         `UPDATE student_admissions SET
                             student_type = ?,
@@ -926,6 +645,13 @@ function legacyHandler(req, res) {
                             appId, appId
                         ]
                     );
+                    if (statusChanged) {
+                        await audit.log({
+                            req, action: 'admission.status', entityType: 'admission', entityId: existing.application_no,
+                            summary: `Application ${existing.application_no} (${candidateName}): ${existing.status} → ${status}`,
+                            before: { status: existing.status }, after: { status, allottedRollNo: allottedRollNo || null }
+                        });
+                    }
 
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
@@ -953,461 +679,8 @@ function legacyHandler(req, res) {
     }
 
     // =========================================================================
-    // API: NOTIFICATIONS SYSTEM (DATABASE-BACKED: MYSQL / MARIADB)
-    // =========================================================================
-
-    // GET /api/notifications (Protected: Retrieves notifications for authenticated administrative user)
-    if (pathname === '/api/notifications' && req.method === 'GET') {
-        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
-        if (!userRole) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: '401 Unauthorized', message: 'Authentication required.' }));
-            return;
-        }
-
-        (async () => {
-            try {
-                let sql = `
-                    SELECT 
-                        id, 
-                        sender_id AS senderId, 
-                        target_role AS targetRole, 
-                        title, 
-                        message, 
-                        category, 
-                        is_read AS isRead,
-                        DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS time,
-                        created_at AS createdAt
-                    FROM notifications
-                `;
-                const params = [];
-
-                if (userRole === 'SUPER_ADMIN') {
-                    // Super Admin (Hazrat Mohtamim) can oversee all institutional broadcasts and admissions
-                    sql += ' WHERE target_role IN (?, ?, ?, ?) OR target_role IS NULL';
-                    params.push('SUPER_ADMIN', 'ACADEMIC_ADMIN', 'TEACHER', 'ALL');
-                } else if (userRole === 'ACADEMIC_ADMIN') {
-                    sql += ' WHERE target_role IN (?, ?) OR target_role IS NULL';
-                    params.push('ACADEMIC_ADMIN', 'ALL');
-                } else {
-                    sql += ' WHERE target_role IN (?, ?) OR target_role IS NULL';
-                    params.push(userRole, 'ALL');
-                }
-
-                sql += ' ORDER BY created_at DESC LIMIT 50';
-
-                const [rows] = await db.query(sql, params);
-                rows.forEach(r => {
-                    r.isRead = !!r.isRead;
-                    r.sender = r.targetRole === 'ACADEMIC_ADMIN' ? 'Online Admissions Portal' : 'Jamia Ashrafia Admin';
-                });
-
-                const unreadCount = rows.filter(r => !r.isRead).length;
-
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'success',
-                    unreadCount: unreadCount,
-                    notifications: rows
-                }));
-            } catch (err) {
-                console.error('[DB] GET /api/notifications Error:', err);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Failed to retrieve notifications from database' }));
-            }
-        })();
-        return;
-    }
-
-    // POST /api/notifications/read (Protected: Marks single notification or all as read in database)
-    if (pathname === '/api/notifications/read' && req.method === 'POST') {
-        const userRole = (req.headers['x-user-role'] || '').toUpperCase();
-        if (!userRole) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: '401 Unauthorized' }));
-            return;
-        }
-
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            (async () => {
-                try {
-                    const data = body ? JSON.parse(body) : {};
-                    const notifId = data.id || data.notificationId;
-
-                    if (notifId) {
-                        await db.query(`UPDATE notifications SET is_read = 1 WHERE id = ?`, [notifId]);
-                    } else if (data.markAll) {
-                        if (userRole === 'SUPER_ADMIN') {
-                            await db.query(`UPDATE notifications SET is_read = 1`);
-                        } else {
-                            await db.query(`UPDATE notifications SET is_read = 1 WHERE target_role IN (?, 'ALL')`, [userRole]);
-                        }
-                    }
-
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true, status: 'success', message: 'Notification read state updated.' }));
-                } catch (err) {
-                    console.error('[DB] POST /api/notifications/read Error:', err);
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, status: 'error', error: 'Database update failed' }));
-                }
-            })();
-        });
-        return;
-    }
-
-
-    // =========================================================================
-    // API: ATTENDANCE & CHECK-IN SYSTEM
-    // =========================================================================
-
-    // POST /api/attendance/checkin (Marks attendance with duplicate prevention)
-    if (pathname === '/api/attendance/checkin' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const record = JSON.parse(body);
-                const userId = record.userId || req.headers['x-user-id'];
-                const date = record.date || new Date().toISOString().split('T')[0];
-
-                if (!userId) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'User ID is required' }));
-                    return;
-                }
-
-                // In-memory duplicate check
-                const existing = systemAttendance.find(a => a.userId === userId && a.date === date);
-                if (existing) {
-                    res.writeHead(409, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({
-                        error: '409 Conflict',
-                        message: `Attendance already recorded for today at ${existing.checkInTime}. Duplicate check-in prevented.`
-                    }));
-                    return;
-                }
-
-                record.id = record.id || ('att_' + Date.now());
-                record.createdAt = new Date().toISOString();
-                systemAttendance.unshift(record);
-
-                res.writeHead(201, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'success',
-                    message: 'Check-in recorded successfully on server.',
-                    record: record
-                }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid attendance payload' }));
-            }
-        });
-        return;
-    }
-
-    // POST /api/attendance/checkout (Records check-out time)
-    if (pathname === '/api/attendance/checkout' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const userId = data.userId || req.headers['x-user-id'];
-                const date = data.date || new Date().toISOString().split('T')[0];
-                const checkOutTime = data.checkOutTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                const record = systemAttendance.find(a => a.userId === userId && a.date === date);
-                if (record) {
-                    record.checkOutTime = checkOutTime;
-                    record.updatedAt = new Date().toISOString();
-                }
-
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'success',
-                    message: 'Check-out recorded successfully.',
-                    checkOutTime: checkOutTime
-                }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid checkout payload' }));
-            }
-        });
-        return;
-    }
-
-    // GET /api/attendance (Filtered attendance retrieval with RBAC)
-    if (pathname === '/api/attendance' && req.method === 'GET') {
-        const userRole = req.headers['x-user-role'] || 'STUDENT';
-        const currentUserId = req.headers['x-user-id'];
-        const queryUserId = parsedUrl.searchParams.get('userId');
-        const queryRole = parsedUrl.searchParams.get('role');
-        const queryDate = parsedUrl.searchParams.get('date');
-
-        // RBAC Enforcement: Students may ONLY view their own attendance
-        if (userRole === 'STUDENT') {
-            if (queryUserId && queryUserId !== currentUserId) {
-                res.writeHead(403, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    error: '403 Forbidden',
-                    message: 'Access Denied: Students are not permitted to inspect other scholars attendance records.'
-                }));
-                return;
-            }
-        }
-
-        let filtered = systemAttendance;
-        if (userRole === 'STUDENT') {
-            filtered = filtered.filter(a => a.userId === currentUserId);
-        } else {
-            if (queryUserId) filtered = filtered.filter(a => a.userId === queryUserId);
-            if (queryRole) filtered = filtered.filter(a => a.role === queryRole);
-            if (queryDate && queryDate !== 'ALL') filtered = filtered.filter(a => a.date === queryDate);
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            count: filtered.length,
-            records: filtered
-        }));
-        return;
-    }
-
-    // =========================================================================
-    // API: STUDENTS MANAGEMENT (RBAC ENFORCED)
-    // =========================================================================
-    if (pathname === '/api/students' && req.method === 'GET') {
-        const userRole = req.headers['x-user-role'];
-        // Backend Enforcement: Students cannot access the administrative roster
-        if (userRole === 'STUDENT') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                error: '403 Forbidden',
-                message: 'Access Denied: Student role is not permitted to access student roster management API.'
-            }));
-            return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            institution: 'Jamia Ashrafia Lahore',
-            message: 'Students directory authorized'
-        }));
-        return;
-    }
-
-    // =========================================================================
-    // API: REPORTS SYSTEM (RBAC ENFORCED)
-    // =========================================================================
-    if (pathname.startsWith('/api/reports') && req.method === 'GET') {
-        const userRole = req.headers['x-user-role'];
-        if (userRole !== 'SUPER_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                error: '403 Forbidden',
-                message: 'Access Denied: Executive Reports require Super Admin authority.'
-            }));
-            return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            reportType: parsedUrl.searchParams.get('category') || 'ALL',
-            generatedAt: new Date().toISOString()
-        }));
-        return;
-    }
-
-    // =========================================================================
-    // API: USERS & ROLES MANAGEMENT (RBAC ENFORCED)
-    // =========================================================================
-    if (pathname === '/api/users' && req.method === 'GET') {
-        const userRole = req.headers['x-user-role'];
-        if (userRole !== 'SUPER_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                error: '403 Forbidden',
-                message: 'Access Denied: User account administration requires Super Admin authority.'
-            }));
-            return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            message: 'Users API verified'
-        }));
-        return;
-    }
-
-    if (pathname === '/api/roles' && req.method === 'GET') {
-        const userRole = req.headers['x-user-role'];
-        if (userRole !== 'SUPER_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                error: '403 Forbidden',
-                message: 'Access Denied: Roles management requires Super Admin authority.'
-            }));
-            return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            message: 'Roles API verified'
-        }));
-        return;
-    }
-
-    // API: Protected Admin Endpoints Middleware
-    if (pathname.startsWith('/api/admin/')) {
-        const userRole = req.headers['x-user-role'];
-        if (userRole !== 'SUPER_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                error: '403 Forbidden',
-                message: 'Access Denied: Administrative privileges required.'
-            }));
-            return;
-        }
-    }
-
-    // API: Auth Logout
-    if (pathname === '/api/auth/logout') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'success', message: 'Logged out successfully' }));
-        return;
-    }
-
-    // =========================================================================
     // API: VIRTUAL CLASSROOM & WEBRTC SUITE (BACKEND RBAC SECURITY)
     // =========================================================================
-
-    // User-to-Class Enrollment Registry for Backend Authorization Enforcement
-    const backendStudentClassMap = {
-        'u_student_1': 'cls_dawra_a',
-        'u_student_2': 'cls_aaliyah',
-        'u_student_3': 'cls_ifta',
-        'u_student_5': 'cls_hifz_3',
-        'u_student_6': 'cls_dawra_a',
-        'u_student_7': 'cls_women_alim',
-        'u_student_8': 'cls_dawra_b'
-    };
-
-    const backendTeacherClassMap = {
-        'u_teacher_1': ['cls_dawra_a', 'cls_dawra_b', 'cls_hifz_3'],
-        'u_teacher_2': ['cls_aaliyah', 'cls_ifta']
-    };
-
-    // In-memory virtual classes store on backend
-    let backendVirtualClasses = [
-        {
-            id: "vc_101",
-            meetingUuid: "ASH-ZOOM-982-114-889",
-            title: "Live Dars: Sahih al-Bukhari - Kitab al-Iman & Bab Halat al-Qalb",
-            urduTitle: "درسِ براہ راست: صحیح البخاری شریف - کتاب الایمان",
-            hostTeacher: "Qari Arshad Ubaid (Sheikh-ul-Hadith)",
-            hostId: "u_teacher_1",
-            classId: "cls_dawra_a",
-            className: "Dawra-e-Hadith (Alimiyyah Final) - Section A",
-            courseId: "c_bukhari_1",
-            courseName: "Sahih al-Bukhari (Jild 1)",
-            roomName: "Hall Imam Bukhari (Virtual Studio 1)",
-            scheduledStart: "2026-09-28 11:00 AM",
-            durationMinutes: 75,
-            passcode: "ASHRAFIA1947",
-            status: "LIVE",
-            isLive: true,
-            activeParticipants: 42,
-            recordingStatus: "RECORDING_ACTIVE"
-        },
-        {
-            id: "vc_102",
-            meetingUuid: "ASH-ZOOM-451-870-221",
-            title: "Takhassus Fiqh: Contemporary Islamic Contracts & Crypto Rulings",
-            urduTitle: "فقہی سیمینار: جدید مالیاتی معاملات اور ڈیجیٹل کرنسی کا شرعی حکم",
-            hostTeacher: "Mufti Ahmadur Rahman (Darul Ifta)",
-            hostId: "u_teacher_2",
-            classId: "cls_ifta",
-            className: "Takhassus fil-Ifta (1st Year)",
-            courseId: "c_banking",
-            courseName: "Islamic Banking & Modern Jurisprudence",
-            roomName: "Darul Ifta Conference Studio",
-            scheduledStart: "2026-09-28 11:15 AM",
-            durationMinutes: 90,
-            passcode: "IFTA2026",
-            status: "LIVE",
-            isLive: true,
-            activeParticipants: 19,
-            recordingStatus: "RECORDING_ACTIVE"
-        },
-        {
-            id: "vc_103",
-            meetingUuid: "ASH-ZOOM-773-902-114",
-            title: "Al-Hidayah fi al-Fiqh: Kitab al-Buyu & Shuf'ah Discourse",
-            urduTitle: "ہدایہ فقہ حنفی: کتاب البیوع و شفعہ کی تشریح",
-            hostTeacher: "Mufti Ahmadur Rahman",
-            hostId: "u_teacher_2",
-            classId: "cls_aaliyah",
-            className: "Aaliyah (7th Year)",
-            courseId: "c_hidayah",
-            courseName: "Al-Hidayah fi al-Fiqh",
-            roomName: "Room 201 (Virtual Hall B)",
-            scheduledStart: "2026-09-28 10:30 AM",
-            durationMinutes: 60,
-            passcode: "HIDAYAH7",
-            status: "LIVE",
-            isLive: true,
-            activeParticipants: 35,
-            recordingStatus: "RECORDING_PAUSED"
-        },
-        {
-            id: "vc_104",
-            meetingUuid: "ASH-ZOOM-612-884-390",
-            title: "Jami' at-Tirmidhi: Abwab al-Buyu & Fiqh al-Hadith",
-            urduTitle: "جامع الترمذی: ابواب البیوع وفقہ الحدیث",
-            hostTeacher: "Qari Arshad Ubaid (Sheikh-ul-Hadith)",
-            hostId: "u_teacher_1",
-            classId: "cls_dawra_a",
-            className: "Dawra-e-Hadith (Alimiyyah Final) - Section A",
-            courseId: "c_tirmidhi",
-            courseName: "Jami' at-Tirmidhi",
-            roomName: "Hall Imam Bukhari",
-            scheduledStart: "2026-09-28 04:30 PM",
-            durationMinutes: 60,
-            passcode: "TIRMIDHI26",
-            status: "UPCOMING",
-            isLive: false,
-            activeParticipants: 0,
-            recordingStatus: "SCHEDULED"
-        },
-        {
-            id: "vc_105",
-            meetingUuid: "ASH-ZOOM-230-551-789",
-            title: "Tajweed & Sifat al-Huroof: Al-Muqaddimah al-Jazariyyah",
-            urduTitle: "تجوید و صفات الحروف: شرح المقدمة الجزریة",
-            hostTeacher: "Qari Arshad Ubaid",
-            hostId: "u_teacher_1",
-            classId: "cls_hifz_3",
-            className: "Hifz-ul-Quran (Daur-e-Kamil)",
-            courseId: "c_jazariyyah",
-            courseName: "Al-Muqaddimah al-Jazariyyah",
-            roomName: "Maktaba Tajweed Studio",
-            scheduledStart: "2026-09-29 07:00 AM",
-            durationMinutes: 45,
-            passcode: "JAZARIYYAH",
-            status: "UPCOMING",
-            isLive: false,
-            activeParticipants: 0,
-            recordingStatus: "SCHEDULED"
-        }
-    ];
 
     let backendVirtualClassRecordings = [
         {
@@ -1523,155 +796,10 @@ function legacyHandler(req, res) {
         lastCleanupDate: "2026-09-28"
     };
 
-    // GET /api/virtual-class/sessions (Class-Filtered Session Retrieval)
-    if (pathname === '/api/virtual-class/sessions' && req.method === 'GET') {
-        const userRole = req.headers['x-user-role'] || 'STUDENT';
-        const currentUserId = req.headers['x-user-id'];
-
-        let accessible = backendVirtualClasses;
-        if (userRole === 'STUDENT') {
-            const studentClass = backendStudentClassMap[currentUserId] || req.headers['x-user-class'];
-            accessible = backendVirtualClasses.filter(vc => vc.classId === studentClass);
-        } else if (userRole === 'TEACHER') {
-            const teacherClasses = backendTeacherClassMap[currentUserId] || [];
-            accessible = backendVirtualClasses.filter(vc => vc.hostId === currentUserId || teacherClasses.includes(vc.classId));
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            role: userRole,
-            count: accessible.length,
-            sessions: accessible
-        }));
-        return;
-    }
-
-    // POST /api/virtual-class/verify-access (Strict Backend Access Guard)
-    if (pathname === '/api/virtual-class/verify-access' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const userRole = req.headers['x-user-role'] || data.role || 'STUDENT';
-                const userId = req.headers['x-user-id'] || data.userId;
-                const sessionId = data.sessionId;
-                const classId = data.classId;
-
-                const session = backendVirtualClasses.find(vc => vc.id === sessionId || vc.meetingUuid === sessionId);
-                if (!session) {
-                    res.writeHead(404, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: '404 Not Found', message: 'Classroom session does not exist.' }));
-                    return;
-                }
-
-                // Super Admin & Academic Admin have full access
-                if (userRole === 'SUPER_ADMIN' || userRole === 'ACADEMIC_ADMIN') {
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'success', authorized: true, role: userRole, session }));
-                    return;
-                }
-
-                // Teacher validation
-                if (userRole === 'TEACHER') {
-                    const assignedClasses = backendTeacherClassMap[userId] || [];
-                    if (session.hostId === userId || assignedClasses.includes(session.classId)) {
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'success', authorized: true, isHost: true, session }));
-                        return;
-                    }
-                    res.writeHead(403, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({
-                        error: '403 Forbidden',
-                        message: 'Access Denied: You are not assigned to instruct or moderate this classroom.'
-                    }));
-                    return;
-                }
-
-                // Student validation: Must strictly belong to the session classId
-                const enrolledClass = backendStudentClassMap[userId] || data.userClassId;
-                if (enrolledClass === session.classId) {
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'success', authorized: true, isHost: false, session }));
-                    return;
-                }
-
-                // If not matching, strictly reject access!
-                res.writeHead(403, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    error: '403 Forbidden',
-                    message: 'Access Denied: Scholar is not enrolled in this academic class. Classroom access restricted.'
-                }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid verification payload' }));
-            }
-        });
-        return;
-    }
-
-    // POST /api/virtual-class/join (Attendance Auto-Record & Session Entrance)
-    if (pathname === '/api/virtual-class/join' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const userId = req.headers['x-user-id'] || data.userId;
-                const userRole = req.headers['x-user-role'] || data.role;
-                const userName = data.userName || "Scholar";
-                const sessionId = data.sessionId;
-                const classId = data.classId;
-                const className = data.className || "Class";
-
-                const session = backendVirtualClasses.find(vc => vc.id === sessionId);
-                if (session) {
-                    session.activeParticipants = (session.activeParticipants || 0) + 1;
-                }
-
-                // Automatically record attendance into backend registry
-                const today = new Date().toISOString().split('T')[0];
-                const existingAtt = systemAttendance.find(a => a.userId === userId && a.date === today && a.session === 'VIRTUAL_CLASS');
-                if (!existingAtt) {
-                    systemAttendance.unshift({
-                        id: 'att_vc_' + Date.now(),
-                        userId: userId,
-                        userName: userName,
-                        role: userRole,
-                        identifier: data.rollNo || data.email || userId,
-                        classId: classId,
-                        className: className,
-                        date: today,
-                        checkInTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        checkOutTime: null,
-                        status: 'PRESENT',
-                        session: 'VIRTUAL_CLASS',
-                        createdAt: new Date().toISOString()
-                    });
-                }
-
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'success',
-                    message: 'Successfully joined classroom. Virtual attendance recorded.',
-                    attendanceLogged: true,
-                    session
-                }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid join payload' }));
-            }
-        });
-        return;
-    }
-
     // POST /api/virtual-class/retention (Super Admin Retention Configuration & Cleanup)
     if (pathname === '/api/virtual-class/retention' && req.method === 'POST') {
-        const userRole = req.headers['x-user-role'];
-        if (userRole !== 'SUPER_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: '403 Forbidden', message: 'Retention management requires Super Admin authority.' }));
+        if (!can(req, 'settings.recordings')) {
+            forbidden(res, 'You are not allowed to change recording retention.');
             return;
         }
 
@@ -1700,37 +828,10 @@ function legacyHandler(req, res) {
         return;
     }
 
-    // GET /api/virtual-class/recordings (Role & Class Protected Recordings)
-    if (pathname === '/api/virtual-class/recordings' && req.method === 'GET') {
-        const userRole = req.headers['x-user-role'] || 'STUDENT';
-        const currentUserId = req.headers['x-user-id'];
-
-        let accessible = backendVirtualClassRecordings;
-        if (userRole === 'STUDENT') {
-            const studentClass = backendStudentClassMap[currentUserId] || req.headers['x-user-class'];
-            accessible = backendVirtualClassRecordings.filter(rec => rec.classId === studentClass);
-        } else if (userRole === 'TEACHER') {
-            const teacherClasses = backendTeacherClassMap[currentUserId] || [];
-            accessible = backendVirtualClassRecordings.filter(rec => rec.teacherId === currentUserId || teacherClasses.includes(rec.classId));
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            role: userRole,
-            count: accessible.length,
-            recordings: accessible,
-            retentionSettings: backendRetentionSettings
-        }));
-        return;
-    }
-
     // POST /api/virtual-class/cleanup (Automated Expired Recording Purge)
     if (pathname === '/api/virtual-class/cleanup' && req.method === 'POST') {
-        const userRole = req.headers['x-user-role'];
-        if (userRole !== 'SUPER_ADMIN') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: '403 Forbidden', message: 'Storage cleanup requires Super Admin authority.' }));
+        if (!can(req, 'settings.recordings')) {
+            forbidden(res, 'You are not allowed to run recording clean-up.');
             return;
         }
 
@@ -1758,87 +859,6 @@ function legacyHandler(req, res) {
             activeCount: backendVirtualClassRecordings.length,
             settings: backendRetentionSettings
         }));
-        return;
-    }
-
-    // POST /api/virtual-class/create (Schedule / Launch New Classroom)
-    if (pathname === '/api/virtual-class/create' && req.method === 'POST') {
-        const userRole = req.headers['x-user-role'];
-        if (userRole === 'STUDENT') {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: '403 Forbidden', message: 'Only Teachers and Academic Administrators can schedule classrooms.' }));
-            return;
-        }
-
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const newId = 'vc_' + Date.now();
-                const newMeeting = {
-                    id: newId,
-                    meetingUuid: 'ASH-ZOOM-' + Math.floor(100 + Math.random() * 900) + '-' + Math.floor(100 + Math.random() * 900) + '-' + Math.floor(100 + Math.random() * 900),
-                    title: data.title || 'Live Virtual Classroom',
-                    urduTitle: data.urduTitle || 'آن لائن کلاس',
-                    hostTeacher: data.hostTeacher || 'Sheikh / Ustad',
-                    hostId: data.hostId || req.headers['x-user-id'] || 'u_teacher_1',
-                    classId: data.classId,
-                    className: data.className || 'Academic Class',
-                    courseId: data.courseId || 'c_bukhari_1',
-                    courseName: data.courseName || 'Islamic Course',
-                    roomName: data.roomName || 'Virtual Studio',
-                    scheduledStart: data.scheduledStart || new Date().toLocaleString(),
-                    durationMinutes: Number(data.durationMinutes) || 60,
-                    passcode: data.passcode || 'ASHRAFIA' + Math.floor(1000 + Math.random() * 9000),
-                    status: data.isLive ? 'LIVE' : 'UPCOMING',
-                    isLive: !!data.isLive,
-                    activeParticipants: data.isLive ? 1 : 0,
-                    recordingStatus: data.isLive ? 'RECORDING_ACTIVE' : 'SCHEDULED'
-                };
-
-                backendVirtualClasses.unshift(newMeeting);
-
-                res.writeHead(201, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'success',
-                    message: 'Virtual Classroom scheduled and synchronized successfully.',
-                    session: newMeeting
-                }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid session payload' }));
-            }
-        });
-        return;
-    }
-
-    // POST /api/virtual-class/session-status (Live Status Updates)
-    if (pathname === '/api/virtual-class/session-status' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                const session = backendVirtualClasses.find(vc => vc.id === data.sessionId);
-                if (!session) {
-                    res.writeHead(404, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Session not found' }));
-                    return;
-                }
-
-                if (data.status) session.status = data.status;
-                if (data.isLive !== undefined) session.isLive = data.isLive;
-                if (data.recordingStatus) session.recordingStatus = data.recordingStatus;
-                if (data.activeParticipants !== undefined) session.activeParticipants = data.activeParticipants;
-
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'success', session }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid status payload' }));
-            }
-        });
         return;
     }
 
@@ -1909,6 +929,56 @@ function isPublicPath(pathname) {
     return PUBLIC_FILES.has(pathname) || PUBLIC_DIRS.some(d => pathname.startsWith(d));
 }
 
+// API routes anyone may call without signing in (login, the public admission form and its status tracker)
+const PUBLIC_API = new Set([
+    'GET /api/health',
+    'POST /api/auth/login',
+    'POST /api/auth/logout',
+    'GET /api/auth/me',
+    'POST /api/admissions',
+    'GET /api/admissions/status',
+    'GET /api/settings/admissions',
+    'GET /api/branches',
+    'GET /api/departments',
+    'GET /api/programs',
+    'GET /api/sessions'
+]);
+// While previewing a role, nothing can be changed; only these are reachable besides reading
+const PREVIEW_ALLOWED = new Set(['DELETE /api/preview', 'POST /api/auth/logout']);
+// While a temporary password is in use, only these are reachable
+const MUST_CHANGE_API = new Set(['GET /api/auth/me', 'POST /api/auth/change-password', 'POST /api/auth/logout']);
+
+function sendJsonError(res, status, payload) {
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=UTF-8' });
+    res.end(JSON.stringify(payload));
+}
+
+// Identifies the caller from the session cookie. Identity headers sent by old browsers are discarded.
+async function authenticate(req) {
+    delete req.headers['x-user-role'];
+    delete req.headers['x-user-id'];
+    delete req.headers['x-user-class'];
+    await lmsApi.ensureSchema();
+    req.auth = await auth.resolveSession(req);
+    // A Super Admin previewing a role sees the portal through that role (and, if chosen, one person holding it)
+    if (req.auth && req.auth.previewRequest && roles.isSuperAdminUser(req.auth.user)) {
+        const pr = req.auth.previewRequest;
+        const real = req.auth.user;
+        const person = pr.userId ? await auth.loadUser(pr.userId) : null;
+        const shown = person && !auth.INACTIVE_STATUSES.includes(person.status) ? { ...person } : real;
+        delete shown.password;
+        req.auth = {
+            ...req.auth,
+            id: shown.id,
+            role: shown.role,
+            user: shown,
+            realUser: real,
+            preview: { roleId: pr.roleId, userId: shown === real ? null : shown.id, userName: shown === real ? null : shown.name, realId: real.id, realName: real.name }
+        };
+    }
+    return req.auth;
+}
+
 const server = http.createServer(async (req, res) => {
     let pathname = '/';
     try {
@@ -1918,12 +988,40 @@ const server = http.createServer(async (req, res) => {
         res.end('400 Bad Request');
         return;
     }
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'same-origin');
+
+    if (pathname.startsWith('/api/') || pathname.startsWith('/uploads/')) {
+        try {
+            await authenticate(req);
+        } catch (err) {
+            console.error('[Auth] Session lookup failed:', err.message);
+            sendJsonError(res, 503, { success: false, error: 'Database unavailable' });
+            return;
+        }
+    }
 
     if (pathname.startsWith('/api/')) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Role, X-User-Id, X-User-Class, X-File-Name');
-        if (req.method !== 'OPTIONS' && await lmsApi.handle(req, res)) return;
+        res.setHeader('Cache-Control', 'no-store');
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204);
+            res.end();
+            return;
+        }
+        const routeKey = `${req.method} ${pathname}`;
+        if (!req.auth && !PUBLIC_API.has(routeKey)) {
+            sendJsonError(res, 401, { success: false, error: 'Please sign in.' });
+            return;
+        }
+        if (req.auth && req.auth.preview && req.method !== 'GET' && !PREVIEW_ALLOWED.has(routeKey)) {
+            sendJsonError(res, 403, { success: false, previewReadOnly: true, error: 'You are previewing a role, so nothing can be changed. Leave the preview to make changes.' });
+            return;
+        }
+        if (req.auth && req.auth.mustChange && !MUST_CHANGE_API.has(routeKey) && !PUBLIC_API.has(routeKey)) {
+            sendJsonError(res, 403, { success: false, mustChangePassword: true, error: 'Please choose a new password before continuing.' });
+            return;
+        }
+        if (await lmsApi.handle(req, res)) return;
     } else if (!['/', '', '/login'].includes(pathname) && !isPublicPath(pathname)) {
         if (path.extname(pathname) || pathname.split('/').some(seg => seg.startsWith('.'))) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -1935,7 +1033,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname.startsWith('/uploads/')) {
-        // Uploaded files: never let the browser treat them as HTML/script
+        // Uploaded files (payment proofs, papers, submissions) are only served to signed-in users
+        if (!req.auth) {
+            res.writeHead(401, { 'Content-Type': 'text/plain' });
+            res.end('401 Unauthorized: please sign in to the portal to open this file.');
+            return;
+        }
+        res.setHeader('Cache-Control', 'private, no-store');
+        // Never let the browser treat them as HTML/script
         // (PDF, images, audio/video and plain text are shown inline; everything else downloads)
         const ext = path.extname(pathname).toLowerCase();
         if (!INLINE_UPLOAD_EXT.has(ext)) {
@@ -1955,15 +1060,7 @@ server.listen(PORT, () => {
     db.testConnection().then(ok => {
         if (!ok) return;
         lmsApi.ensureSchema()
-            .then(() => lmsApi.getSetting('rolePermissions', null))
-            .then(saved => {
-                if (saved) {
-                    Object.keys(saved).forEach(role => {
-                        systemRolePermissions[role] = { ...(systemRolePermissions[role] || {}), ...saved[role] };
-                    });
-                }
-                console.log('[DB] LMS shared record store ready');
-            })
+            .then(() => console.log('[DB] LMS shared record store and roles ready'))
             .catch(err => console.warn('[DB] LMS schema setup failed:', err.message));
     });
 });

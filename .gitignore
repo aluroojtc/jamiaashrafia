@@ -9,3 +9,9 @@ yarn-error.log*
 Thumbs.db
 *.zip
 uploads/
+
+# Database exports (personal data, password hashes)
+/jamia_ashrafia_lms_*.sql
+
+# Temporary passwords issued by npm run issue-temp-passwords
+/private/

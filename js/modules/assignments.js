@@ -8,25 +8,24 @@ const AssignmentsModule = {
     filter: 'ALL', // student: ALL | PENDING | SUBMITTED | GRADED ; staff: ALL | TO_CHECK
 
     isStaff() {
-        const r = Lms.role();
-        return r === 'TEACHER' || window.AuthRBAC.isAdmin();
+        return Lms.portal() !== 'student';
     },
 
     canCreate() {
-        return window.AuthRBAC.can('assignments:create') || window.AuthRBAC.isAdmin();
+        return Lms.can('assignments.create');
     },
 
     // Assignments visible to the signed-in user
     visibleAssignments() {
         const me = Lms.me();
         const all = window.LmsData.assignments || [];
-        if (window.AuthRBAC.isAdmin()) return all;
-        if (me.role === 'TEACHER') {
+        const portal = Lms.portal();
+        if (portal === 'staff') return all;
+        if (portal === 'teacher') {
             const classIds = Lms.teacherClassIds(me.id);
             return all.filter(a => a.teacherId === me.id || classIds.includes(a.classId));
         }
-        if (me.role === 'STUDENT') return all.filter(a => a.classId === me.classId);
-        return [];
+        return all.filter(a => a.classId === me.classId || a.classId === 'all');
     },
 
     submissionsFor(asgId) {
@@ -38,14 +37,20 @@ const AssignmentsModule = {
         return (window.LmsData.assignmentSubmissions || []).find(s => s.assignmentId === asgId && s.studentId === me.id) || null;
     },
 
-    canCheck(asg) {
-        if (window.AuthRBAC.isAdmin()) return true;
+    // Within the role's data scope: the whole institution, or classes the teacher teaches / assignments they set
+    inScope(asg) {
+        const portal = Lms.portal();
+        if (portal === 'staff') return true;
         const me = Lms.me();
-        return me.role === 'TEACHER' && (asg.teacherId === me.id || Lms.teacherClassIds(me.id).includes(asg.classId));
+        return portal === 'teacher' && (asg.teacherId === me.id || Lms.teacherClassIds(me.id).includes(asg.classId));
+    },
+
+    canCheck(asg) {
+        return Lms.can('assignments.grade') && this.inScope(asg);
     },
 
     render() {
-        const isStudent = Lms.role() === 'STUDENT';
+        const isStudent = Lms.portal() === 'student';
         const list = this.visibleAssignments().slice().sort((a, b) => String(b.dueDate).localeCompare(String(a.dueDate)));
 
         return `
@@ -208,8 +213,9 @@ const AssignmentsModule = {
                                     </div>
                                     <div style="display: flex; gap: 8px;">
                                         <button class="btn btn-gold btn-sm" style="flex: 1;" onclick="AssignmentsModule.openSubmissionsReviewModal('${a.id}')"><i class="fas fa-tasks"></i> Check Submissions</button>
-                                        ${this.canCheck(a) ? `
-                                            <button class="btn btn-secondary btn-sm" title="Edit" onclick="AssignmentsModule.openCreateAssignmentModal('${a.id}')"><i class="fas fa-edit"></i></button>
+                                        ${this.inScope(a) && Lms.can('assignments.update') ? `
+                                            <button class="btn btn-secondary btn-sm" title="Edit" onclick="AssignmentsModule.openCreateAssignmentModal('${a.id}')"><i class="fas fa-edit"></i></button>` : ''}
+                                        ${this.inScope(a) && Lms.can('assignments.delete') ? `
                                             <button class="btn btn-secondary btn-sm" title="Delete" onclick="AssignmentsModule.deleteAssignment('${a.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                                     </div>
                                 </div>
@@ -285,7 +291,7 @@ const AssignmentsModule = {
         const classId = Lms.val('asg-class');
         const me = Lms.me();
         let ids = Lms.classCourseIds(classId);
-        if (me.role === 'TEACHER') {
+        if (Lms.portal() === 'teacher') {
             const mine = Lms.teacherCourseIds(me.id, classId);
             const cls = Lms.getClass(classId);
             // Class teachers may set work for any kitab of their class

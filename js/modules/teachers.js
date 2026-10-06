@@ -6,7 +6,7 @@
 
 const TeachersModule = {
     canManage() {
-        return window.AuthRBAC.can('teachers:manage') || window.AuthRBAC.isAdmin();
+        return Lms.can('teachers.update') || Lms.can('teachers.create');
     },
 
     workload(teacherId) {
@@ -39,9 +39,9 @@ const TeachersModule = {
                     <p>Faculty directory, teaching workload and teacher portal accounts (registered by administrators)</p>
                 </div>
                 <div class="view-actions">
-                    ${Lms.role() === 'TEACHER' ? `<button class="btn btn-secondary btn-sm" onclick="TeachersModule.openMyProfileModal()"><i class="fas fa-user-edit"></i> My Profile</button>` : ''}
-                    ${Lms.role() === 'TEACHER' || canManage ? `<button class="btn btn-gold btn-sm" onclick="TeachersModule.openAttendanceModal()"><i class="fas fa-clipboard-check"></i> Mark Class Attendance</button>` : ''}
-                    ${canManage ? `<button class="btn btn-primary btn-sm" onclick="TeachersModule.openRegisterTeacherModal()"><i class="fas fa-user-plus"></i> Register New Teacher</button>` : ''}
+                    ${Lms.portal() === 'teacher' ? `<button class="btn btn-secondary btn-sm" onclick="TeachersModule.openMyProfileModal()"><i class="fas fa-user-edit"></i> My Profile</button>` : ''}
+                    ${Lms.can('attendance.mark') ? `<button class="btn btn-gold btn-sm" onclick="TeachersModule.openAttendanceModal()"><i class="fas fa-clipboard-check"></i> Mark Class Attendance</button>` : ''}
+                    ${Lms.can('teachers.create') ? `<button class="btn btn-primary btn-sm" onclick="TeachersModule.openRegisterTeacherModal()"><i class="fas fa-user-plus"></i> Register New Teacher</button>` : ''}
                 </div>
             </div>
 
@@ -91,9 +91,11 @@ const TeachersModule = {
                             </div>
                             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="TeachersModule.viewFacultyProfile('${t.id}')"><i class="fas fa-id-badge"></i> Profile</button>
-                                ${canManage ? `
-                                    <button class="btn btn-secondary btn-sm" title="Edit" onclick="TeachersModule.openRegisterTeacherModal('${t.id}')"><i class="fas fa-edit"></i></button>
-                                    <button class="btn btn-secondary btn-sm" title="Reset password" onclick="TeachersModule.resetPassword('${t.id}')"><i class="fas fa-key"></i></button>
+                                ${Lms.can('teachers.update') ? `
+                                    <button class="btn btn-secondary btn-sm" title="Edit" onclick="TeachersModule.openRegisterTeacherModal('${t.id}')"><i class="fas fa-edit"></i></button>` : ''}
+                                ${Lms.can('teachers.reset_password') ? `
+                                    <button class="btn btn-secondary btn-sm" title="Reset password" onclick="TeachersModule.resetPassword('${t.id}')"><i class="fas fa-key"></i></button>` : ''}
+                                ${Lms.can('teachers.deactivate') ? `
                                     <button class="btn btn-secondary btn-sm" title="${t.status === 'INACTIVE' ? 'Activate' : 'Deactivate'}" onclick="TeachersModule.toggleStatus('${t.id}')"><i class="fas ${t.status === 'INACTIVE' ? 'fa-user-check' : 'fa-user-slash'}"></i></button>` : ''}
                             </div>
                         </div>`;
@@ -125,15 +127,15 @@ const TeachersModule = {
                 <div class="form-group"><label>Login Email *</label><input type="email" id="reg-t-email" class="form-control" value="${Lms.esc(d.email || '')}" placeholder="name@jamiaashrafia.org"></div>
                 ${t ? '' : `<div class="form-group"><label>Initial Password *</label><input type="text" id="reg-t-pwd" class="form-control" value="${Lms.esc(this.randomPassword())}"></div>`}
             </div>
-            ${t ? '' : '<div style="font-size: 0.8rem; color: var(--text-muted);">The teacher signs in with this email and password. Allocate classes and kitabs in <strong>Classes & Courses</strong>.</div>'}`,
+            ${t ? '' : '<div style="font-size: 0.8rem; color: var(--text-muted);">The teacher signs in with this email and password. Allocate classes and kitabs in <strong>Classes & Courses</strong>.</div>'}
+            ${t && window.UsersModule ? window.UsersModule.rolePicker(t) : ''}`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-primary" onclick="TeachersModule.saveTeacher('${t ? t.id : ''}')"><i class="fas fa-save"></i> ${t ? 'Save Changes' : 'Register & Create Login'}</button>`
         );
     },
 
     randomPassword() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-        return 'Ash-' + Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        return Lms.tempPassword();
     },
 
     async saveTeacher(teacherId) {
@@ -154,6 +156,9 @@ const TeachersModule = {
             urduName: Lms.val('reg-t-urdu') || name, sanad: Lms.val('reg-t-sanad'), specialization: Lms.val('reg-t-spec'),
             phone: Lms.val('reg-t-phone'), branchId: Lms.val('reg-t-branch') || 'b1'
         };
+        // Additional roles (e.g. Librarian), when the picker was shown
+        const extra = teacherId && window.UsersModule ? window.UsersModule.readRolePicker() : null;
+        if (extra) fields.additionalRoles = extra;
         if (teacherId) {
             Object.assign(Lms.user(teacherId), fields);
             Lms.save();
@@ -163,8 +168,8 @@ const TeachersModule = {
             return;
         }
         const password = Lms.val('reg-t-pwd');
-        if (password.length < 6) {
-            window.App.showToast('Password must be at least 6 characters', 'warning');
+        if (password.length < Lms.MIN_PASSWORD_LENGTH) {
+            window.App.showToast(`Password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters`, 'warning');
             return;
         }
         const teacher = {
@@ -191,15 +196,15 @@ const TeachersModule = {
     resetPassword(teacherId) {
         const t = Lms.user(teacherId);
         if (!t) return;
-        const pwd = prompt(`New password for ${t.name} (min 6 characters):`, this.randomPassword());
+        const pwd = prompt(`Temporary password for ${t.name} (at least ${Lms.MIN_PASSWORD_LENGTH} characters). They must choose a new one at next sign-in:`, this.randomPassword());
         if (pwd === null) return;
-        if (pwd.length < 6) {
-            window.App.showToast('Password must be at least 6 characters', 'warning');
+        if (pwd.length < Lms.MIN_PASSWORD_LENGTH) {
+            window.App.showToast(`Password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters`, 'warning');
             return;
         }
         t.password = pwd;
         Lms.save();
-        window.App.showToast(`Password reset for ${t.name}`, 'success');
+        window.App.showToast(`Temporary password set for ${t.name}`, 'success');
     },
 
     toggleStatus(teacherId) {
@@ -258,6 +263,7 @@ const TeachersModule = {
             <div class="form-group"><label>About / Teaching Profile</label><textarea id="mp-bio" class="form-control">${Lms.esc(me.bio || '')}</textarea></div>
             <div class="card" style="background: var(--bg-surface-elevated); padding: 14px; margin-top: 14px;">
                 <h4 style="font-size: 0.9rem; margin-bottom: 8px;"><i class="fas fa-key"></i> Change Password</h4>
+                <div class="form-group"><label>Current Password</label><input type="password" id="mp-pwd-current" class="form-control" autocomplete="current-password"></div>
                 <div class="form-grid" style="margin-bottom: 0;">
                     <div class="form-group"><label>New Password</label><input type="password" id="mp-pwd" class="form-control" autocomplete="new-password"></div>
                     <div class="form-group"><label>Confirm Password</label><input type="password" id="mp-pwd2" class="form-control" autocomplete="new-password"></div>
@@ -268,15 +274,20 @@ const TeachersModule = {
         );
     },
 
-    saveMyProfile() {
+    async saveMyProfile() {
         const me = Lms.me();
         const pwd = Lms.val('mp-pwd');
         if (pwd || Lms.val('mp-pwd2')) {
-            if (pwd.length < 6 || pwd !== Lms.val('mp-pwd2')) {
-                window.App.showToast('Passwords must match and be at least 6 characters', 'warning');
+            if (pwd.length < Lms.MIN_PASSWORD_LENGTH || pwd !== Lms.val('mp-pwd2')) {
+                window.App.showToast(`Passwords must match and be at least ${Lms.MIN_PASSWORD_LENGTH} characters`, 'warning');
                 return;
             }
-            me.password = pwd;
+            // Own password changes go to the server and need the current password
+            const error = await Lms.changeOwnPassword(document.getElementById('mp-pwd-current').value, pwd);
+            if (error) {
+                window.App.showToast(error, 'danger');
+                return;
+            }
         }
         Object.assign(me, { urduName: Lms.val('mp-urdu'), phone: Lms.val('mp-phone'), sanad: Lms.val('mp-sanad'), specialization: Lms.val('mp-spec'), bio: document.getElementById('mp-bio').value.trim() });
         Lms.save();

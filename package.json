@@ -7,7 +7,10 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node test_lms_flow.js",
-    "dbcheck": "node database/dbcheck.js"
+    "dbcheck": "node database/dbcheck.js",
+    "bootstrap-admin": "node database/bootstrap-admin.js",
+    "issue-temp-passwords": "node database/issue-temp-passwords.js",
+    "test:security": "node test_auth_security.js"
   },
   "keywords": [
     "jamia-ashrafia",

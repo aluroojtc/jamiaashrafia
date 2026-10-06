@@ -11,7 +11,7 @@ const TimetableModule = {
     classFilter: null,      // class id, 'MINE' (teacher's own periods) or 'ALL'
 
     canManage() {
-        return window.AuthRBAC.can('timetable:manage') || window.AuthRBAC.isAdmin();
+        return Lms.can('timetable.manage');
     },
 
     todayName() {
@@ -20,8 +20,8 @@ const TimetableModule = {
 
     defaultFilter() {
         const me = Lms.me();
-        if (me.role === 'STUDENT') return me.classId || 'NONE';
-        if (me.role === 'TEACHER') return 'MINE';
+        if (Lms.portal() === 'student') return me.classId || 'NONE';
+        if (Lms.portal() === 'teacher') return 'MINE';
         return 'ALL';
     },
 
@@ -30,7 +30,7 @@ const TimetableModule = {
         const me = Lms.me();
         const all = window.LmsData.timetables || [];
         const f = this.classFilter;
-        if (me.role === 'STUDENT') return all.filter(t => t.classId === me.classId || t.classId === 'all');
+        if (Lms.portal() === 'student') return all.filter(t => t.classId === me.classId || t.classId === 'all');
         if (f === 'MINE') return all.filter(t => t.teacherId === me.id || t.classId === 'all');
         if (f === 'ALL' || !f) return all;
         return all.filter(t => t.classId === f || t.classId === 'all');
@@ -64,14 +64,14 @@ const TimetableModule = {
                 </div>
             </div>
 
-            ${me.role !== 'STUDENT' ? `
+            ${Lms.portal() !== 'student' ? `
                 <div class="filter-bar">
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <label style="font-weight: 600; font-size: 0.85rem;">Showing:</label>
                         <select class="form-control" style="max-width: 360px;" onchange="TimetableModule.setClassFilter(this.value)">
-                            ${me.role === 'TEACHER' ? `<option value="MINE" ${this.classFilter === 'MINE' ? 'selected' : ''}>My teaching schedule</option>` : ''}
-                            ${window.AuthRBAC.isAdmin() || me.role !== 'TEACHER' ? `<option value="ALL" ${this.classFilter === 'ALL' ? 'selected' : ''}>All classes</option>` : ''}
-                            ${Lms.classOptions(this.classFilter, me.role === 'TEACHER' ? visibleClassIds : null)}
+                            ${Lms.portal() === 'teacher' ? `<option value="MINE" ${this.classFilter === 'MINE' ? 'selected' : ''}>My teaching schedule</option>` : ''}
+                            ${Lms.portal() !== 'teacher' ? `<option value="ALL" ${this.classFilter === 'ALL' ? 'selected' : ''}>All classes</option>` : ''}
+                            ${Lms.classOptions(this.classFilter, Lms.portal() === 'teacher' ? visibleClassIds : null)}
                         </select>
                     </div>
                 </div>` : ''}
@@ -201,7 +201,7 @@ const TimetableModule = {
         (window.LmsData.exams || []).filter(e => classIds.includes(e.classId) && e.examDate >= today && e.examDate <= horizon && e.status !== 'CLOSED')
             .forEach(e => items.push({ date: e.examDate, time: e.startTime, icon: 'fa-file-signature', color: 'var(--danger)', title: e.title, sub: `${e.mode === 'ONLINE' ? 'Online exam' : 'Hall exam'} • ${Lms.className(e.classId)}`, route: 'exams' }));
         (window.LmsData.assignments || []).filter(a => classIds.includes(a.classId) && a.dueDate >= today && a.dueDate <= horizon)
-            .filter(a => me.role !== 'STUDENT' || !(window.LmsData.assignmentSubmissions || []).some(s => s.assignmentId === a.id && s.studentId === me.id))
+            .filter(a => Lms.portal() !== 'student' || !(window.LmsData.assignmentSubmissions || []).some(s => s.assignmentId === a.id && s.studentId === me.id))
             .forEach(a => items.push({ date: a.dueDate, time: '23:59', icon: 'fa-tasks', color: 'var(--warning)', title: `Due: ${a.title}`, sub: Lms.className(a.classId), route: 'assignments' }));
         (window.LmsData.virtualClasses || []).filter(v => (classIds.includes(v.classId) || v.hostId === me.id) && v.status === 'UPCOMING')
             .forEach(v => {

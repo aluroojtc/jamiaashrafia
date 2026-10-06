@@ -316,6 +316,33 @@
             </button>
         </form>
 
+        <!-- FIRST SIGN-IN / TEMPORARY PASSWORD: CHOOSE A NEW PASSWORD -->
+        <form id="change-password-form" onsubmit="handleChangePasswordSubmit(event)" style="display: none;">
+            <div style="background: var(--gold-50, #fdf8ec); border: 1px solid var(--gold-200, #ecd9a8); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 18px; font-size: 0.85rem; color: var(--text-primary); line-height: 1.5;">
+                <strong><i class="fas fa-key" style="color: var(--gold-600);"></i> Choose your own password</strong><br>
+                <span id="change-password-intro">You signed in with a temporary password. Choose a new one to continue.</span>
+            </div>
+            <div class="form-group" id="cp-current-group" style="margin-bottom: 16px;">
+                <label for="cp-current" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">Current (temporary) password *</label>
+                <input type="password" id="cp-current" class="form-control" autocomplete="current-password" style="padding: 12px 14px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label for="cp-new" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">New password *</label>
+                <input type="password" id="cp-new" class="form-control" autocomplete="new-password" minlength="8" required style="padding: 12px 14px;">
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">At least 8 characters. Do not reuse a password from another website.</div>
+            </div>
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="cp-confirm" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">Confirm new password *</label>
+                <input type="password" id="cp-confirm" class="form-control" autocomplete="new-password" minlength="8" required style="padding: 12px 14px;">
+            </div>
+            <button type="submit" id="btn-change-password" class="btn btn-primary" style="width: 100%; padding: 13px; font-size: 1rem; font-weight: 700;">
+                <i class="fas fa-check-circle"></i> Save Password and Continue
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="cancelChangePassword()" style="width: 100%; margin-top: 10px;">
+                Sign out
+            </button>
+        </form>
+
         <!-- ONLINE STUDENT APPLICATION / E-ADMISSION SECTION -->
         <div style="text-align: center; margin-top: 26px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px solid var(--border-subtle); padding-top: 18px;">
             <div id="adm-status-line"><i class="fas fa-spinner fa-spin"></i> Checking admission status...</div>
@@ -554,24 +581,33 @@
     <!-- TOAST CONTAINER -->
     <div id="toast-container"></div>
 
-    <script src="js/data.js?v=5.0"></script>
+    <script src="js/data.js?v=6.2"></script>
     <script>
         // Ensure data store is loaded
         window.LmsData = window.DataStore ? window.DataStore.get() : null;
 
-        // Check and display active session banner if user is currently signed in
-        document.addEventListener('DOMContentLoaded', () => {
-            const currentUserId = localStorage.getItem('JAMIA_CURRENT_USER_ID');
-            if (currentUserId && window.LmsData?.users) {
-                const curUser = window.LmsData.users.find(u => u.id === currentUserId);
-                if (curUser) {
-                    const banner = document.getElementById('active-session-banner');
-                    const nameSpan = document.getElementById('active-session-name');
-                    if (banner && nameSpan) {
-                        nameSpan.textContent = `${curUser.name} (${curUser.role.replace('_', ' ')})`;
-                        banner.style.display = 'block';
-                    }
+        // Ask the server whether this browser already has a session (the cookie itself is not readable from script)
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (new URLSearchParams(location.search).get('expired')) {
+                showToast('Your session has ended. Please sign in again.', 'warning');
+            }
+            try {
+                const res = await fetch('/api/auth/me', { cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.mustChangePassword) {
+                    showChangePassword(data.user, null);
+                    return;
                 }
+                const banner = document.getElementById('active-session-banner');
+                const nameSpan = document.getElementById('active-session-name');
+                if (banner && nameSpan && data.user) {
+                    nameSpan.textContent = `${data.user.name} (${roleTitleOf(data.user.role)})`;
+                    banner.style.display = 'block';
+                    localStorage.setItem('JAMIA_CURRENT_USER_ID', data.user.id);
+                }
+            } catch (e) {
+                // Server unreachable: the sign-in form reports it when used
             }
         });
 
@@ -596,29 +632,24 @@
         }
 
         function roleTitleOf(role) {
-            return ({ SUPER_ADMIN: 'Super Admin (Mohtamim)', ACADEMIC_ADMIN: 'Academic Nazim', TEACHER: 'Teacher', STUDENT: 'Student', ACCOUNTANT: 'Accountant' })[role]
+            return ({ SUPER_ADMIN: 'Super Admin (Mohtamim)', ACADEMIC_ADMIN: 'Admin', TEACHER: 'Teacher', STUDENT: 'Student', ACCOUNTANT: 'Accountant' })[role]
                 || String(role || 'User').replace('_', ' ');
         }
 
-        // Unified login: the server checks the hashed password; the local directory is only used if the server is unreachable
+        // Sign-in is always checked by the server, which answers with a session cookie. There is no offline sign-in:
+        // a password check in the browser can be bypassed by anyone, so it would protect nothing.
+        let pendingUser = null;
+        let pendingPassword = null;
+
         async function handleLoginSubmit(e) {
             e.preventDefault();
-            let idVal = document.getElementById('login-identifier').value.trim();
+            const idVal = document.getElementById('login-identifier').value.trim();
             const pwdVal = document.getElementById('login-password').value;
             const btn = document.getElementById('btn-submit-login');
 
             if (!idVal || !pwdVal) {
                 showToast('Please provide both Username / ID and Password', 'warning');
                 return;
-            }
-
-            // Friendly shortcuts for the built-in demo accounts
-            const users = window.LmsData?.users || [];
-            const shortcuts = { admin: 'SUPER_ADMIN', mohtamim: 'SUPER_ADMIN', nazim: 'ACADEMIC_ADMIN', accountant: 'ACCOUNTANT', maliyat: 'ACCOUNTANT' };
-            const shortcutRole = shortcuts[idVal.toLowerCase()];
-            if (shortcutRole) {
-                const u = users.find(x => x.role === shortcutRole);
-                if (u && u.email) idVal = u.email;
             }
 
             const original = btn.innerHTML;
@@ -632,59 +663,102 @@
                 });
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.success && data.user) {
-                    // Make sure this browser knows the account before the portal loads
-                    const list = window.LmsData.users = window.LmsData.users || [];
-                    const i = list.findIndex(u => u.id === data.user.id);
-                    if (i >= 0) list[i] = { ...list[i], ...data.user };
-                    else list.push(data.user);
-                    window.DataStore.save(window.LmsData);
-                    localStorage.setItem('JAMIA_AUTH_TOKEN', data.token);
-                    executeLogin(data.user.id, roleTitleOf(data.user.role));
+                    if (data.mustChangePassword) {
+                        showChangePassword(data.user, pwdVal);
+                    } else {
+                        finishLogin(data.user);
+                    }
                     return;
                 }
-                if (!data.fallback) {
-                    showToast(data.error || 'Sign-in failed. Please check your credentials.', 'danger');
-                    return;
-                }
+                showToast(data.error || `Sign-in failed (${res.status}). Please check your credentials.`, 'danger');
             } catch (err) {
-                console.warn('Login server unreachable, using offline directory:', err.message);
+                showToast('The portal server cannot be reached. Please check your connection and try again.', 'danger');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = original;
+                document.getElementById('login-password').value = '';
             }
-            offlineLogin(idVal, pwdVal);
         }
 
-        // Offline fallback (server or database down): accounts known to this browser only
-        function offlineLogin(idVal, pwdVal) {
-            const idLower = idVal.toLowerCase();
-            const users = window.LmsData?.users || [];
-            const matchedUser = users.find(u =>
-                (u.rollNo && u.rollNo.toLowerCase() === idLower) ||
-                (u.email && u.email.toLowerCase() === idLower) ||
-                (u.id && u.id.toLowerCase() === idLower)
-            );
-            if (!matchedUser) {
-                showToast('No matching student, teacher or staff account found.', 'danger');
-                return;
-            }
-            if ((matchedUser.password || 'ashrafia123') !== pwdVal) {
-                showToast('Incorrect password. Please verify your credentials or contact the administrator.', 'danger');
-                return;
-            }
-            if (matchedUser.status === 'SUSPENDED' || matchedUser.status === 'INACTIVE') {
-                showToast(`This account is currently ${matchedUser.status}. Please contact the Academic Office.`, 'warning');
-                return;
-            }
-            showToast('Server unreachable — signed in with offline data.', 'warning');
-            executeLogin(matchedUser.id, roleTitleOf(matchedUser.role));
+        // Shown after signing in with a temporary password (or when an open session still needs a new one)
+        function showChangePassword(user, currentPassword) {
+            pendingUser = user;
+            pendingPassword = currentPassword;
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('active-session-banner').style.display = 'none';
+            document.getElementById('change-password-form').style.display = 'block';
+            document.getElementById('cp-current-group').style.display = currentPassword ? 'none' : 'block';
+            document.getElementById('cp-current').required = !currentPassword;
+            document.getElementById('change-password-intro').textContent =
+                `Assalamu Alaikum${user && user.name ? ', ' + user.name : ''}. You signed in with a temporary password. Choose a new one to continue.`;
+            document.getElementById(currentPassword ? 'cp-new' : 'cp-current').focus();
         }
 
-        function executeLogin(userId, roleTitle) {
-            localStorage.setItem('JAMIA_CURRENT_USER_ID', userId);
-            localStorage.setItem('JAMIA_AUTH_TOKEN', 'ashrafia_token_' + Date.now());
+        async function handleChangePasswordSubmit(e) {
+            e.preventDefault();
+            const current = pendingPassword || document.getElementById('cp-current').value;
+            const next = document.getElementById('cp-new').value;
+            if (next.length < 8) {
+                showToast('The new password must be at least 8 characters.', 'warning');
+                return;
+            }
+            if (next !== document.getElementById('cp-confirm').value) {
+                showToast('The two new passwords do not match.', 'warning');
+                return;
+            }
+            const btn = document.getElementById('btn-change-password');
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPassword: current, newPassword: next })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.status === 401) {
+                    showToast('Your session has ended. Please sign in again.', 'warning');
+                    cancelChangePassword();
+                    return;
+                }
+                if (!res.ok || !data.success) {
+                    showToast(data.error || 'The password could not be changed.', 'danger');
+                    return;
+                }
+                showToast('Password changed.', 'success');
+                let user = pendingUser;
+                if (!user) {
+                    const me = await fetch('/api/auth/me', { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+                    user = me.user;
+                }
+                pendingPassword = null;
+                finishLogin(user);
+            } catch (err) {
+                showToast('The portal server cannot be reached. Please try again.', 'danger');
+            } finally {
+                btn.disabled = false;
+            }
+        }
 
-            showToast(`Welcome! Signing in to ${roleTitle} Dashboard...`, 'success');
+        async function cancelChangePassword() {
+            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+            pendingUser = null;
+            pendingPassword = null;
+            document.getElementById('change-password-form').reset();
+            document.getElementById('change-password-form').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+            history.replaceState(null, '', 'login.html');
+        }
+
+        function finishLogin(user) {
+            // Start from a clean copy: nothing cached for a previous user of this browser stays behind
+            window.DataStore.clearLocal();
+            const list = window.LmsData.users = (window.LmsData.users || []).filter(u => u.id !== user.id);
+            list.push(user);
+            window.DataStore.save(window.LmsData);
+            localStorage.removeItem('JAMIA_AUTH_TOKEN');
+            localStorage.setItem('JAMIA_CURRENT_USER_ID', user.id);
+
+            showToast(`Welcome! Signing in to ${roleTitleOf(user.role)} Dashboard...`, 'success');
             setTimeout(() => {
                 window.location.href = 'index.html#dashboard';
             }, 600);
@@ -1234,7 +1308,8 @@
             const container = document.getElementById('toast-container');
             const t = document.createElement('div');
             t.className = `toast ${type}`;
-            t.innerHTML = `<i class="fas fa-info-circle"></i> <span>${msg}</span>`;
+            t.innerHTML = `<i class="fas fa-info-circle"></i> <span></span>`;
+            t.querySelector('span').textContent = String(msg);
             container.appendChild(t);
             setTimeout(() => t.remove(), 3000);
         }

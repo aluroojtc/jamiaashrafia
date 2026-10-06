@@ -180,6 +180,56 @@ textarea.form-control {
     min-height: 90px;
 }
 
+/* Role add/edit modal: fields fill their grid column */
+#form-role .form-control {
+    width: 100%;
+}
+
+/* Role add/edit modal: module permission checklist */
+.role-perm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 8px;
+}
+
+.role-perm-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-prominent);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface-elevated);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.role-perm-item:has(input:checked) {
+    border-color: var(--primary-500);
+    background: rgba(50, 142, 160, 0.08);
+}
+
+.role-perm-item.disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.role-perm-item input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--primary-500);
+    cursor: inherit;
+}
+
+.role-perm-item i {
+    width: 16px;
+    text-align: center;
+    color: var(--gold-600);
+}
+
 /* SEARCH & FILTER BAR */
 .filter-bar {
     display: flex;

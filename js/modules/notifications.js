@@ -20,13 +20,12 @@ const NotificationsModule = {
     },
 
     canBroadcast() {
-        const r = Lms.role();
-        return window.AuthRBAC.isAdmin() || r === 'TEACHER' || r === 'ACCOUNTANT' || window.AuthRBAC.can('notifications:broadcast');
+        return window.AuthRBAC.canAny(['notifications.broadcast_all', 'notifications.broadcast_role', 'notifications.send_class']);
     },
 
     headers() {
         const me = Lms.me();
-        return { 'Content-Type': 'application/json', 'X-User-Id': me.id || '', 'X-User-Role': me.role || '' };
+        return { 'Content-Type': 'application/json' };
     },
 
     // Offline / locally-created notices are filtered by their target like the server does
@@ -35,7 +34,7 @@ const NotificationsModule = {
         return (window.LmsData.notifications || []).filter(n => {
             if (!String(n.id || '').startsWith('notif_local')) return true;
             if (n.targetUserId) return n.targetUserId === me.id;
-            if (n.targetClassId) return me.role === 'STUDENT' && me.classId === n.targetClassId;
+            if (n.targetClassId) return Lms.portal() === 'student' && me.classId === n.targetClassId;
             return !n.targetRole || ['ALL', me.role].includes(n.targetRole);
         });
     },
@@ -54,7 +53,7 @@ const NotificationsModule = {
                 </div>
                 <div class="view-actions">
                     <button class="btn btn-secondary btn-sm" onclick="NotificationsModule.markAllAsRead()" ${unread ? '' : 'disabled'}><i class="fas fa-check-double"></i> Mark All as Read</button>
-                    ${this.canBroadcast() ? `<button class="btn btn-gold btn-sm" onclick="NotificationsModule.openBroadcastModal()"><i class="fas fa-bullhorn"></i> ${Lms.role() === 'TEACHER' ? 'Notify My Students' : 'Send Announcement'}</button>` : ''}
+                    ${this.canBroadcast() ? `<button class="btn btn-gold btn-sm" onclick="NotificationsModule.openBroadcastModal()"><i class="fas fa-bullhorn"></i> ${Lms.portal() === 'teacher' ? 'Notify My Students' : 'Send Announcement'}</button>` : ''}
                 </div>
             </div>
 
@@ -208,32 +207,32 @@ const NotificationsModule = {
     // BROADCAST
     // ---------------------------------------------------------------------
     openBroadcastModal() {
-        const role = Lms.role();
-        const isAdmin = window.AuthRBAC.isAdmin();
+        // Audiences follow the notification permissions; the server checks the same rules
+        const portal = Lms.portal();
+        const isTeacher = portal === 'teacher';
         const classIds = Lms.myClassIds();
         const audiences = [];
-        if (isAdmin) {
-            audiences.push(['ALL', 'Everyone (students, teachers & staff)'], ['STUDENT', 'All students'], ['TEACHER', 'All teachers'], ['STUDENTS_AND_TEACHERS', 'All students & teachers']);
-        }
-        if (role === 'ACCOUNTANT') audiences.push(['STUDENT', 'All students']);
-        if (isAdmin || role === 'TEACHER') audiences.push(['CLASS', role === 'TEACHER' ? 'Students of one of my classes' : 'Students of one class']);
-        audiences.push(['USER', 'One person']);
-        const people = role === 'TEACHER'
+        if (Lms.can('notifications.broadcast_all')) audiences.push(['ALL', 'Everyone (students, teachers & staff)']);
+        if (Lms.can('notifications.broadcast_role')) audiences.push(['STUDENT', 'All students'], ['TEACHER', 'All teachers'], ['STUDENTS_AND_TEACHERS', 'All students & teachers']);
+        if (Lms.can('notifications.send_class')) audiences.push(['CLASS', isTeacher ? 'Students of one of my classes' : 'Students of one class']);
+        if (Lms.can('notifications.send_individual')) audiences.push(['USER', 'One person']);
+        const people = isTeacher
             ? Lms.students().filter(s => classIds.includes(s.classId))
-            : role === 'ACCOUNTANT' ? Lms.students() : (window.LmsData.users || []).filter(u => u.id !== Lms.me().id);
+            : (window.LmsData.users || []).filter(u => u.id !== Lms.me().id);
+        const financeOnly = Lms.can('fees.challans.generate') && !Lms.can('notifications.send_class');
 
         Lms.openModal(
-            `<i class="fas fa-bullhorn" style="color: var(--gold-400);"></i> ${role === 'TEACHER' ? 'Notify My Students' : 'Send Announcement'}`,
+            `<i class="fas fa-bullhorn" style="color: var(--gold-400);"></i> ${isTeacher ? 'Notify My Students' : 'Send Announcement'}`,
             `<div class="form-grid">
                 <div class="form-group"><label>Send To *</label>
                     <select id="bc-target" class="form-control" onchange="NotificationsModule.toggleAudienceFields()">${audiences.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
                 </div>
-                <div class="form-group" id="bc-class-wrap" style="display: none;"><label>Class *</label><select id="bc-class" class="form-control">${Lms.classOptions(null, isAdmin ? null : classIds)}</select></div>
+                <div class="form-group" id="bc-class-wrap" style="display: none;"><label>Class *</label><select id="bc-class" class="form-control">${Lms.classOptions(null, portal === 'staff' ? null : classIds)}</select></div>
                 <div class="form-group" id="bc-user-wrap" style="display: none;"><label>Person *</label>
                     <select id="bc-user" class="form-control">${people.map(u => `<option value="${Lms.esc(u.id)}">${Lms.esc(u.name)} — ${Lms.esc(u.rollNo || u.designation || u.role)}</option>`).join('')}</select>
                 </div>
                 <div class="form-group"><label>Category *</label>
-                    <select id="bc-cat" class="form-control">${Object.entries(this.CATEGORIES).filter(([k]) => role !== 'ACCOUNTANT' || ['FEE', 'GENERAL'].includes(k)).map(([k, [l]]) => `<option value="${k}" ${(role === 'ACCOUNTANT' ? 'FEE' : 'ACADEMIC') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+                    <select id="bc-cat" class="form-control">${Object.entries(this.CATEGORIES).filter(([k]) => !financeOnly || ['FEE', 'GENERAL'].includes(k)).map(([k, [l]]) => `<option value="${k}" ${(financeOnly ? 'FEE' : 'ACADEMIC') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
                 </div>
             </div>
             <div class="form-group"><label>Title *</label><input type="text" id="bc-title" class="form-control" maxlength="200" placeholder="e.g. Special Dars-e-Hadith on Thursday"></div>
