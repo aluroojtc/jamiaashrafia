@@ -154,10 +154,10 @@ const StudentsModule = {
                 <!-- SEARCH AND FILTERS -->
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
                     <div class="search-input-wrap" style="width: 320px; position: relative;">
-                        <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                        <i class="fas fa-search" style="position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
                         <input type="text" class="form-control" placeholder="Search by name, roll no, email, phone..." 
                                value="${this.searchQuery}" oninput="StudentsModule.setSearch(this.value)" 
-                               style="padding: 8px 12px 8px 36px; width: 100%;">
+                               style="padding-block: 8px; padding-inline: 36px 12px; width: 100%;">
                     </div>
 
                     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -193,7 +193,7 @@ const StudentsModule = {
                                 <th>Attendance %</th>
                                 <th>Academic Standing</th>
                                 <th>Account Status</th>
-                                <th style="text-align: right; width: 220px;">Administrative Actions</th>
+                                <th style="text-align: end; width: 220px;">Administrative Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -212,10 +212,9 @@ const StudentsModule = {
                                                 <div>
                                                     <div style="font-weight: 700; color: var(--primary-950);">
                                                         <a href="javascript:void(0)" onclick="StudentsModule.viewProfile('${Lms.esc(s.id)}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--primary-600)'" onmouseout="this.style.color='var(--primary-950)'">
-                                                            ${Lms.esc(s.name)}
+                                                            ${Lms.esc(Lms.localName(s.name, s.urduName))}
                                                         </a>
                                                     </div>
-                                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${Lms.esc(s.urduName || '')}</div>
                                                     <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(s.email || 'No email set')}</div>
                                                 </div>
                                             </div>
@@ -252,7 +251,7 @@ const StudentsModule = {
                                                 ${status}
                                             </span>
                                         </td>
-                                        <td style="text-align: right; white-space: nowrap;">
+                                        <td style="text-align: end; white-space: nowrap;">
                                             <div style="display: inline-flex; gap: 5px; align-items: center;">
                                                 <!-- MANAGE PROFILE & ACCOUNT -->
                                                 <button class="btn btn-gold btn-sm" onclick="StudentsModule.viewProfile('${Lms.esc(s.id)}')" title="Manage Profile & Account Settings">
@@ -387,13 +386,10 @@ const StudentsModule = {
                     </div>
                     <div style="flex: 1; min-width: 240px;">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem;">${Lms.esc(student.name)}</h3>
+                            <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem;">${Lms.esc(Lms.localName(student.name, student.urduName))}</h3>
                             <span class="status-pill ${currentStatus === 'ACTIVE' ? 'success' : (isSuspended ? 'danger' : 'gold')}">
                                 <i class="fas ${currentStatus === 'ACTIVE' ? 'fa-check-circle' : 'fa-ban'}"></i> ${currentStatus}
                             </span>
-                        </div>
-                        <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-700); margin-top: 2px;">
-                            ${Lms.esc(student.urduName || '')}
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 0.82rem; color: var(--text-secondary); flex-wrap: wrap;">
                             <span><strong>Roll No:</strong> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(student.rollNo || 'N/A')}</code></span>
@@ -514,19 +510,19 @@ const StudentsModule = {
                         <h4 style="color: var(--primary-950); margin-bottom: 12px;"><i class="fas fa-sliders-h"></i> Scholar LMS Capabilities</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.85rem;">
                             <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
-                                <span><i class="fas fa-video" style="color: var(--gold-600); margin-right: 8px;"></i> Live Zoom Dars Access</span>
+                                <span><i class="fas fa-video" style="color: var(--gold-600); margin-inline-end: 8px;"></i> Live Zoom Dars Access</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
                             <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
-                                <span><i class="fas fa-edit" style="color: var(--primary-600); margin-right: 8px;"></i> Assignment Submissions</span>
+                                <span><i class="fas fa-edit" style="color: var(--primary-600); margin-inline-end: 8px;"></i> Assignment Submissions</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
                             <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
-                                <span><i class="fas fa-award" style="color: var(--warning); margin-right: 8px;"></i> Wifaq Online Exam Portal</span>
+                                <span><i class="fas fa-award" style="color: var(--warning); margin-inline-end: 8px;"></i> Wifaq Online Exam Portal</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
                             <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-primary);">
-                                <span><i class="fas fa-book-reader" style="color: #2563eb; margin-right: 8px;"></i> Maktaba Library Borrowing</span>
+                                <span><i class="fas fa-book-reader" style="color: #2563eb; margin-inline-end: 8px;"></i> Maktaba Library Borrowing</span>
                                 <input type="checkbox" checked disabled style="accent-color: var(--primary-500);">
                             </label>
                         </div>
@@ -842,7 +838,7 @@ const StudentsModule = {
                     <!-- STUDENT TYPE SELECTION -->
                     <div style="margin-bottom: 14px;">
                         <label class="form-label" style="font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 6px;">
-                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Category *</span>
+                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-inline-end: 6px;"></i> Student Category *</span>
                             <span style="font-size: 0.72rem; color: var(--gold-700);">Identification Routing</span>
                         </label>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -869,7 +865,7 @@ const StudentsModule = {
                             <input type="text" id="edit-st-name" class="form-control" value="${Lms.esc(student.name || '')}" required>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Name in Urdu (طالب علم)</label>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Name in Urdu</label>
                             <input type="text" id="edit-st-urdu" class="form-control" value="${Lms.esc(student.urduName || '')}" style="font-family: 'Amiri', serif;">
                         </div>
                     </div>
@@ -1100,7 +1096,7 @@ const StudentsModule = {
                     <!-- STUDENT TYPE SELECTION -->
                     <div style="margin-bottom: 14px;">
                         <label class="form-label" style="font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 6px;">
-                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Category *</span>
+                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-inline-end: 6px;"></i> Student Category *</span>
                             <span style="font-size: 0.72rem; color: var(--gold-700);">Identification Routing</span>
                         </label>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1379,7 +1375,7 @@ const StudentsModule = {
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <div style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-secondary);">
-                    Viewing attendance timestamps, check-in/out hours, and session notes for <strong>${Lms.esc(student.name)}</strong>.
+                    ${I18n.t('Viewing attendance timestamps, check-in/out hours, and session notes for {name}.', { name: `<strong>${Lms.esc(student.name)}</strong>` })}
                 </div>
                 <div class="table-responsive">
                     <table class="data-table">
@@ -1450,7 +1446,7 @@ const StudentsModule = {
                             <img src="assets/images/logo.png" style="width: 48px; height: 48px; object-fit: contain;">
                             <div>
                                 <div style="font-weight: 800; font-size: 1rem; color: var(--primary-950); letter-spacing: 0.5px;">JAMIA ASHRAFIA LAHORE</div>
-                                <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700); font-weight: 700;">جامعہ اشرفیہ، لاہور - علم اور تقویٰ</div>
+                                <div style="font-size: 0.85rem; color: var(--gold-700); font-weight: 700;">Knowledge & Piety</div>
                                 <div style="font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">Student Identity Card</div>
                             </div>
                         </div>
@@ -1478,7 +1474,7 @@ const StudentsModule = {
                                 </div>
                                 <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${Lms.esc(student.id || 'JAL-ST-CARD')}</div>
                             </div>
-                            <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: right; line-height: 1.35;">
+                            <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: end; line-height: 1.35;">
                                 <div>Valid Session: <strong>1446-1447 AH</strong></div>
                                 <div style="color: var(--gold-700); font-weight: 700; margin-top: 2px;">Authorized Signatory</div>
                             </div>

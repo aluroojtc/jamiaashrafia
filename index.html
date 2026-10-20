@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Language (English / Urdu / Arabic): sets <html lang dir> and loads the catalog before the page renders -->
+    <script src="js/i18n.js?v=1.0"></script>
     <meta name="description" content="Jamia Ashrafia Lahore Cloud Learning Management System (LMS) - Comprehensive institutional portal for Dars-e-Nizami, admissions, faculty, virtual classrooms, library, and Wifaq examinations. Founded 1947.">
     <title>Jamia Ashrafia Lahore - Cloud Learning Management System (LMS)</title>
     
@@ -19,15 +22,16 @@
     <!-- Google Fonts: Amiri & Scheherazade for Arabic/Urdu, Outfit & Inter for UI -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Scheherazade+New:wght@400;600;700&family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 
     <!-- Design System CSS -->
-    <link rel="stylesheet" href="css/main.css?v=4.0">
-    <link rel="stylesheet" href="css/components.css?v=5.1">
-    <link rel="stylesheet" href="css/zoom-room.css?v=4.0">
+    <link rel="stylesheet" href="css/main.css?v=4.1">
+    <link rel="stylesheet" href="css/components.css?v=5.2">
+    <link rel="stylesheet" href="css/zoom-room.css?v=4.1">
+    <link rel="stylesheet" href="css/i18n.css?v=1.0">
 </head>
 <body>
 
@@ -43,7 +47,7 @@
                         <span class="brand-tag">LMS Cloud</span>
                     </div>
                     <div class="brand-subtitle">
-                        <span class="urdu-motto">الجامعة الأشرفية - علم اور تقویٰ</span>
+                        <span class="urdu-motto">Knowledge & Piety</span>
                         <span>•</span>
                         <span>Est. 1947</span>
                     </div>
@@ -76,8 +80,11 @@
             <div class="header-actions">
                 <div class="search-input-wrap" style="width: 220px; display: none; @media(min-width: 1200px){ display: block; }">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="form-control" placeholder="Search LMS..." style="padding: 6px 12px 6px 36px; font-size: 0.82rem;" onkeypress="if(event.key==='Enter') App.globalSearch(this.value)">
+                    <input type="text" class="form-control" placeholder="Search LMS..." style="padding-block: 6px; padding-inline: 36px 12px; font-size: 0.82rem;" onkeypress="if(event.key==='Enter') App.globalSearch(this.value)">
                 </div>
+
+                <!-- Language menu (English / اردو / العربية), built by js/i18n.js -->
+                <div data-language-switcher="compact"></div>
 
                 <!-- Notifications Button with Badge -->
                 <button class="icon-btn" onclick="App.navigate('notifications')" title="Notifications & Broadcasts">
@@ -93,7 +100,7 @@
                             <span class="user-name" id="header-user-name">Maulana Fazl-ur-Raheem</span>
                             <span class="user-role-label" id="header-user-role">Super Admin (Mohtamim)</span>
                         </div>
-                        <i class="fas fa-chevron-down" style="font-size: 0.72rem; color: var(--gold-400); margin-left: 4px;"></i>
+                        <i class="fas fa-chevron-down" style="font-size: 0.72rem; color: var(--gold-400); margin-inline-start: 4px;"></i>
                     </div>
 
                     <!-- User Dropdown Menu -->
@@ -232,26 +239,26 @@
     <div id="toast-container"></div>
 
     <!-- APPLICATION SCRIPTS -->
-    <script src="js/data.js?v=6.2"></script>
-    <script src="js/auth-rbac.js?v=6.2"></script>
-    <script src="js/lms-core.js?v=6.2"></script>
-    <script src="js/modules/institutional.js?v=6.2"></script>
-    <script src="js/modules/admissions.js?v=6.2"></script>
-    <script src="js/modules/classes-courses.js?v=6.2"></script>
-    <script src="js/modules/teachers.js?v=6.2"></script>
-    <script src="js/modules/assignments.js?v=6.2"></script>
-    <script src="js/modules/fees-donations.js?v=6.2"></script>
-    <script src="js/modules/library.js?v=6.2"></script>
-    <script src="js/modules/exams.js?v=6.2"></script>
-    <script src="js/modules/timetable.js?v=6.2"></script>
-    <script src="js/modules/notifications.js?v=6.2"></script>
-    <script src="js/modules/attendance.js?v=6.2"></script>
-    <script src="js/modules/students.js?v=6.2"></script>
-    <script src="js/modules/users.js?v=6.2"></script>
-    <script src="js/modules/roles.js?v=6.2"></script>
-    <script src="js/modules/reports.js?v=6.2"></script>
-    <script src="js/modules/virtual-class.js?v=6.2"></script>
-    <script src="js/modules/prayer-times.js?v=6.2"></script>
-    <script src="js/app.js?v=6.2"></script>
+    <script src="js/data.js?v=6.3"></script>
+    <script src="js/auth-rbac.js?v=6.3"></script>
+    <script src="js/lms-core.js?v=6.3"></script>
+    <script src="js/modules/institutional.js?v=6.3"></script>
+    <script src="js/modules/admissions.js?v=6.3"></script>
+    <script src="js/modules/classes-courses.js?v=6.3"></script>
+    <script src="js/modules/teachers.js?v=6.3"></script>
+    <script src="js/modules/assignments.js?v=6.3"></script>
+    <script src="js/modules/fees-donations.js?v=6.3"></script>
+    <script src="js/modules/library.js?v=6.3"></script>
+    <script src="js/modules/exams.js?v=6.3"></script>
+    <script src="js/modules/timetable.js?v=6.3"></script>
+    <script src="js/modules/notifications.js?v=6.3"></script>
+    <script src="js/modules/attendance.js?v=6.3"></script>
+    <script src="js/modules/students.js?v=6.3"></script>
+    <script src="js/modules/users.js?v=6.3"></script>
+    <script src="js/modules/roles.js?v=6.3"></script>
+    <script src="js/modules/reports.js?v=6.3"></script>
+    <script src="js/modules/virtual-class.js?v=6.3"></script>
+    <script src="js/modules/prayer-times.js?v=6.3"></script>
+    <script src="js/app.js?v=6.3"></script>
 </body>
 </html>

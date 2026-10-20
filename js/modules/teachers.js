@@ -72,8 +72,7 @@ const TeachersModule = {
                             <div style="display: flex; gap: 14px; margin-bottom: 14px;">
                                 <div class="avatar-circle gold" style="width: 54px; height: 54px; font-size: 1.2rem; flex-shrink: 0;">${Lms.esc(t.avatar || Lms.initials(t.name))}</div>
                                 <div style="min-width: 0;">
-                                    <div style="font-weight: 700; font-size: 1.02rem; color: var(--primary-950);">${Lms.esc(t.name)}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-700);">${Lms.esc(t.urduName || '')}</div>
+                                    <div style="font-weight: 700; font-size: 1.02rem; color: var(--primary-950);">${Lms.esc(Lms.localName(t.name, t.urduName))}</div>
                                     <div style="font-size: 0.8rem; color: var(--primary-700); font-weight: 600;">${Lms.esc(t.designation || 'Teacher')}</div>
                                     ${t.status === 'INACTIVE' ? '<span class="status-pill danger" style="font-size: 0.65rem;">Inactive</span>' : ''}
                                 </div>
@@ -127,7 +126,7 @@ const TeachersModule = {
                 <div class="form-group"><label>Login Email *</label><input type="email" id="reg-t-email" class="form-control" value="${Lms.esc(d.email || '')}" placeholder="name@jamiaashrafia.org"></div>
                 ${t ? '' : `<div class="form-group"><label>Initial Password *</label><input type="text" id="reg-t-pwd" class="form-control" value="${Lms.esc(this.randomPassword())}"></div>`}
             </div>
-            ${t ? '' : '<div style="font-size: 0.8rem; color: var(--text-muted);">The teacher signs in with this email and password. Allocate classes and kitabs in <strong>Classes & Courses</strong>.</div>'}
+            ${t ? '' : `<div style="font-size: 0.8rem; color: var(--text-muted);">${I18n.t('The teacher signs in with this email and password. Allocate classes and kitabs in {page}.', { page: `<strong>${I18n.t('Classes & Courses')}</strong>` })}</div>`}
             ${t && window.UsersModule ? window.UsersModule.rolePicker(t) : ''}`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-primary" onclick="TeachersModule.saveTeacher('${t ? t.id : ''}')"><i class="fas fa-save"></i> ${t ? 'Save Changes' : 'Register & Create Login'}</button>`
@@ -183,7 +182,7 @@ const TeachersModule = {
             'Your teacher account is active. Your classes, timetable and teaching tools appear on your dashboard once the Academic Office allocates them.', 'ACADEMIC', 'dashboard');
         Lms.openModal(
             `<i class="fas fa-check-circle" style="color: var(--success);"></i> Teacher Registered`,
-            `<p style="margin-bottom: 12px;">Share these login details with <strong>${Lms.esc(name)}</strong>:</p>
+            `<p style="margin-bottom: 12px;">${I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(name)}</strong>` })}</p>
              <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: var(--radius-sm); padding: 14px; font-family: monospace; line-height: 1.9;">
                 Portal: ${Lms.esc(location.origin)}/<br>Username: ${Lms.esc(email)}<br>Password: ${Lms.esc(password)}
              </div>
@@ -225,11 +224,10 @@ const TeachersModule = {
         (window.LmsData.classes || []).forEach(c => (c.courseTeachers || []).forEach(ct => { if (ct.teacherId === t.id) rows.push({ c, course: Lms.getCourse(ct.courseId) }); }));
         const classTeacherOf = (window.LmsData.classes || []).filter(c => c.teacherId === t.id);
         Lms.openModal(
-            `<i class="fas fa-user-circle" style="color: var(--gold-400);"></i> ${Lms.esc(t.name)}`,
+            `<i class="fas fa-user-circle" style="color: var(--gold-400);"></i> ${Lms.esc(Lms.localName(t.name, t.urduName))}`,
             `<div style="display: flex; gap: 18px; align-items: center; margin-bottom: 18px;">
                 <div class="avatar-circle gold" style="width: 64px; height: 64px; font-size: 1.5rem;">${Lms.esc(t.avatar || Lms.initials(t.name))}</div>
                 <div>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.2rem; color: var(--gold-700);">${Lms.esc(t.urduName || '')}</div>
                     <div style="color: var(--primary-700); font-weight: 600;">${Lms.esc(t.designation || '')}</div>
                     <div style="font-size: 0.82rem; color: var(--text-muted);">${Lms.esc(t.email || '')} ${t.phone ? '• ' + Lms.esc(t.phone) : ''}</div>
                 </div>

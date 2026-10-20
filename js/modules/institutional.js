@@ -33,13 +33,7 @@ const InstitutionalModule = {
                         <i class="fas fa-mosque"></i> Center of Islamic Scholarship & Dars-e-Nizami
                     </div>
                     <h2 class="ashrafia-hero-title">Jamia Ashrafia Lahore</h2>
-                    <div class="ashrafia-hero-arabic">الجامعة الأشرفية، لاهور - علم اور تقویٰ</div>
-                    <p class="ashrafia-hero-desc">
-                        Founded on <strong>14 September 1947</strong>, just one month following the independence of Pakistan, 
-                        Jamia Ashrafia was established by the eminent scholar <strong>Hazrat Maulana Mufti Muhammad Hassan Amritsari (رحمه الله)</strong>. 
-                        In recognition of the immense spiritual guidance and unwavering support for an independent Muslim homeland, 
-                        the institution was named in honor of the revered Hakim al-Ummah <strong>Hazrat Maulana Ashraf Ali Thanwi (رحمه الله)</strong>.
-                    </p>
+                    <p class="ashrafia-hero-desc">${I18n.t(`Founded on <strong>14 September 1947</strong>, just one month following the independence of Pakistan, Jamia Ashrafia was established by the eminent scholar <strong>Hazrat Maulana Mufti Muhammad Hassan Amritsari (RA)</strong>. In recognition of the immense spiritual guidance and unwavering support for an independent Muslim homeland, the institution was named in honor of the revered Hakim al-Ummah <strong>Hazrat Maulana Ashraf Ali Thanwi (RA)</strong>.`)}</p>
                     <div class="ashrafia-hero-stats">
                         <div class="hero-stat-item">
                             <span class="hero-stat-value">1947</span>
@@ -75,19 +69,9 @@ const InstitutionalModule = {
                         </h3>
                     </div>
                     <div style="font-size: 0.92rem; color: var(--text-secondary); line-height: 1.7;">
-                        <p style="margin-bottom: 12px;">
-                            <strong>Nila Gumbad Anarkali (1947):</strong> Jamia Ashrafia commenced in a historic three-storied quadrangular building 
-                            at Nila Gumbad in the vibrant historic center of Lahore. The initial classes quickly attracted seekers of sacred knowledge from across the subcontinent.
-                        </p>
-                        <p style="margin-bottom: 12px;">
-                            <strong>Ferozepur Road Campus (1955-1957):</strong> On <strong>28 March 1955</strong>, a sprawling 120-kanal estate 
-                            situated between Canal Road and Ferozepur Road was acquired. Construction began with the laying of the foundation stone 
-                            for the central Grand Jamia Mosque. By 1957, the faculty and residential students relocated to this majestic new campus.
-                        </p>
-                        <p>
-                            <strong>Faculty of Hadith (1958):</strong> Teaching of classical Hadith courses was formally inaugurated in 1958 under the globally celebrated Muhaddith 
-                            <strong>Hazrat Maulana Muhammad Idris Kandhlawi (رحمه الله)</strong>, author of <em>Ma'arif al-Quran</em> and <em>At-Ta'liq as-Sabih</em>.
-                        </p>
+                        <p style="margin-bottom: 12px;">${I18n.t(`<strong>Nila Gumbad Anarkali (1947):</strong> Jamia Ashrafia commenced in a historic three-storied quadrangular building at Nila Gumbad in the vibrant historic center of Lahore. The initial classes quickly attracted seekers of sacred knowledge from across the subcontinent.`)}</p>
+                        <p style="margin-bottom: 12px;">${I18n.t(`<strong>Ferozepur Road Campus (1955-1957):</strong> On <strong>28 March 1955</strong>, a sprawling 120-kanal estate situated between Canal Road and Ferozepur Road was acquired. Construction began with the laying of the foundation stone for the central Grand Jamia Mosque. By 1957, the faculty and residential students relocated to this majestic new campus.`)}</p>
+                        <p>${I18n.t(`<strong>Faculty of Hadith (1958):</strong> Teaching of classical Hadith courses was formally inaugurated in 1958 under the globally celebrated Muhaddith <strong>Hazrat Maulana Muhammad Idris Kandhlawi (RA)</strong>, author of <em>Ma'arif al-Quran</em> and <em>At-Ta'liq as-Sabih</em>.`)}</p>
                     </div>
                 </div>
 
@@ -99,19 +83,14 @@ const InstitutionalModule = {
                         </h3>
                     </div>
                     <div style="font-size: 0.92rem; color: var(--text-secondary); line-height: 1.7;">
-                        <p style="margin-bottom: 12px;">
-                            Following the passing of the founder <strong>Mufti Muhammad Hassan</strong> on 1 June 1961, institutional leadership and preservation of high academic standards were carried forward by his distinguished sons:
-                        </p>
-                        <ul style="padding-left: 20px; margin-bottom: 12px;">
-                            <li><strong>Maulana Mufti Muhammad Ubaidullah (Late):</strong> Pioneered international academic outreach.</li>
-                            <li><strong>Maulana Abd-ur-Rahman Ashrafi (Late):</strong> Champion of community welfare and education.</li>
-                            <li><strong>Maulana Fazl-ur-Raheem Ashrafi:</strong> Current Principal / Mohtamim, leading modern reforms and the Cloud LMS initiative.</li>
-                            <li><strong>Maulana Hafiz Ajwad Ubaid & Qari Arshad Ubaid:</strong> Guiding academic administration and Hadith discourse.</li>
+                        <p style="margin-bottom: 12px;">${I18n.t(`Following the passing of the founder <strong>Mufti Muhammad Hassan</strong> on 1 June 1961, institutional leadership and preservation of high academic standards were carried forward by his distinguished sons:`)}</p>
+                        <ul style="padding-inline-start: 20px; margin-bottom: 12px;">
+                            <li>${I18n.t(`<strong>Maulana Mufti Muhammad Ubaidullah (Late):</strong> Pioneered international academic outreach.`)}</li>
+                            <li>${I18n.t(`<strong>Maulana Abd-ur-Rahman Ashrafi (Late):</strong> Champion of community welfare and education.`)}</li>
+                            <li>${I18n.t(`<strong>Maulana Fazl-ur-Raheem Ashrafi:</strong> Current Principal / Mohtamim, leading modern reforms and the Cloud LMS initiative.`)}</li>
+                            <li>${I18n.t(`<strong>Maulana Hafiz Ajwad Ubaid & Qari Arshad Ubaid:</strong> Guiding academic administration and Hadith discourse.`)}</li>
                         </ul>
-                        <p>
-                            <strong>Wifaq ul Madaris Equivalence:</strong> The <em>Shahadat-ul-Alimiyyah</em> degree awarded by Jamia Ashrafia 
-                            under Wifaq-ul-Madaris Al-Arabia Pakistan is recognized by the Higher Education Commission (HEC) of Pakistan as equivalent to an M.A. in Islamic Studies and Arabic.
-                        </p>
+                        <p>${I18n.t(`<strong>Wifaq ul Madaris Equivalence:</strong> The <em>Shahadat-ul-Alimiyyah</em> degree awarded by Jamia Ashrafia under Wifaq-ul-Madaris Al-Arabia Pakistan is recognized by the Higher Education Commission (HEC) of Pakistan as equivalent to an M.A. in Islamic Studies and Arabic.`)}</p>
                     </div>
                 </div>
             </div>
@@ -143,7 +122,7 @@ const InstitutionalModule = {
                                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(b.name)}</div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">${b.code} Campus</div>
                                     </td>
-                                    <td><i class="fas fa-map-marker-alt" style="color: var(--danger); margin-right: 6px;"></i>${b.location || [b.address, b.city].filter(Boolean).join(', ')}</td>
+                                    <td><i class="fas fa-map-marker-alt" style="color: var(--danger); margin-inline-end: 6px;"></i>${b.location || [b.address, b.city].filter(Boolean).join(', ')}</td>
                                     <td>
                                         ${b.isWomens ? 
                                             '<span class="status-pill warning"><i class="fas fa-female"></i> Women\'s Campus</span>' : 
@@ -161,7 +140,7 @@ const InstitutionalModule = {
 
             <!-- COMMUNITY IMPACT & HOSPITAL -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
-                <div class="card" style="border-left: 4px solid var(--primary-500);">
+                <div class="card" style="border-inline-start: 4px solid var(--primary-500);">
                     <div class="card-header">
                         <h4 class="card-title"><i class="fas fa-hospital-alt"></i> Ashrafia Free Charitable Hospital</h4>
                     </div>
@@ -170,7 +149,7 @@ const InstitutionalModule = {
                         providing free diagnostics, outpatient care, emergency treatments, and essential medicines to thousands of underprivileged citizens daily.
                     </p>
                 </div>
-                <div class="card" style="border-left: 4px solid var(--gold-400);">
+                <div class="card" style="border-inline-start: 4px solid var(--gold-400);">
                     <div class="card-header">
                         <h4 class="card-title"><i class="fas fa-book-reader"></i> Maktaba Ashrafia & Darul Ifta</h4>
                     </div>

@@ -51,7 +51,7 @@
 .data-table {
     width: 100%;
     border-collapse: collapse;
-    text-align: left;
+    text-align: start;
     font-size: 0.88rem;
 }
 
@@ -248,14 +248,14 @@ textarea.form-control {
 
 .search-input-wrap i {
     position: absolute;
-    left: 14px;
+    inset-inline-start: 14px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
 }
 
 .search-input-wrap input {
-    padding-left: 40px;
+    padding-inline-start: 40px;
     width: 100%;
 }
 
@@ -278,8 +278,8 @@ textarea.form-control {
     content: '';
     position: absolute;
     top: 20px;
-    left: 40px;
-    right: 40px;
+    inset-inline-start: 40px;
+    inset-inline-end: 40px;
     height: 2px;
     background: var(--border-prominent);
     z-index: 1;
@@ -336,8 +336,8 @@ textarea.form-control {
 .modal-backdrop {
     position: fixed;
     top: 0;
-    left: 0;
-    right: 0;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
     bottom: 0;
     background: rgba(15, 34, 41, 0.6);
     backdrop-filter: blur(8px);
@@ -400,7 +400,7 @@ textarea.form-control {
 #toast-container {
     position: fixed;
     bottom: 24px;
-    right: 24px;
+    inset-inline-end: 24px;
     z-index: 2000;
     display: flex;
     flex-direction: column;
@@ -412,9 +412,9 @@ textarea.form-control {
     align-items: center;
     gap: 12px;
     background: var(--bg-surface-elevated);
-    border-left: 4px solid var(--primary-500);
+    border-inline-start: 4px solid var(--primary-500);
     border-top: 1px solid var(--border-prominent);
-    border-right: 1px solid var(--border-prominent);
+    border-inline-end: 1px solid var(--border-prominent);
     border-bottom: 1px solid var(--border-prominent);
     padding: 14px 20px;
     border-radius: var(--radius-sm);
@@ -424,10 +424,10 @@ textarea.form-control {
     animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.toast.success { border-left-color: var(--success); }
-.toast.error { border-left-color: var(--danger); }
-.toast.warning { border-left-color: var(--warning); }
-.toast.gold { border-left-color: var(--gold-400); }
+.toast.success { border-inline-start-color: var(--success); }
+.toast.error { border-inline-start-color: var(--danger); }
+.toast.warning { border-inline-start-color: var(--warning); }
+.toast.gold { border-inline-start-color: var(--gold-400); }
 
 @keyframes slideInRight {
     from { transform: translateX(100%); opacity: 0; }
@@ -632,8 +632,8 @@ textarea.form-control {
         padding: 0 !important;
         display: block !important;
         top: 0;
-        left: 0;
-        right: 0;
+        inset-inline-start: 0;
+        inset-inline-end: 0;
         bottom: auto;
     }
 
@@ -666,7 +666,7 @@ textarea.form-control {
 
     .challan-voucher-container, .sanad-certificate, .student-id-card-wrap {
         position: relative !important;
-        left: auto !important;
+        inset-inline-start: auto !important;
         top: auto !important;
         width: 100% !important;
         max-width: 420px !important;
@@ -713,7 +713,7 @@ textarea.form-control {
 .user-dropdown-menu {
     position: absolute;
     top: calc(100% + 8px);
-    right: 0;
+    inset-inline-end: 0;
     width: 250px;
     background: #ffffff;
     border: 1px solid var(--border-prominent);
@@ -756,7 +756,7 @@ textarea.form-control {
     color: var(--text-primary);
     font-size: 0.86rem;
     font-weight: 500;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     transition: all var(--transition-fast);
 }

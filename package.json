@@ -10,7 +10,8 @@
     "dbcheck": "node database/dbcheck.js",
     "bootstrap-admin": "node database/bootstrap-admin.js",
     "issue-temp-passwords": "node database/issue-temp-passwords.js",
-    "test:security": "node test_auth_security.js"
+    "test:security": "node test_auth_security.js",
+    "i18n:check": "node tools/i18n-check.js"
   },
   "keywords": [
     "jamia-ashrafia",

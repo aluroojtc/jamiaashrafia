@@ -37,11 +37,11 @@ const AdmissionsModule = {
         }
         const open = st.isAcceptingApplications;
         return `
-            <div id="admission-window-banner" class="card" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-left: 5px solid ${open ? 'var(--success)' : 'var(--danger)'};">
+            <div id="admission-window-banner" class="card" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-inline-start: 5px solid ${open ? 'var(--success)' : 'var(--danger)'};">
                 <div>
                     <div style="font-weight: 800; font-size: 1rem; color: ${open ? 'var(--success)' : 'var(--danger)'};">
                         <i class="fas ${open ? 'fa-door-open' : 'fa-door-closed'}"></i> Admissions ${open ? 'OPEN' : 'CLOSED'}
-                        <span style="font-weight: 600; color: var(--text-secondary); font-size: 0.85rem;">• Session ${Lms.esc(st.session || '')}</span>
+                        <span style="font-weight: 600; color: var(--text-secondary); font-size: 0.85rem;">• ${I18n.t('Session {x}', { x: `<bdi>${Lms.esc(st.session || '')}</bdi>` })}</span>
                     </div>
                     <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 3px;">
                         ${st.startDate ? `From ${Lms.fmtDate(st.startDate)} ` : ''}${st.deadline ? `until ${Lms.fmtDate(st.deadline)}` : ''} •
@@ -346,10 +346,10 @@ const AdmissionsModule = {
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <div class="search-input-wrap" style="width: 290px; position: relative;">
-                            <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                            <i class="fas fa-search" style="position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
                             <input type="text" class="form-control" placeholder="Search applicant, CNIC, passport..." 
                                    value="${this.searchQuery}" oninput="AdmissionsModule.setSearch(this.value)" 
-                                   style="padding: 8px 12px 8px 36px; width: 100%;">
+                                   style="padding-block: 8px; padding-inline: 36px 12px; width: 100%;">
                         </div>
 
                         <!-- STUDENT TYPE / CATEGORY FILTER -->
@@ -377,7 +377,7 @@ const AdmissionsModule = {
                                 <th>Madrasa Background</th>
                                 <th>Interview / Marks</th>
                                 <th>Status</th>
-                                <th style="text-align: right; width: 220px;">Admissions Workflow</th>
+                                <th style="text-align: end; width: 220px;">Admissions Workflow</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -478,11 +478,11 @@ const AdmissionsModule = {
                     <td>
                         ${isIntl ? `
                             <div style="font-family: monospace; font-size: 0.8rem; color: var(--gold-300);" title="Passport Number">
-                                <i class="fas fa-passport" style="font-size: 0.72rem; margin-right: 3px;"></i>${Lms.esc(item.passport || 'N/A')}
+                                <i class="fas fa-passport" style="font-size: 0.72rem; margin-inline-end: 3px;"></i>${Lms.esc(item.passport || 'N/A')}
                             </div>
                         ` : `
                             <div style="font-family: monospace; font-size: 0.8rem; color: var(--text-primary);" title="CNIC / B-Form">
-                                <i class="fas fa-id-card" style="font-size: 0.72rem; margin-right: 3px; color: var(--primary-400);"></i>${Lms.esc(item.cnic || 'N/A')}
+                                <i class="fas fa-id-card" style="font-size: 0.72rem; margin-inline-end: 3px; color: var(--primary-400);"></i>${Lms.esc(item.cnic || 'N/A')}
                             </div>
                         `}
                         <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;"><i class="fas fa-phone"></i> ${Lms.esc(item.phone)}</div>
@@ -502,7 +502,7 @@ const AdmissionsModule = {
                         `)}
                     </td>
                     <td>${statusPill}</td>
-                    <td style="text-align: right; white-space: nowrap;">
+                    <td style="text-align: end; white-space: nowrap;">
                         <div style="display: inline-flex; gap: 5px; align-items: center;">
                             <!-- VIEW DOSSIER BUTTON -->
                             <button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.viewApplication('${Lms.esc(item.id)}')" title="Inspect Complete Application Dossier">
@@ -953,7 +953,7 @@ const AdmissionsModule = {
         modalBody.innerHTML = `
             <form id="form-enrollment" onsubmit="AdmissionsModule.handleEnrollmentSubmit(event, '${id}')">
                 <!-- CANDIDATE SUMMARY BANNER -->
-                <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.15) 100%); border-left: 4px solid var(--gold-400); padding: 12px 16px; border-radius: 4px; margin-bottom: 18px;">
+                <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.15) 100%); border-inline-start: 4px solid var(--gold-400); padding: 12px 16px; border-radius: 4px; margin-bottom: 18px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                         <div>
                             <strong style="color: var(--primary-950); font-size: 1rem;">${Lms.esc(item.name)}</strong>
@@ -1173,11 +1173,11 @@ const AdmissionsModule = {
                 </div>
                 <h3 style="color: var(--primary-950); margin-bottom: 6px;">Enrollment Completed Successfully</h3>
                 <p style="color: var(--text-secondary); font-size: 0.9rem; max-width: 500px; margin: 0 auto 20px;">
-                    Candidate <strong>${Lms.esc(studentUser.name)}</strong> is now an active scholar of Jamia Ashrafia Lahore.
+                    ${I18n.t('Candidate {name} is now an active scholar of Jamia Ashrafia Lahore.', { name: `<strong>${Lms.esc(studentUser.name)}</strong>` })}
                 </p>
 
                 <!-- CREDENTIALS CARD -->
-                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 16px; max-width: 480px; margin: 0 auto; text-align: left; line-height: 1.9; font-size: 0.85rem;">
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 16px; max-width: 480px; margin: 0 auto; text-align: start; line-height: 1.9; font-size: 0.85rem;">
                     <div><strong>Scholar Name:</strong> ${Lms.esc(studentUser.name)}</div>
                     <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-700); font-weight: 700; font-size: 0.95rem;">${Lms.esc(studentUser.rollNo)}</code></div>
                     <div><strong>Class & Section:</strong> ${Lms.esc(studentUser.classId)}</div>
@@ -1232,7 +1232,7 @@ const AdmissionsModule = {
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
                 <p style="color: var(--text-primary); font-size: 0.95rem; margin-bottom: 4px;">
-                    Are you sure you want to mark application <strong>${Lms.esc(item.applicationNo)}</strong> (${Lms.esc(item.name)}) as Rejected?
+                    ${I18n.t('Are you sure you want to mark application {no} ({name}) as Rejected?', { no: `<strong>${Lms.esc(item.applicationNo)}</strong>`, name: Lms.esc(item.name) })}
                 </p>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
                     This decision will be permanently archived in the admissions registry.
@@ -1344,7 +1344,7 @@ const AdmissionsModule = {
                         <!-- STUDENT TYPE SELECTION -->
                         <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 4px;">
                             <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Type / طالب علم کی قسم *</span>
+                                <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-inline-end: 6px;"></i> Student Type *</span>
                                 <span style="font-size: 0.72rem; color: var(--gold-700);">Select applicant category</span>
                             </label>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1399,7 +1399,7 @@ const AdmissionsModule = {
                         <!-- INTERNATIONAL: CURRENT COUNTRY / RESIDENCE FIELD -->
                         <div class="form-group" id="adm-country-group" style="display: none;">
                             <label style="display: flex; justify-content: space-between; align-items: center;">
-                                <span><i class="fas fa-globe" style="color: var(--gold-400); margin-right: 4px;"></i> Current Country / Country of Residence *</span>
+                                <span><i class="fas fa-globe" style="color: var(--gold-400); margin-inline-end: 4px;"></i> Current Country / Country of Residence *</span>
                                 <span style="font-size: 0.72rem; color: var(--gold-300);">Searchable</span>
                             </label>
                             <input type="text" id="adm-country" list="adm-country-datalist" class="form-control" placeholder="Search or select country..." autocomplete="off">
@@ -1441,7 +1441,7 @@ const AdmissionsModule = {
                         <div class="form-group" style="justify-content: center;">
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 20px;">
                                 <input type="checkbox" id="adm-hafiz" style="width: 18px; height: 18px;" checked>
-                                <strong>Is the Candidate Hafiz-ul-Quran? (حافظ قرآن)</strong>
+                                <strong>Is the Candidate Hafiz-ul-Quran?</strong>
                             </label>
                         </div>
                     </div>
@@ -1454,7 +1454,7 @@ const AdmissionsModule = {
                             <label>Academic Program Sought *</label>
                             <select id="adm-program" class="form-control" required>
                                 ${(window.LmsData.programs || []).map(p => `
-                                    <option value="${Lms.esc(p.id)}">${Lms.esc(p.name)} (${Lms.esc(p.urdu)})</option>
+                                    <option value="${Lms.esc(p.id)}">${Lms.esc(Lms.localName(p.name, p.urdu))}</option>
                                 `).join('')}
                             </select>
                         </div>
@@ -1469,7 +1469,7 @@ const AdmissionsModule = {
                         <div class="form-group" style="justify-content: center;">
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 20px;">
                                 <input type="checkbox" id="adm-hostel" style="width: 18px; height: 18px;">
-                                <strong>Hostel & Mess Boarding Required (رہائش و طعام)</strong>
+                                <strong>Hostel & Mess Boarding Required</strong>
                             </label>
                         </div>
                     </div>
@@ -1735,7 +1735,7 @@ const AdmissionsModule = {
                     <!-- STUDENT TYPE SELECTION -->
                     <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 6px;">
                         <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-right: 6px;"></i> Student Type / طالب علم کی قسم *</span>
+                            <span><i class="fas fa-user-tag" style="color: var(--gold-600); margin-inline-end: 6px;"></i> Student Type *</span>
                             <span style="font-size: 0.72rem; color: var(--gold-700);">Select applicant category</span>
                         </label>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1790,7 +1790,7 @@ const AdmissionsModule = {
                     <!-- INTERNATIONAL: CURRENT COUNTRY / RESIDENCE FIELD -->
                     <div class="form-group" id="edit-adm-country-group" style="display: ${isIntl ? 'block' : 'none'};">
                         <label style="display: flex; justify-content: space-between; align-items: center;">
-                            <span><i class="fas fa-globe" style="color: var(--gold-400); margin-right: 4px;"></i> Current Country / Country of Residence *</span>
+                            <span><i class="fas fa-globe" style="color: var(--gold-400); margin-inline-end: 4px;"></i> Current Country / Country of Residence *</span>
                             <span style="font-size: 0.72rem; color: var(--gold-300);">Searchable</span>
                         </label>
                         <input type="text" id="edit-adm-country" list="edit-adm-country-datalist" class="form-control" value="${Lms.esc(item.country || (isIntl ? 'United Kingdom' : 'Pakistan'))}" placeholder="Search or select country..." autocomplete="off" ${isIntl ? 'required' : ''}>
@@ -1812,7 +1812,7 @@ const AdmissionsModule = {
                         <label>Academic Program Sought *</label>
                         <select id="edit-adm-program" class="form-control" required>
                             ${(window.LmsData.programs || []).map(p => `
-                                <option value="${Lms.esc(p.id)}" ${p.id === item.programId ? 'selected' : ''}>${Lms.esc(p.name)} (${Lms.esc(p.urdu)})</option>
+                                <option value="${Lms.esc(p.id)}" ${p.id === item.programId ? 'selected' : ''}>${Lms.esc(Lms.localName(p.name, p.urdu))}</option>
                             `).join('')}
                         </select>
                     </div>
@@ -1833,7 +1833,7 @@ const AdmissionsModule = {
                     <div class="form-group" style="display: flex; align-items: center; gap: 20px; padding-top: 15px;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" id="edit-adm-hafiz" style="width: 18px; height: 18px;" ${item.hafizStatus ? 'checked' : ''}>
-                            <strong>Hafiz-ul-Quran (حافظ قرآن)</strong>
+                            <strong>Hafiz-ul-Quran</strong>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" id="edit-adm-hostel" style="width: 18px; height: 18px;" ${item.hostelRequired ? 'checked' : ''}>
@@ -2028,7 +2028,7 @@ const AdmissionsModule = {
                         <img src="assets/images/logo.png" style="width: 48px; height: 48px; object-fit: contain;">
                         <div>
                             <div style="font-weight: 800; font-size: 1rem; color: var(--primary-950); letter-spacing: 0.5px;">JAMIA ASHRAFIA LAHORE</div>
-                            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700); font-weight: 700;">جامعہ اشرفیہ، لاہور - علم اور تقویٰ</div>
+                            <div style="font-size: 0.85rem; color: var(--gold-700); font-weight: 700;">Knowledge & Piety</div>
                             <div style="font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">Student Identity Card</div>
                         </div>
                     </div>
@@ -2062,7 +2062,7 @@ const AdmissionsModule = {
                             </div>
                             <div style="font-size: 0.65rem; color: var(--text-muted); font-family: monospace;">${Lms.esc(item.applicationNo || 'JAL-ST-CARD')}</div>
                         </div>
-                        <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: right; line-height: 1.35;">
+                        <div style="font-size: 0.68rem; color: var(--text-secondary); text-align: end; line-height: 1.35;">
                             <div>Valid Session: <strong>1446-1447 AH</strong></div>
                             <div style="color: var(--gold-700); font-weight: 700; margin-top: 2px;">Authorized Signatory</div>
                         </div>

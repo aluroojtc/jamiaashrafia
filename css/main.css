@@ -403,7 +403,7 @@ button, input, select, textarea {
 .icon-badge {
     position: absolute;
     top: -2px;
-    right: -2px;
+    inset-inline-end: -2px;
     background: var(--danger);
     color: #ffffff;
     font-size: 0.65rem;
@@ -420,7 +420,7 @@ button, input, select, textarea {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 4px 10px 4px 4px;
+    padding-block: 4px; padding-inline: 4px 10px;
     background: var(--bg-surface-elevated);
     border: 1px solid var(--border-prominent);
     border-radius: 30px;
@@ -443,7 +443,7 @@ button, input, select, textarea {
 .user-meta {
     display: flex;
     flex-direction: column;
-    text-align: left;
+    text-align: start;
 }
 
 .user-name {
@@ -473,7 +473,7 @@ button, input, select, textarea {
 .sidebar {
     width: 270px;
     background: var(--bg-surface);
-    border-right: 1px solid var(--border-subtle);
+    border-inline-end: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -528,7 +528,7 @@ button, input, select, textarea {
     background: linear-gradient(90deg, var(--primary-50) 0%, rgba(242, 249, 251, 0.4) 100%);
     color: var(--primary-800);
     border-color: var(--primary-200);
-    border-left: 3px solid var(--primary-600);
+    border-inline-start: 3px solid var(--primary-600);
     font-weight: 600;
 }
 
@@ -537,7 +537,7 @@ button, input, select, textarea {
 }
 
 .nav-item .badge-pill {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-size: 0.7rem;
     padding: 2px 7px;
     border-radius: 10px;
@@ -568,7 +568,7 @@ button, input, select, textarea {
     font-size: 0.72rem;
     color: var(--text-muted);
     transition: transform 0.25s ease, color 0.2s ease;
-    margin-left: auto;
+    margin-inline-start: auto;
 }
 
 .nav-parent-item:hover .submenu-caret {
@@ -579,11 +579,11 @@ button, input, select, textarea {
     display: none;
     flex-direction: column;
     gap: 2px;
-    padding-left: 12px;
-    margin-left: 18px;
+    padding-inline-start: 12px;
+    margin-inline-start: 18px;
     margin-top: 3px;
     margin-bottom: 5px;
-    border-left: 2px solid var(--primary-200);
+    border-inline-start: 2px solid var(--primary-200);
     transition: all 0.2s ease;
 }
 
@@ -807,7 +807,7 @@ button, input, select, textarea {
     content: '';
     position: absolute;
     top: 0;
-    left: 0;
+    inset-inline-start: 0;
     width: 4px;
     height: 100%;
     background: var(--primary-600);
@@ -1057,14 +1057,14 @@ button, input, select, textarea {
     }
     .sidebar {
         position: fixed;
-        left: -280px;
+        inset-inline-start: -280px;
         top: 72px;
         bottom: 0;
         z-index: 99;
         box-shadow: var(--shadow-lg);
     }
     .sidebar.open {
-        left: 0;
+        inset-inline-start: 0;
     }
     .content-viewport {
         padding: 16px;
@@ -1074,5 +1074,45 @@ button, input, select, textarea {
     }
     .ashrafia-hero-title {
         font-size: 1.5rem;
+    }
+}
+
+/* Phones: the header keeps the crest, a shortened title, the prayer-location button and the
+   language / notification / profile buttons on one line */
+@media (max-width: 600px) {
+    .top-header {
+        gap: 8px;
+    }
+    .brand-section {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .brand-info {
+        min-width: 0;
+    }
+    .brand-title {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .brand-tag,
+    .prayer-ticker-heading,
+    .prayer-ticker-divider,
+    .prayer-location-badge .location-city-name,
+    .prayer-location-badge .prayer-badge-divider,
+    .user-profile-btn > .fa-chevron-down {
+        display: none;
+    }
+    .prayer-ticker {
+        flex-shrink: 0;
+        padding: 2px;
+    }
+    .header-actions {
+        flex-shrink: 0;
+        gap: 6px;
+    }
+    .user-profile-btn {
+        padding: 2px;
     }
 }

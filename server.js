@@ -944,9 +944,9 @@ const PUBLIC_API = new Set([
     'GET /api/sessions'
 ]);
 // While previewing a role, nothing can be changed; only these are reachable besides reading
-const PREVIEW_ALLOWED = new Set(['DELETE /api/preview', 'POST /api/auth/logout']);
+const PREVIEW_ALLOWED = new Set(['DELETE /api/preview', 'POST /api/auth/logout', 'POST /api/auth/language']);
 // While a temporary password is in use, only these are reachable
-const MUST_CHANGE_API = new Set(['GET /api/auth/me', 'POST /api/auth/change-password', 'POST /api/auth/logout']);
+const MUST_CHANGE_API = new Set(['GET /api/auth/me', 'POST /api/auth/change-password', 'POST /api/auth/logout', 'POST /api/auth/language']);
 
 function sendJsonError(res, status, payload) {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=UTF-8' });

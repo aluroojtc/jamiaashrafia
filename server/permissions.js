@@ -215,12 +215,17 @@ const SYSTEM_ROLES = {
 };
 
 // Defaults reproduce what each role could do before the permission catalog existed
+// The institution works with three roles (Admin, Teacher, Student) under the Super Admin, so Admin runs the
+// office, academic and finance work. Kept for the Super Admin alone: staff accounts (other Admins) beyond
+// viewing them, changing what roles may do, the audit log, recording purges, deleting students or teachers
+// and the identity of anonymous donors. Student self-service (submitting work, sitting exams, uploading
+// payment proof) is not part of an office role.
 const DEFAULT_PERMISSIONS = {
     ACADEMIC_ADMIN: [
-        'roles.view', 'roles.create', 'roles.update', 'roles.delete',
-        'settings.admissions', 'settings.meetings',
+        'users.view', 'roles.view',
+        'settings.admissions', 'settings.meetings', 'settings.architecture',
         'admissions.view', 'admissions.update', 'admissions.schedule_interview', 'admissions.decide', 'admissions.enroll', 'admissions.export',
-        'students.view', 'students.view_sensitive', 'students.create', 'students.update', 'students.deactivate', 'students.delete',
+        'students.view', 'students.view_sensitive', 'students.create', 'students.update', 'students.deactivate',
         'students.reset_password', 'students.export',
         'teachers.view', 'teachers.create', 'teachers.update', 'teachers.deactivate', 'teachers.reset_password',
         'classes.view', 'classes.manage', 'classes.enroll', 'classes.assign_teachers', 'courses.manage', 'courses.materials.manage',
@@ -229,13 +234,15 @@ const DEFAULT_PERMISSIONS = {
         'assignments.view', 'assignments.create', 'assignments.update', 'assignments.delete', 'assignments.grade',
         'exams.view', 'exams.create', 'exams.update', 'exams.delete', 'exams.questions.manage', 'exams.schedule', 'exams.mark',
         'exams.results.approve', 'exams.results.publish', 'exams.results.unpublish',
-        'fees.structures.view', 'fees.challans.view', 'donations.view',
+        'fees.structures.view', 'fees.structures.manage', 'fees.challans.view', 'fees.challans.generate', 'fees.challans.verify',
+        'fees.waivers.grant', 'fees.export',
+        'donations.view', 'donations.record', 'donations.confirm', 'donations.give',
         'library.catalog.view', 'library.catalog.manage', 'library.loans.view', 'library.loans.issue', 'library.fines.manage', 'library.request',
         'notifications.send_individual', 'notifications.send_class', 'notifications.broadcast_role', 'notifications.broadcast_all',
         'virtual_classes.view', 'virtual_classes.join', 'virtual_classes.host', 'virtual_classes.manage',
         'recordings.view', 'recordings.download', 'recordings.manage',
-        'reports.academic', 'reports.attendance', 'reports.admissions', 'reports.library', 'reports.export',
-        'donations.give', 'heritage.view'
+        'reports.academic', 'reports.attendance', 'reports.finance', 'reports.admissions', 'reports.library', 'reports.export',
+        'heritage.view'
     ],
     TEACHER: [
         'students.view', 'teachers.view',

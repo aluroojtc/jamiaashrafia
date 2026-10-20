@@ -19,11 +19,11 @@ const FeesDonationsModule = {
     },
 
     DONATION_TYPES: {
-        ZAKAT: 'Zakat (زکوٰۃ)',
-        SADAQAH: 'Sadaqah Jariyah (صدقہ جاریہ)',
+        ZAKAT: 'Zakat',
+        SADAQAH: 'Sadaqah Jariyah',
         KAFALAT_E_TALIB_E_ILM: 'Kafalat-e-Talib-e-Ilm (Student Sponsorship)',
         HOSPITAL_FREE_MEDICINE: 'Ashrafia Free Hospital Medicine Fund',
-        GENERAL_FUND: 'General Fund (تعمیرات و کتب خانہ)'
+        GENERAL_FUND: 'General Fund (Construction & Library)'
     },
 
     BANK: { name: 'Meezan Bank / HBL', title: 'Jamia Ashrafia Lahore', account: '0142-7901452203' },
@@ -171,10 +171,12 @@ const FeesDonationsModule = {
             </div>
 
             ${isStudent ? `
-                <div class="card" style="background: var(--gold-50); border-left: 4px solid var(--gold-500); font-size: 0.85rem;">
-                    <strong><i class="fas fa-university"></i> How to pay:</strong> Print the challan and pay at any ${Lms.esc(this.BANK.name)} branch,
-                    or transfer to <strong>${Lms.esc(this.BANK.title)} — A/C ${Lms.esc(this.BANK.account)}</strong> (Raast / JazzCash / EasyPaisa / internet banking),
-                    then press <strong>"Upload Payment Proof"</strong> and attach the receipt. The accounts office verifies it and marks the challan paid.
+                <div class="card" style="background: var(--gold-50); border-inline-start: 4px solid var(--gold-500); font-size: 0.85rem;">
+                    <strong><i class="fas fa-university"></i> How to pay:</strong> ${I18n.t('Print the challan and pay at any {bank} branch, or transfer to {account} (Raast / JazzCash / EasyPaisa / internet banking), then press {button} and attach the receipt. The accounts office verifies it and marks the challan paid.', {
+                        bank: Lms.esc(this.BANK.name),
+                        account: `<strong>${Lms.esc(this.BANK.title)} — A/C ${Lms.esc(this.BANK.account)}</strong>`,
+                        button: `<strong>"${I18n.t('Upload Payment Proof')}"</strong>`
+                    })}
                 </div>` : ''}
 
             <div class="card">
@@ -292,8 +294,10 @@ const FeesDonationsModule = {
                 </div>
             </div>
             <div style="font-size: 0.8rem; color: var(--text-muted);">
-                Amounts come from each program's <strong>Fee Structure</strong>. Monthly challans add hostel & mess only for boarding students.
-                Students who already have a challan of the same type and period are skipped. Programs: ${programs.map(p => Lms.esc(p.code || p.name)).join(', ')}
+                ${I18n.t("Amounts come from each program's {page}. Monthly challans add hostel & mess only for boarding students. Students who already have a challan of the same type and period are skipped. Programs: {list}", {
+                    page: `<strong>${I18n.t('Fee Structure')}</strong>`,
+                    list: programs.map(p => Lms.esc(p.code || p.name)).join(', ')
+                })}
             </div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-gold" onclick="FeesDonationsModule.generateChallans()"><i class="fas fa-cogs"></i> Generate</button>`
@@ -534,7 +538,7 @@ const FeesDonationsModule = {
     },
 
     renderVoucherPart(ch, partName) {
-        const row = (label, v) => Number(v) > 0 ? `<tr><td>${label}</td><td style="text-align: right;">${Lms.money(v)}</td></tr>` : '';
+        const row = (label, v) => Number(v) > 0 ? `<tr><td>${label}</td><td style="text-align: end;">${Lms.money(v)}</td></tr>` : '';
         return `
             <div class="challan-part">
                 <div class="challan-part-title">${partName}</div>
@@ -556,8 +560,8 @@ const FeesDonationsModule = {
                 <table class="challan-table">
                     ${row('Tuition', ch.tuitionFee)}${row('Hostel & Mess', ch.hostelMessFee)}${row('Examination Fee', ch.examFee)}
                     ${row('Registration Fee', ch.registrationFee)}${row('Admission Fee', ch.admissionFee)}${row(Lms.esc(ch.otherLabel || 'Other Charges'), ch.otherFee)}
-                    ${Number(ch.scholarshipWaiver) > 0 ? `<tr><td style="color: var(--primary-700);">Scholarship Waiver</td><td style="text-align: right; color: var(--primary-700);">−${Lms.money(ch.scholarshipWaiver)}</td></tr>` : ''}
-                    <tr><td>Net Payable</td><td style="text-align: right;">${Lms.money(ch.netPayable)}</td></tr>
+                    ${Number(ch.scholarshipWaiver) > 0 ? `<tr><td style="color: var(--primary-700);">Scholarship Waiver</td><td style="text-align: end; color: var(--primary-700);">−${Lms.money(ch.scholarshipWaiver)}</td></tr>` : ''}
+                    <tr><td>Net Payable</td><td style="text-align: end;">${Lms.money(ch.netPayable)}</td></tr>
                 </table>
                 ${ch.status === 'PAID' ? `<div style="text-align: center; font-weight: 800; color: var(--success); border: 2px solid var(--success); border-radius: 4px; margin: 6px 0; font-size: 0.75rem;">PAID ${Lms.fmtDate(ch.paidAt)}</div>` : ''}
                 <div class="challan-footer-signatures"><div>Cashier Stamp</div><div>Authorized Signature</div></div>
@@ -598,7 +602,7 @@ const FeesDonationsModule = {
         const me = Lms.me();
         const myProgram = Lms.portal() === 'student' ? (Lms.getClass(me.classId) || {}).programId : null;
         const programs = (window.LmsData.programs || []).filter(p => !myProgram || p.id === myProgram);
-        const cell = v => `<td style="text-align: right;">${Lms.money(v)}</td>`;
+        const cell = v => `<td style="text-align: end;">${Lms.money(v)}</td>`;
         return `
             <div class="card">
                 <div class="card-header">
@@ -607,7 +611,7 @@ const FeesDonationsModule = {
                 </div>
                 <div class="table-responsive">
                     <table class="data-table">
-                        <thead><tr><th>Program</th><th style="text-align: right;">Registration</th><th style="text-align: right;">Admission</th><th style="text-align: right;">Monthly Tuition</th><th style="text-align: right;">Hostel / mo</th><th style="text-align: right;">Mess / mo</th><th style="text-align: right;">Exam</th>${canManage ? '<th></th>' : ''}</tr></thead>
+                        <thead><tr><th>Program</th><th style="text-align: end;">Registration</th><th style="text-align: end;">Admission</th><th style="text-align: end;">Monthly Tuition</th><th style="text-align: end;">Hostel / mo</th><th style="text-align: end;">Mess / mo</th><th style="text-align: end;">Exam</th>${canManage ? '<th></th>' : ''}</tr></thead>
                         <tbody>
                             ${programs.map(p => {
                                 const fs = this.structureFor(p.id) || {};
@@ -716,9 +720,10 @@ const FeesDonationsModule = {
             `<i class="fas fa-hand-holding-heart" style="color: var(--gold-400);"></i> ${canManage ? 'Record Donation Received' : 'Donate Zakat, Sadaqah or Waqf'}`,
             `${!canManage ? `
                 <div style="background: var(--primary-50); border: 1px solid var(--primary-200); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 0.84rem; line-height: 1.6;">
-                    Transfer your donation to <strong>${Lms.esc(this.BANK.title)} — A/C ${Lms.esc(this.BANK.account)}</strong> (${Lms.esc(this.BANK.name)}, Raast, JazzCash or EasyPaisa),
-                    then fill this form with the transaction reference. The accounts office confirms it and your official receipt becomes available here.
-                    Zakat is used only for eligible (Mustahiq) students and free medicine.
+                    ${I18n.t('Transfer your donation to {account} ({bank}, Raast, JazzCash or EasyPaisa), then fill this form with the transaction reference. The accounts office confirms it and your official receipt becomes available here. Zakat is used only for eligible (Mustahiq) students and free medicine.', {
+                        account: `<strong>${Lms.esc(this.BANK.title)} — A/C ${Lms.esc(this.BANK.account)}</strong>`,
+                        bank: Lms.esc(this.BANK.name)
+                    })}
                 </div>` : ''}
             <div class="form-grid">
                 <div class="form-group"><label>Category *</label>
@@ -735,7 +740,7 @@ const FeesDonationsModule = {
             <div class="form-group"><label>Purpose / Note</label><input type="text" id="don-purpose" class="form-control" placeholder="e.g. Kafalat of one student for a year"></div>
             ${!canManage ? `<div class="form-group" style="margin-top: 10px;"><label>Transfer screenshot (optional)</label>${Lms.fileInput('don-proof', { accept: '.pdf,.jpg,.jpeg,.png,.webp' })}</div>` : ''}
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 10px;">
-                <input type="checkbox" id="don-anon" style="width: 18px; height: 18px;"> Keep my name anonymous in the ledger (اخفاء صدقہ)
+                <input type="checkbox" id="don-anon" style="width: 18px; height: 18px;"> Keep my name anonymous in the ledger
             </label>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-gold" onclick="FeesDonationsModule.saveDonation(this)"><i class="fas fa-heart"></i> ${canManage ? 'Record & Issue Receipt' : 'Submit Donation'}</button>`
@@ -799,14 +804,14 @@ const FeesDonationsModule = {
                 <div style="text-align: center; border-bottom: 2px solid var(--primary-800); padding-bottom: 12px; margin-bottom: 16px;">
                     <img src="assets/images/logo.png" style="width: 52px; height: 52px; object-fit: contain; margin: 0 auto 6px;">
                     <h2 style="color: var(--primary-900); font-size: 1.25rem; font-weight: 800;">JAMIA ASHRAFIA LAHORE</h2>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-600);">جامعہ اشرفیہ، لاہور - مالیاتی شعبہ و بیت المال</div>
+                    <div style="font-size: 1.1rem; color: var(--gold-600);">Jamia Ashrafia Lahore — Finance Department & Bait-ul-Maal</div>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 16px;">
                     <div><strong>Receipt No:</strong> <span style="color: var(--primary-700); font-weight: 700;">${Lms.esc(don.receiptNo)}</span></div>
                     <div><strong>Date:</strong> ${Lms.fmtDate(don.receivedAt)}</div>
                 </div>
                 <div style="font-size: 0.88rem; line-height: 1.9; margin-bottom: 20px;">
-                    <div>Received with gratitude from: <strong>${don.isAnonymous ? 'Respected Anonymous Donor (فی سبیل اللہ)' : Lms.esc(don.donorName)}</strong></div>
+                    <div>Received with gratitude from: <strong>${don.isAnonymous ? 'Respected Anonymous Donor (Fi Sabilillah)' : Lms.esc(don.donorName)}</strong></div>
                     <div>Category: <strong>${Lms.esc(this.DONATION_TYPES[don.donationType] || don.donationType)}</strong></div>
                     <div>Purpose: <em>${Lms.esc(don.purpose)}</em></div>
                     <div>Payment Channel: ${Lms.esc(don.paymentChannel || '')}${don.reference ? ' • Ref ' + Lms.esc(don.reference) : ''}</div>

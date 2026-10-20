@@ -52,6 +52,9 @@ async function ensureAuthSchema() {
     if (!(await columnExists('user_credentials', 'must_change'))) {
         await db.query(`ALTER TABLE user_credentials ADD COLUMN must_change TINYINT(1) NOT NULL DEFAULT 0`);
     }
+    if (!(await columnExists('user_credentials', 'preferred_language'))) {
+        await db.query(`ALTER TABLE user_credentials ADD COLUMN preferred_language VARCHAR(5) NULL`);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +103,25 @@ async function setPassword(conn, userId, password, mustChange) {
 async function getCredential(userId) {
     const [rows] = await db.query(`SELECT password_hash, must_change FROM user_credentials WHERE user_id = ?`, [userId]);
     return rows[0] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Portal language chosen by the user (follows them to every device)
+// ---------------------------------------------------------------------------
+
+const LANGUAGES = ['en', 'ur', 'ar'];
+
+async function getLanguage(userId) {
+    const [rows] = await db.query(`SELECT preferred_language FROM user_credentials WHERE user_id = ?`, [userId]);
+    const code = rows[0] ? rows[0].preferred_language : null;
+    return LANGUAGES.includes(code) ? code : null;
+}
+
+// updated_at records password changes, so it is left as it was
+async function setLanguage(userId, code) {
+    if (!LANGUAGES.includes(code)) return false;
+    await db.query(`UPDATE user_credentials SET preferred_language = ?, updated_at = updated_at WHERE user_id = ?`, [code, userId]);
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +303,9 @@ module.exports = {
     temporaryPassword,
     setPassword,
     getCredential,
+    LANGUAGES,
+    getLanguage,
+    setLanguage,
     clientIp,
     lockedFor,
     recordFailure,

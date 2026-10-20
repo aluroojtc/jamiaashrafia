@@ -285,7 +285,7 @@ const AttendanceModule = {
                     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <div class="search-input-wrap" style="width: 220px;">
                             <i class="fas fa-search"></i>
-                            <input type="text" class="form-control" placeholder="Search name or ID..." value="${this.searchQuery}" oninput="AttendanceModule.setSearch(this.value)" style="padding: 6px 12px 6px 36px; font-size: 0.82rem;">
+                            <input type="text" class="form-control" placeholder="Search name or ID..." value="${this.searchQuery}" oninput="AttendanceModule.setSearch(this.value)" style="padding-block: 6px; padding-inline: 36px 12px; font-size: 0.82rem;">
                         </div>
 
                         <div>
@@ -326,7 +326,7 @@ const AttendanceModule = {
                                     </td>
                                     <td>
                                         <span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}" style="font-size: 0.72rem;">${Lms.esc(r.role)}</span>
-                                        <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 4px;">${Lms.esc(r.identifier || 'N/A')}</span>
+                                        <span style="font-size: 0.78rem; color: var(--text-muted); margin-inline-start: 4px;">${Lms.esc(r.identifier || 'N/A')}</span>
                                     </td>
                                     <td style="color: var(--text-secondary); font-size: 0.82rem;">
                                         ${Lms.esc(r.className || 'General')}

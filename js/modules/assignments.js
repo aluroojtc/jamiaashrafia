@@ -80,7 +80,7 @@ const AssignmentsModule = {
             <div class="tabs-nav">
                 ${tabs.map(([key, label, count]) => `
                     <button class="tab-btn ${this.filter === key ? 'active' : ''}" onclick="AssignmentsModule.setFilter('${key}')">
-                        ${label} <span class="badge-pill" style="margin-left: 4px;">${count}</span>
+                        ${label} <span class="badge-pill" style="margin-inline-start: 4px;">${count}</span>
                     </button>`).join('')}
             </div>`;
     },
@@ -117,8 +117,7 @@ const AssignmentsModule = {
                                 <span class="status-pill gold" style="font-size: 0.7rem;">${Lms.esc((Lms.getCourse(a.courseId) || {}).code || 'Kitab')}</span>
                                 <span style="font-size: 0.75rem; color: ${a.dueDate < Lms.today() ? 'var(--danger)' : 'var(--text-secondary)'}; font-weight: 600;"><i class="fas fa-calendar-alt"></i> Due ${Lms.fmtDate(a.dueDate)}</span>
                             </div>
-                            <h3 style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(a.title)}</h3>
-                            ${a.urduTitle && a.urduTitle !== a.title ? `<div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-700); margin-bottom: 8px;">${Lms.esc(a.urduTitle)}</div>` : ''}
+                            <h3 style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(Lms.localName(a.title, a.urduTitle, true))}</h3>
                             <p style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 10px;">${Lms.multiline(a.description)}</p>
                             ${Lms.fileLinks(a.attachments)}
                         </div>
@@ -380,7 +379,7 @@ const AssignmentsModule = {
             ${late ? `<div class="status-pill danger" style="margin-bottom: 12px;"><i class="fas fa-clock"></i> The due date has passed — this will be recorded as a late submission.</div>` : ''}
             <div class="form-group" style="margin-bottom: 16px;">
                 <label>Your Answer (Arabic / Urdu / English)</label>
-                <textarea id="sub-text" class="form-control" style="min-height: 140px; font-size: 1.02rem;" placeholder="بسم الله الرحمن الرحيم... Write your answer here, and/or upload your work below.">${Lms.esc(sub ? sub.submissionText : '')}</textarea>
+                <textarea id="sub-text" class="form-control" style="min-height: 140px; font-size: 1.02rem;" placeholder="Write your answer here, and/or upload your work below.">${Lms.esc(sub ? sub.submissionText : '')}</textarea>
             </div>
             <div class="form-group">
                 <label>Upload Your Work (PDF, Word, scanned pages / photos)</label>

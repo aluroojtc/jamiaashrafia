@@ -552,11 +552,18 @@ async function handleLogin(req, res) {
 
     auth.clearFailures(ip, identifier);
     await auth.createSession(req, res, user.id);
+    // A language picked on the login page becomes the account's; otherwise the account's saved one applies
+    let language = await auth.getLanguage(user.id);
+    if (auth.LANGUAGES.includes(body.language) && body.language !== language) {
+        await auth.setLanguage(user.id, body.language);
+        language = body.language;
+    }
     await audit.log({ req, actor: { id: user.id, role: user.role }, action: 'auth.login', entityType: 'users', entityId: user.id, summary: `Signed in${Number(cred.must_change) ? ' with a temporary password' : ''}` });
     sendJson(res, 200, {
         success: true,
         user: publicUser(user),
-        mustChangePassword: !!Number(cred.must_change)
+        mustChangePassword: !!Number(cred.must_change),
+        language
     });
 }
 
@@ -588,8 +595,20 @@ async function handleMe(req, res) {
         scope: eff.scope,
         permissions: Array.from(eff.permissions).sort(),
         scopes: Object.fromEntries(eff.scopes),
-        preview: req.auth.preview || null
+        preview: req.auth.preview || null,
+        language: await auth.getLanguage((req.auth.realUser || req.auth.user).id)
     });
+}
+
+// Saves the portal language on the signed-in account (the real one while previewing a role)
+async function handleLanguage(req, res) {
+    const body = await readJson(req);
+    const owner = req.auth.realUser || req.auth.user;
+    if (!(await auth.setLanguage(owner.id, String(body.language || '')))) {
+        sendJson(res, 400, { success: false, error: 'Unknown language.' });
+        return;
+    }
+    sendJson(res, 200, { success: true, language: body.language });
 }
 
 async function handleChangePassword(req, res) {
@@ -1027,6 +1046,7 @@ async function route(req, res) {
     if (p === '/api/auth/logout' && m === 'POST') { await handleLogout(req, res); return true; }
     if (p === '/api/auth/me' && m === 'GET') { await handleMe(req, res); return true; }
     if (p === '/api/auth/change-password' && m === 'POST') { await handleChangePassword(req, res); return true; }
+    if (p === '/api/auth/language' && m === 'POST') { await handleLanguage(req, res); return true; }
     if (p === '/api/roles' || p.startsWith('/api/roles/')) { await handleRoles(req, res, url); return true; }
     if (p === '/api/audit' && m === 'GET') { await handleAudit(req, res, url); return true; }
     if (p.startsWith('/api/super-admins')) { await handleSuperAdmins(req, res, url); return true; }

@@ -120,6 +120,8 @@ const AuthRBAC = {
             window.location.replace('login.html#change-password');
             return null;
         }
+        // The account's language follows the person to every device (reloads when it differs from this page)
+        if (window.I18n && window.I18n.applyAccountLanguage(data.language)) return null;
         // A different account signed in on this browser (e.g. in another tab): never show the previous person's data
         const previousId = localStorage.getItem('JAMIA_CURRENT_USER_ID');
         if (previousId && previousId !== data.user.id) window.DataStore.clearLocal();
@@ -157,7 +159,9 @@ const AuthRBAC = {
         }
         const roleName = (this.session.role && this.session.role.name) || p.roleId;
         const html = `<div id="preview-banner" role="status" style="position: sticky; top: 0; z-index: 1000; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; padding: 8px 16px; background: #7c2d12; color: #fff7ed; font-size: 0.88rem;">
-                <span><i class="fas fa-eye"></i> Previewing <strong>${Lms.esc(roleName)}</strong>${p.userName ? ` as <strong>${Lms.esc(p.userName)}</strong>` : ''}. Read-only: nothing you do here is saved.</span>
+                <span><i class="fas fa-eye"></i> ${p.userName
+                    ? I18n.t('Previewing {role} as {name}. Read-only: nothing you do here is saved.', { role: `<strong>${Lms.esc(I18n.translateText(roleName))}</strong>`, name: `<strong>${Lms.esc(p.userName)}</strong>` })
+                    : I18n.t('Previewing {role}. Read-only: nothing you do here is saved.', { role: `<strong>${Lms.esc(I18n.translateText(roleName))}</strong>` })}</span>
                 <button class="btn btn-gold btn-sm" onclick="AuthRBAC.endPreview()"><i class="fas fa-sign-out-alt"></i> Leave preview</button>
             </div>`;
         if (existing) existing.outerHTML = html;
@@ -265,7 +269,7 @@ const AuthRBAC = {
             return;
         }
         if (fresh.status === 'SUSPENDED' || fresh.status === 'INACTIVE') {
-            alert('Your account has been ' + fresh.status.toLowerCase() + '. Please contact the Academic Office.');
+            alert(I18n.t('Your account has been {status}. Please contact the Academic Office.', { status: I18n.translateText(fresh.status.toLowerCase()) }));
             this.logout();
             return;
         }

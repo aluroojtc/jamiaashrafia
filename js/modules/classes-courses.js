@@ -161,8 +161,7 @@ const ClassesCoursesModule = {
                                     return `
                                         <tr>
                                             <td>
-                                                <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(course.title)}</div>
-                                                <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${Lms.esc(course.urduTitle || '')}</div>
+                                                <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(course.title, course.urduTitle))}</div>
                                                 <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(course.code)} • ${materials.length} material file(s)</div>
                                             </td>
                                             <td>
@@ -465,8 +464,7 @@ const ClassesCoursesModule = {
                                 return `
                                     <tr>
                                         <td>
-                                            <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(c.title)}</div>
-                                            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${Lms.esc(c.urduTitle || '')}</div>
+                                            <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(c.title, c.urduTitle))}</div>
                                             <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(c.code)} • ${Lms.esc(c.kitabAuthor || '')}</div>
                                         </td>
                                         <td style="font-size: 0.82rem;">${Lms.esc(program ? program.name : '—')}<div style="font-size: 0.72rem; color: var(--text-muted);">Year ${Lms.esc(c.year || '—')}</div></td>
@@ -595,9 +593,8 @@ const ClassesCoursesModule = {
         const classesWithCourse = (window.LmsData.classes || []).filter(cl => (cl.courseTeachers || []).some(ct => ct.courseId === courseId) && (this.canManage() || visibleClassIds.includes(cl.id)));
 
         Lms.openModal(
-            `<i class="fas fa-book-open" style="color: var(--gold-400);"></i> ${Lms.esc(course.title)}`,
+            `<i class="fas fa-book-open" style="color: var(--gold-400);"></i> ${Lms.esc(Lms.localName(course.title, course.urduTitle))}`,
             `<div style="margin-bottom: 14px;">
-                <div style="font-family: 'Amiri', serif; font-size: 1.4rem; color: var(--gold-700); text-align: right;">${Lms.esc(course.urduTitle || '')}</div>
                 <div style="font-size: 0.88rem; color: var(--text-secondary);"><strong>Author:</strong> ${Lms.esc(course.kitabAuthor || '—')}</div>
                 <div style="font-size: 0.85rem; color: var(--text-muted);"><strong>Edition:</strong> ${Lms.esc(course.recommendedPub || '—')} • <strong>Code:</strong> ${Lms.esc(course.code)} • <strong>Credits:</strong> ${Lms.esc(course.credits)}</div>
             </div>

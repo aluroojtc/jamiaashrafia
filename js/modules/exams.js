@@ -132,14 +132,13 @@ const ExamsModule = {
                     const myRes = isStudent ? this.resultOf(ex.id, me.id) : null;
                     const total = this.examTotal(ex);
                     return `
-                        <div class="card" style="border-left: 4px solid var(--gold-400); margin: 0; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div class="card" style="border-inline-start: 4px solid var(--gold-400); margin: 0; display: flex; flex-direction: column; justify-content: space-between;">
                             <div>
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px;">
                                     <span class="status-pill gold" style="font-size: 0.7rem;">${Lms.esc(this.EXAM_TYPES[ex.examType] || ex.examType)} • ${ex.mode === 'ONLINE' ? 'Online' : 'In Hall'}</span>
                                     ${this.statusPill(ex)}
                                 </div>
-                                <h3 style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(ex.title)}</h3>
-                                ${ex.urduTitle && ex.urduTitle !== ex.title ? `<div style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-700); margin-bottom: 10px;">${Lms.esc(ex.urduTitle)}</div>` : ''}
+                                <h3 style="font-size: 1.05rem; color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(Lms.localName(ex.title, ex.urduTitle, true))}</h3>
                                 <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 12px;">
                                     <div><i class="fas fa-calendar-alt" style="color: var(--primary-700); width: 18px;"></i> ${Lms.fmtDate(ex.examDate)} at ${Lms.fmtTime(ex.startTime)} • ${Lms.esc(ex.durationMinutes)} min</div>
                                     <div><i class="fas fa-users" style="color: var(--primary-700); width: 18px;"></i> ${Lms.esc(Lms.className(ex.classId))}</div>
@@ -470,7 +469,7 @@ const ExamsModule = {
                     <button class="btn btn-primary" onclick="ExamsModule.submitExamPaper(false)"><i class="fas fa-check-circle"></i> Submit Paper</button>
                 </div>
             </div>
-            ${ex.instructions ? `<div class="card" style="background: var(--gold-50); border-left: 4px solid var(--gold-500);"><strong>Instructions:</strong> ${Lms.multiline(ex.instructions)}</div>` : ''}
+            ${ex.instructions ? `<div class="card" style="background: var(--gold-50); border-inline-start: 4px solid var(--gold-500);"><strong>Instructions:</strong> ${Lms.multiline(ex.instructions)}</div>` : ''}
             ${(ex.questions || []).map((q, i) => `
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px;">
@@ -586,7 +585,7 @@ const ExamsModule = {
             `<i class="fas fa-pen-nib" style="color: var(--gold-400);"></i> Online Marking: ${Lms.esc(ex.title)}`,
             `<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 12px;">
                 ${Lms.esc(Lms.className(ex.classId))} • ${subs.filter(s => s.status === 'SUBMITTED').length} submitted of ${students.length} • Total ${total} marks
-                ${onlyMcq ? ' • <strong>MCQ-only paper:</strong> use "Auto-mark all" to mark every submission instantly.' : ''}
+                ${onlyMcq ? ` • <strong>${I18n.t('MCQ-only paper:')}</strong> ${I18n.t('use "Auto-mark all" to mark every submission instantly.')}` : ''}
             </div>
             <div class="table-responsive">
                 <table class="data-table">
@@ -851,7 +850,7 @@ const ExamsModule = {
                                         ${isStudent ? '' : `<td><div style="font-weight: 700;">${Lms.esc(r.studentName)}</div><div style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(r.rollNo)}</div></td>`}
                                         <td><div style="font-weight: 600;">${Lms.esc(ex.title || '')}</div><div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.fmtDate(ex.examDate)}</div></td>
                                         <td><strong>${Lms.esc(r.marksObtained)}</strong> / ${Lms.esc(r.totalMarks || 100)} <span style="font-size: 0.75rem; color: var(--text-muted);">(${Math.round(pct * 10) / 10}%)</span></td>
-                                        <td><span class="status-pill ${g.pill}">${g.urdu} • ${Lms.esc(g.label)}</span></td>
+                                        <td><span class="status-pill ${g.pill}">${Lms.esc(g.label)}</span></td>
                                         <td style="font-size: 0.8rem; max-width: 240px;">${Lms.esc(r.examinerRemarks || '')}</td>
                                         ${isStudent ? '' : `<td>${r.published ? '<span class="status-pill success">Published</span>' : '<span class="status-pill warning">Draft</span>'}</td>`}
                                         <td><button class="btn btn-gold btn-sm" onclick="ExamsModule.printSanadCertificate('${r.id}')"><i class="fas fa-award"></i> Marksheet</button></td>
@@ -876,18 +875,21 @@ const ExamsModule = {
                 <div class="sanad-inner-border">
                     <div class="sanad-bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
                     <img src="assets/images/logo.png" style="width: 72px; height: 72px; object-fit: contain; margin: 0 auto 10px;">
-                    <div class="sanad-title-urdu">جامعہ اشرفیہ، لاہور - پاکستان</div>
                     <div class="sanad-title-eng">Jamia Ashrafia Lahore (Est. 1947)</div>
                     <div style="font-size: 0.85rem; color: #4b5563; margin-bottom: 16px;">Affiliated with Wifaq-ul-Madaris Al-Arabia Pakistan</div>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--primary-800); margin-bottom: 14px; font-weight: 700;">${Lms.esc(ex.urduTitle || 'نتیجہ امتحان')}</div>
+                    <div style="font-size: 1.25rem; color: var(--primary-800); margin-bottom: 14px; font-weight: 700;">${Lms.esc(Lms.localName(ex.title || I18n.t('Examination Result'), ex.urduTitle))}</div>
                     <div class="sanad-student-details">
-                        This is to certify that <strong>${Lms.esc(res.studentName)}</strong> (Roll No: <strong>${Lms.esc(res.rollNo)}</strong>),
-                        ${Lms.esc(Lms.className(ex.classId))}, appeared in <strong>${Lms.esc(ex.title || 'the examination')}</strong>
-                        (${Lms.esc(Lms.courseTitle(ex.courseId))}) and secured <strong>${Lms.esc(res.marksObtained)}/${Lms.esc(total)}</strong> with the distinction:
+                        ${I18n.t('This is to certify that {student} (Roll No: {roll}), {className}, appeared in {exam} ({course}) and secured {marks} with the distinction:', {
+                            student: `<strong>${Lms.esc(res.studentName)}</strong>`,
+                            roll: `<strong>${Lms.esc(res.rollNo)}</strong>`,
+                            className: Lms.esc(Lms.className(ex.classId)),
+                            exam: `<strong>${Lms.esc(ex.title || I18n.t('the examination'))}</strong>`,
+                            course: Lms.esc(Lms.courseTitle(ex.courseId)),
+                            marks: `<strong>${Lms.esc(res.marksObtained)}/${Lms.esc(total)}</strong>`
+                        })}
                     </div>
                     <div class="sanad-grade-seal">
-                        <div class="grade-urdu">${g.urdu}</div>
-                        <div style="font-size: 0.65rem; text-transform: uppercase;">${Lms.esc(g.code.replace('_', ' '))}</div>
+                        <div class="grade-urdu">${Lms.esc(Lms.localName(g.label.replace(/\s*\(.*\)$/, ''), g.urdu))}</div>
                     </div>
                     ${res.examinerRemarks ? `<div style="font-size: 0.85rem; color: #374151; margin-bottom: 12px;"><em>"${Lms.esc(res.examinerRemarks)}"</em></div>` : ''}
                     <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 20px;">Reference No: <strong>${Lms.esc(res.sanadNumber || res.id)}</strong> • ${Lms.esc(ex.session || '')}</div>
@@ -911,7 +913,7 @@ const ExamsModule = {
             `<i class="fas fa-file-alt" style="color: var(--gold-400);"></i> Question Paper: ${Lms.esc(ex.title)}`,
             `<div style="background: #ffffff; color: #111827; padding: 24px; border-radius: 6px; line-height: 2; border: 1px solid #cbd5e1;">
                 <div style="text-align: center; border-bottom: 2px solid var(--primary-800); padding-bottom: 10px; margin-bottom: 16px;">
-                    <div style="font-family: 'Amiri', serif; font-size: 1.4rem; font-weight: 800; color: var(--primary-800);">جامعہ اشرفیہ، لاہور - امتحانی پرچہ</div>
+                    <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary-800);">Jamia Ashrafia Lahore — Question Paper</div>
                     <div style="font-size: 1rem; color: var(--gold-600);">${Lms.esc(ex.title)}</div>
                     <div style="font-size: 0.85rem; color: #4b5563;">Total Marks: ${this.examTotal(ex)} • Time Allowed: ${Lms.esc(ex.durationMinutes)} minutes</div>
                 </div>

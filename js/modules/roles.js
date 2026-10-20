@@ -101,10 +101,10 @@ const RolesModule = {
                 </div>
             </div>
 
-            <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.12) 100%); border-left: 4px solid var(--gold-400); margin-bottom: 24px;">
-                <ul style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; padding-left: 18px; line-height: 1.8;">
-                    <li><strong>Super Admin</strong> automatically has every permission, including any added in future.</li>
-                    <li><strong>Data scope</strong> decides whose records a role covers: the whole institution, the classes the person teaches, or only their own.</li>
+            <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.12) 100%); border-inline-start: 4px solid var(--gold-400); margin-bottom: 24px;">
+                <ul style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; padding-inline-start: 18px; line-height: 1.8;">
+                                        <li>${I18n.t('{role} automatically has every permission, including any added in future.', { role: `<strong>${I18n.t('Super Admin')}</strong>` })}</li>
+                    <li>${I18n.t('{scope} decides whose records a role covers: the whole institution, the classes the person teaches, or only their own.', { scope: `<strong>${I18n.t('Data scope')}</strong>` })}</li>
                     <li>You can only give or take away permissions you hold yourself. Nobody but the Super Admin can change the role they hold.</li>
                     <li>Admin, Teacher and Student cannot be deleted. A custom role can be deleted once nobody holds it.</li>
                 </ul>
@@ -114,7 +114,7 @@ const RolesModule = {
                 <div class="card-header"><h3 class="card-title"><i class="fas fa-list-ul"></i> Roles</h3></div>
                 <div class="table-responsive">
                     <table class="data-table">
-                        <thead><tr><th>Role</th><th>Description</th><th>Data scope</th><th>Permissions</th><th style="text-align: center;">Users</th><th>Type</th><th style="text-align: right;">Actions</th></tr></thead>
+                        <thead><tr><th>Role</th><th>Description</th><th>Data scope</th><th>Permissions</th><th style="text-align: center;">Users</th><th>Type</th><th style="text-align: end;">Actions</th></tr></thead>
                         <tbody>
                             <tr>
                                 <td>${this.renderRoleTitle(superRole)}</td>
@@ -123,7 +123,7 @@ const RolesModule = {
                                 <td><span class="status-pill success"><i class="fas fa-infinity"></i> All (automatic)</span></td>
                                 <td style="text-align: center;">${this.renderUserCount(superRole.userCount || 0)}</td>
                                 <td><span class="badge-pill gold"><i class="fas fa-lock" style="font-size: 0.65rem;"></i> Super Admin</span></td>
-                                <td style="text-align: right; white-space: nowrap;">
+                                <td style="text-align: end; white-space: nowrap;">
                                     ${rbac.isSuperAdmin()
                                         ? `<button class="btn btn-secondary btn-sm" onclick="RolesModule.editSuperAdminProfile()"><i class="fas fa-user-edit"></i> Edit Profile</button>`
                                         : `<span style="font-size: 0.8rem; color: var(--text-muted);"><i class="fas fa-lock"></i> Protected</span>`}
@@ -140,9 +140,8 @@ const RolesModule = {
     renderRoleTitle(r) {
         return `
             <div style="font-weight: 700; color: var(--primary-950); display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-id-badge" style="color: var(--gold-600);"></i> ${Lms.esc(r.name || r.id)}
+                <i class="fas fa-id-badge" style="color: var(--gold-600);"></i> ${Lms.esc(Lms.localName(r.name || r.id, r.urduTitle, true))}
             </div>
-            <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700); margin-top: 2px;">${Lms.esc(r.urduTitle || '')}</div>
             <code style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(r.id)}</code>`;
     },
 
@@ -159,18 +158,18 @@ const RolesModule = {
                 <td>${this.renderRoleTitle(r)}</td>
                 <td style="max-width: 320px; font-size: 0.84rem; color: var(--text-secondary);">${Lms.esc(r.description || '')}</td>
                 <td style="font-size: 0.84rem;">${Lms.esc(this.scopeLabel(r.scope))}</td>
-                <td><span class="status-pill"><i class="fas fa-key"></i> ${perms ? perms.length : '—'}</span>${r.status === 'INACTIVE' ? ' <span class="status-pill danger">Switched off</span>' : ''}${(r.warnings || []).length ? ` <span class="status-pill warning" title="${Lms.esc(r.warnings.map(w => w.message).join(' '))}" style="cursor: help;"><i class="fas fa-exclamation-triangle"></i> ${r.warnings.length}</span>` : ''}</td>
+                <td><span class="status-pill"><i class="fas fa-key"></i> ${perms ? perms.length : '—'}</span>${r.status === 'INACTIVE' ? ' <span class="status-pill danger">Switched off</span>' : ''}${(r.warnings || []).length ? ` <span class="status-pill warning" title="${Lms.esc(r.warnings.map(w => I18n.translateText(w.message)).join(' '))}" style="cursor: help;"><i class="fas fa-exclamation-triangle"></i> ${r.warnings.length}</span>` : ''}</td>
                 <td style="text-align: center;">${this.renderUserCount(r.userCount)}</td>
                 <td>${this.isCore(r.id)
                     ? `<span class="badge-pill gold"><i class="fas fa-lock" style="font-size: 0.65rem;"></i> Default</span>`
                     : `<span class="badge-pill info"><i class="fas fa-user-edit" style="font-size: 0.65rem;"></i> Custom</span>`}</td>
-                <td style="text-align: right; white-space: nowrap;">
+                <td style="text-align: end; white-space: nowrap;">
                     ${canEdit
                         ? `<button class="btn btn-secondary btn-sm" onclick="RolesModule.openRoleModal('${Lms.esc(r.id)}')"><i class="fas fa-edit"></i> Edit</button>`
                         : `<span style="font-size: 0.8rem; color: var(--text-muted);"><i class="fas fa-lock"></i> ${own ? 'Your role' : 'View only'}</span>`}
-                    ${window.AuthRBAC.can('roles.create') && perms ? `<button class="btn btn-secondary btn-sm" onclick="RolesModule.openRoleModal(null, '${Lms.esc(r.id)}')" title="Start a new role from this one" style="margin-left: 4px;"><i class="fas fa-copy"></i></button>` : ''}
-                    ${window.AuthRBAC.isSuperAdmin() ? `<button class="btn btn-secondary btn-sm" onclick="AuthRBAC.startPreview('${Lms.esc(r.id)}')" title="See the portal as this role sees it (read-only)" style="margin-left: 4px;"><i class="fas fa-eye"></i></button>` : ''}
-                    ${this.canDelete(r) ? `<button class="btn btn-danger btn-sm" onclick="RolesModule.deleteRole('${Lms.esc(r.id)}')" title="Delete custom role" style="margin-left: 4px;"><i class="fas fa-trash-alt"></i></button>` : ''}
+                    ${window.AuthRBAC.can('roles.create') && perms ? `<button class="btn btn-secondary btn-sm" onclick="RolesModule.openRoleModal(null, '${Lms.esc(r.id)}')" title="Start a new role from this one" style="margin-inline-start: 4px;"><i class="fas fa-copy"></i></button>` : ''}
+                    ${window.AuthRBAC.isSuperAdmin() ? `<button class="btn btn-secondary btn-sm" onclick="AuthRBAC.startPreview('${Lms.esc(r.id)}')" title="See the portal as this role sees it (read-only)" style="margin-inline-start: 4px;"><i class="fas fa-eye"></i></button>` : ''}
+                    ${this.canDelete(r) ? `<button class="btn btn-danger btn-sm" onclick="RolesModule.deleteRole('${Lms.esc(r.id)}')" title="Delete custom role" style="margin-inline-start: 4px;"><i class="fas fa-trash-alt"></i></button>` : ''}
                 </td>
             </tr>`;
     },
@@ -191,12 +190,12 @@ const RolesModule = {
         const source = copyFrom ? this.roles().find(r => r.id === copyFrom) : null;
         const role = !isNew ? this.roles().find(r => r.id === roleId)
             : source ? { name: `Copy of ${source.name}`, urduTitle: source.urduTitle, badgeClass: source.badgeClass, description: source.description, scope: source.scope, permissions: (source.permissions || []).slice() }
-                : { scope: 'ALL', permissions: [] };
+                : { scope: window.AuthRBAC.scope(), permissions: [] };
         if (!role) return App.showToast('Role not found.', 'danger');
         if (!isNew && !this.canEdit(role)) return App.showToast('You are not allowed to change this role.', 'warning');
         this.editing = isNew ? null : role;
+        this.newScope = isNew ? role.scope : null;
         const label = text => `<label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">${text}</label>`;
-        const scopeLocked = !isNew && this.isCore(role.id);
 
         Lms.openModal(
             isNew ? `<i class="fas fa-plus-circle" style="color: var(--gold-400);"></i> ${source ? `New Role from ${Lms.esc(source.name)}` : 'Add New Role'}`
@@ -208,16 +207,10 @@ const RolesModule = {
                         ? `<input type="text" id="role-id-input" class="form-control" placeholder="e.g. EXAM_OFFICER" style="text-transform: uppercase;" required>
                            <small style="color: var(--text-muted); font-size: 0.72rem;">Capital letters, digits and _ only. Cannot be changed later.</small>`
                         : `<input type="text" class="form-control" value="${Lms.esc(role.id)}" disabled style="opacity: 0.7;">`}</div>
-                    <div>${label('Urdu Title (منصب / کردار)')}<input type="text" id="role-urdu-input" class="form-control" value="${Lms.esc(role.urduTitle || '')}" style="font-family: 'Amiri', serif;"></div>
+                    <div>${label('Urdu Title')}<input type="text" id="role-urdu-input" class="form-control" value="${Lms.esc(role.urduTitle || '')}" style="font-family: 'Amiri', serif;"></div>
                     <div>${label('Visual Badge Style')}<select id="role-badge-input" class="form-control">${BADGE_STYLES.map(([v, t]) => `<option value="${v}" ${role.badgeClass === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
                 </div>
-                <div style="margin: 12px 0;">${label('Description')}<textarea id="role-desc-input" class="form-control" rows="2">${Lms.esc(role.description || '')}</textarea></div>
-                <div style="margin-bottom: 16px;">${label('Data scope — whose records this role covers')}
-                    <select id="role-scope-input" class="form-control" ${scopeLocked ? 'disabled' : ''}>
-                        ${Object.entries(catalog.scopes).map(([k, s]) => `<option value="${k}" ${role.scope === k ? 'selected' : ''}>${Lms.esc(s.label)} — ${Lms.esc(s.description)}</option>`).join('')}
-                    </select>
-                    ${scopeLocked ? '<small style="color: var(--text-muted); font-size: 0.72rem;">The data scope of Admin, Teacher and Student is fixed.</small>' : ''}
-                </div>
+                <div style="margin: 12px 0 16px;">${label('Description')}<textarea id="role-desc-input" class="form-control" rows="2">${Lms.esc(role.description || '')}</textarea></div>
                 ${this.renderPermissionChecklist(role, isNew)}
             </form>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -250,8 +243,8 @@ const RolesModule = {
             </div>
             ${ceiling ? `<small style="display: block; color: var(--text-muted); font-size: 0.75rem; margin-bottom: 8px;">Only permissions of the ${Lms.esc(role.name || role.id)} portal can be given to this role.</small>` : ''}
             <div id="role-sod-warnings" style="margin-bottom: 8px;"></div>
-            <small style="display: block; color: var(--text-muted); font-size: 0.75rem; margin-bottom: 10px;"><span class="status-pill danger" style="font-size: 0.62rem;">Sensitive</span> marks permissions that touch accounts, money, results or private records. Some permissions bring others with them (e.g. editing brings viewing).</small>
-            <div id="role-perm-list" data-defaults="${Lms.esc((defaults || []).join(','))}" style="display: flex; flex-direction: column; gap: 14px; max-height: 52vh; overflow-y: auto; padding-right: 4px;">
+            <small style="display: block; color: var(--text-muted); font-size: 0.75rem; margin-bottom: 10px;">${I18n.t('{tag} marks permissions that touch accounts, money, results or private records. Some permissions bring others with them (e.g. editing brings viewing).', { tag: `<span class="status-pill danger" style="font-size: 0.62rem;">${I18n.t('Sensitive')}</span>` })}</small>
+            <div id="role-perm-list" data-defaults="${Lms.esc((defaults || []).join(','))}" style="display: flex; flex-direction: column; gap: 14px; max-height: 52vh; overflow-y: auto; padding-inline-end: 4px;">
                 ${groups.map(g => `
                     <div class="role-perm-group" data-module="${Lms.esc(g.key)}">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px;">
@@ -288,7 +281,7 @@ const RolesModule = {
         if (!box || !this.catalog) return;
         const ticked = new Set(this.boxes().filter(b => b.checked).map(b => b.value));
         const hits = (this.catalog.sodPairs || []).filter(w => w.permissions.every(p => ticked.has(p)));
-        box.innerHTML = hits.map(w => `<div class="status-pill warning" style="display: flex; gap: 6px; white-space: normal; margin-bottom: 4px;"><i class="fas fa-exclamation-triangle"></i> ${Lms.esc(w.message)} Consider giving these to different roles.</div>`).join('');
+        box.innerHTML = hits.map(w => `<div class="status-pill warning" style="display: flex; gap: 6px; white-space: normal; margin-bottom: 4px;"><i class="fas fa-exclamation-triangle"></i> ${Lms.esc(I18n.translateText(w.message))} ${I18n.t('Consider giving these to different roles.')}</div>`).join('');
     },
 
     // Ticking a permission also ticks what it depends on (editing exams needs viewing exams)
@@ -338,8 +331,7 @@ const RolesModule = {
             name: Lms.val('role-name-input'),
             urduTitle: Lms.val('role-urdu-input'),
             badgeClass: Lms.val('role-badge-input'),
-            description: document.getElementById('role-desc-input').value.trim(),
-            scope: Lms.val('role-scope-input')
+            description: document.getElementById('role-desc-input').value.trim()
         };
         const checked = this.boxes().filter(b => b.checked).map(b => b.value);
         if (!body.name) return App.showToast('Give the role a name.', 'danger');
@@ -348,6 +340,7 @@ const RolesModule = {
         if (isNew) {
             body.id = Lms.val('role-id-input').toUpperCase().replace(/[^A-Z0-9_]/g, '_');
             if (!body.id) return App.showToast('Give the role an identifier.', 'danger');
+            body.scope = this.newScope;
             // A copy starts from another role; permissions the editor does not hold stay out
             body.permissions = this.boxes().filter(b => b.checked && !b.disabled).map(b => b.value);
             res = await this.send('POST', '/api/roles', body);
@@ -363,7 +356,7 @@ const RolesModule = {
         if (!res) return;
         App.closeModal();
         const warnings = (res.role && res.role.warnings) || [];
-        App.showToast(`${isNew ? `Role '${body.name}' created. It can now be given to users.` : `Role '${body.name}' saved.`}${warnings.length ? ` Note: ${warnings.map(w => w.message).join(' ')}` : ''}`, warnings.length ? 'warning' : 'success');
+        App.showToast(`${isNew ? `Role '${body.name}' created. It can now be given to users.` : `Role '${body.name}' saved.`}${warnings.length ? ` ${I18n.t('Note: {x}', { x: warnings.map(w => I18n.translateText(w.message)).join(' ') })}` : ''}`, warnings.length ? 'warning' : 'success');
         await this.afterChange();
     },
 
@@ -401,7 +394,7 @@ const RolesModule = {
         if (!role || !this.canDelete(role)) return App.showToast('This role cannot be deleted.', 'warning');
         Lms.openModal(
             `<i class="fas fa-exclamation-triangle" style="color: var(--danger);"></i> Confirm Delete Role`,
-            `<p style="color: var(--text-primary); margin-bottom: 12px;">Delete the custom role <strong>"${Lms.esc(role.name)}"</strong> (<code>${Lms.esc(role.id)}</code>)?</p>
+            `<p style="color: var(--text-primary); margin-bottom: 12px;">${I18n.t('Delete the custom role {name} ({id})?', { name: `<strong>"${Lms.esc(role.name)}"</strong>`, id: `<code>${Lms.esc(role.id)}</code>` })}</p>
              <p style="color: var(--text-muted); font-size: 0.85rem;">Nobody holds this role. It will no longer be offered when creating or editing users.</p>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-danger" onclick="RolesModule.confirmDeleteRole('${Lms.esc(roleId)}')"><i class="fas fa-trash-alt"></i> Delete Role</button>`

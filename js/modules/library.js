@@ -88,7 +88,7 @@ const LibraryModule = {
             <div class="tabs-nav">
                 <button class="tab-btn ${this.tab === 'catalog' ? 'active' : ''}" onclick="LibraryModule.setTab('catalog')"><i class="fas fa-search"></i> Catalog</button>
                 <button class="tab-btn ${this.tab === 'myloans' ? 'active' : ''}" onclick="LibraryModule.setTab('myloans')"><i class="fas fa-bookmark"></i> My Books (${myLoans.length})</button>
-                ${canManage ? `<button class="tab-btn ${this.tab === 'loans' ? 'active' : ''}" onclick="LibraryModule.setTab('loans')"><i class="fas fa-clipboard-list"></i> Loans & Requests ${requests.length ? `<span class="badge-pill gold" style="margin-left: 4px;">${requests.length}</span>` : ''}</button>` : ''}
+                ${canManage ? `<button class="tab-btn ${this.tab === 'loans' ? 'active' : ''}" onclick="LibraryModule.setTab('loans')"><i class="fas fa-clipboard-list"></i> Loans & Requests ${requests.length ? `<span class="badge-pill gold" style="margin-inline-start: 4px;">${requests.length}</span>` : ''}</button>` : ''}
             </div>
 
             ${this.tab === 'catalog' ? this.renderCatalog() : this.tab === 'myloans' ? this.renderLoansTable(loans.filter(l => l.userId === me.id), false) : this.renderLoansTable(loans, true)}
@@ -169,8 +169,7 @@ const LibraryModule = {
                             <span class="status-pill gold" style="font-size: 0.68rem;">${Lms.esc(b.category || 'General')}</span>
                             <span style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(b.accessionNo)}</span>
                         </div>
-                        <h3 style="font-size: 1.02rem; color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(b.title)}</h3>
-                        <div style="font-family: 'Amiri', serif; font-size: 1.2rem; color: var(--gold-700); margin-bottom: 8px;" dir="rtl">${Lms.esc(b.arabicTitle || '')}</div>
+                        <h3 style="font-size: 1.02rem; color: var(--primary-950); margin-bottom: 8px;" dir="auto">${Lms.esc(Lms.localName(b.title, b.arabicTitle))}</h3>
                         <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px;">
                             <div><i class="fas fa-feather-alt" style="color: var(--primary-700); width: 16px;"></i> ${Lms.esc(b.author)}</div>
                             <div><i class="fas fa-print" style="color: var(--gold-700); width: 16px;"></i> ${Lms.esc(b.publisher || '—')}${b.publicationYear ? ' (' + Lms.esc(b.publicationYear) + ')' : ''}</div>
@@ -426,7 +425,7 @@ const LibraryModule = {
             <div class="form-group">
                 <label>e-Book (PDF) — optional</label>
                 ${b && b.digitalUrl ? `<div style="margin-bottom: 6px; font-size: 0.82rem;">Current: <a href="${Lms.esc(b.digitalUrl)}" target="_blank" rel="noopener">${Lms.esc(b.digitalName || 'e-book')}</a>
-                    <label style="margin-left: 10px;"><input type="checkbox" id="add-bk-remove-pdf"> remove</label></div>` : ''}
+                    <label style="margin-inline-start: 10px;"><input type="checkbox" id="add-bk-remove-pdf"> remove</label></div>` : ''}
                 ${Lms.fileInput('add-bk-pdf', { label: 'Upload a PDF so readers can read it online', accept: '.pdf', hint: 'PDF only • max 25 MB' })}
             </div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>

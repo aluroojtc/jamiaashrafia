@@ -496,20 +496,19 @@ const App = {
                 <div class="status-pill danger" style="margin-bottom: 12px; font-weight: 700; letter-spacing: 0.05em;">
                     HTTP 403 • ACCESS FORBIDDEN
                 </div>
-                <h1 style="color: var(--primary-950); font-size: 1.85rem; margin-bottom: 6px;">403 - Permission Denied (غیر مصرح به)</h1>
-                <div style="font-family: 'Amiri', serif; font-size: 1.35rem; color: var(--gold-700); margin-bottom: 18px;">
-                    عذراً! لا تملك الصلاحية للوصول إلى هذا القسم
-                </div>
+                <h1 style="color: var(--primary-950); font-size: 1.85rem; margin-bottom: 18px;">403 - Permission Denied</h1>
 
                 <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; margin-bottom: 22px;">
-                    Your authenticated role (<strong style="color: var(--gold-600);">${roleDef.title}</strong>) 
-                    does not have permission to access the <strong>${modMeta.title}</strong> module 
-                    (<code>#${route}</code>).
+                    ${I18n.t('Your role ({role}) does not have permission to open the {module} module ({route}).', {
+                        role: `<strong style="color: var(--gold-600);">${roleDef.title}</strong>`,
+                        module: `<strong>${Lms.esc(I18n.translateText(modMeta.title))}</strong>`,
+                        route: `<code>#${Lms.esc(route)}</code>`
+                    })}
                 </p>
 
-                <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 24px; font-size: 0.82rem; color: var(--text-muted); text-align: left; line-height: 1.7;">
+                <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 24px; font-size: 0.82rem; color: var(--text-muted); text-align: start; line-height: 1.7;">
                     <div><i class="fas fa-lock" style="color: var(--danger);"></i> <strong>RBAC Guardrail:</strong> Direct URL bypass and unauthorized privilege escalation are strictly rejected by the institutional authorization engine.</div>
-                    <div style="margin-top: 6px;"><i class="fas fa-sliders-h" style="color: var(--gold-400);"></i> <strong>Permissions Authority:</strong> Module access is set for each role under <strong>Users & Roles &rarr; Roles & Permissions</strong>.</div>
+                    <div style="margin-top: 6px;"><i class="fas fa-sliders-h" style="color: var(--gold-400);"></i> <strong>Permissions Authority:</strong> ${I18n.t('Module access is set for each role under {path}.', { path: `<strong>${I18n.t('Users & Roles')} &rarr; ${I18n.t('Roles & Permissions')}</strong>` })}</div>
                 </div>
 
                 <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
@@ -563,7 +562,7 @@ const App = {
                     </h1>
                     <p>
                         Welcome, <strong>${Lms.esc(user.name)}</strong>
-                        <span class="status-pill gold" style="margin-left: 6px;">${Lms.esc(roleDef.name || roleDef.title || role)}</span>
+                        <span class="status-pill gold" style="margin-inline-start: 6px;">${Lms.esc(roleDef.name || roleDef.title || role)}</span>
                     </p>
                 </div>
                 <div class="view-actions">
@@ -585,7 +584,7 @@ const App = {
                     <div class="ashrafia-hero-badge">
                         <i class="fas fa-landmark"></i> Central Headquarters • Ferozepur Road • Est. 1947
                     </div>
-                    <h2 class="ashrafia-hero-title">جامعہ اشرفیہ، لاہور - علم اور تقویٰ</h2>
+                    <h2 class="ashrafia-hero-title">Jamia Ashrafia Lahore — Knowledge & Piety</h2>
                     <p class="ashrafia-hero-desc">
                         Founded by Hazrat Maulana Mufti Muhammad Hassan Amritsari (RA) on 14 September 1947. 
                         Encompassing 12 regional campuses with over 2,000 resident scholars under Wifaq-ul-Madaris Al-Arabia.
@@ -715,7 +714,7 @@ const App = {
     // Small building blocks shared by the role dashboards
     dashListItem(title, sub, actionHtml, accent) {
         return `
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); ${accent ? `border-left: 3px solid ${accent};` : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); ${accent ? `border-inline-start: 3px solid ${accent};` : ''}">
                 <div style="min-width: 0;">
                     <div style="font-weight: 700; color: var(--primary-950);">${title}</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted);">${sub}</div>
@@ -732,7 +731,7 @@ const App = {
         const list = (window.LmsData.notifications || []).slice(0, limit);
         if (!list.length) return this.dashEmpty('No notifications yet.');
         return list.map(n => `
-            <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid ${n.isRead ? 'var(--border-prominent)' : 'var(--gold-400)'}; cursor: pointer;" onclick="App.navigate('notifications')">
+            <div style="padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-inline-start: 3px solid ${n.isRead ? 'var(--border-prominent)' : 'var(--gold-400)'}; cursor: pointer;" onclick="App.navigate('notifications')">
                 <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(n.title)}</div>
                 <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">${Lms.esc(n.sender || '')} • ${Lms.esc(n.time || '')}</div>
             </div>`).join('');
@@ -789,9 +788,8 @@ const App = {
                 <div class="view-title-group">
                     <h1><i class="fas fa-chalkboard-teacher" style="color: var(--gold-400);"></i> Teacher Portal</h1>
                     <p>
-                        Welcome, <strong>${Lms.esc(user.name)}</strong>
-                        <span class="status-pill success" style="margin-left: 6px;">${Lms.esc(user.designation || 'Teacher')}</span>
-                        <span style="font-family: 'Amiri', serif; margin-left: 8px; color: var(--gold-700);">${Lms.esc(user.urduName || '')}</span>
+                        Welcome, <strong>${Lms.esc(Lms.localName(user.name, user.urduName))}</strong>
+                        <span class="status-pill success" style="margin-inline-start: 6px;">${Lms.esc(user.designation || 'Teacher')}</span>
                     </p>
                 </div>
                 <div class="view-actions">
@@ -940,9 +938,8 @@ const App = {
                 <div class="view-title-group">
                     <h1><i class="fas fa-user-graduate" style="color: var(--gold-400);"></i> Student Portal</h1>
                     <p>
-                        Welcome, <strong>${Lms.esc(user.name)}</strong>
-                        <span class="status-pill primary" style="margin-left: 6px;">Roll No: ${Lms.esc(user.rollNo || '—')}</span>
-                        <span style="font-family: 'Amiri', serif; margin-left: 8px; color: var(--gold-700);">${Lms.esc(user.urduName || '')}</span>
+                        Welcome, <strong>${Lms.esc(Lms.localName(user.name, user.urduName))}</strong>
+                        <span class="status-pill primary" style="margin-inline-start: 6px;">Roll No: ${Lms.esc(user.rollNo || '—')}</span>
                     </p>
                 </div>
                 <div class="view-actions">
@@ -954,7 +951,7 @@ const App = {
             ${window.AttendanceModule ? window.AttendanceModule.renderDashboardCheckInWidget(user) : ''}
 
             ${!cls ? `
-                <div class="card" style="border-left: 4px solid var(--warning);">
+                <div class="card" style="border-inline-start: 4px solid var(--warning);">
                     <strong><i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> You are not enrolled in a class yet.</strong>
                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">The Academic Office will assign your class. Assignments, exams and online classes appear here once you are enrolled.</div>
                 </div>` : ''}
@@ -1077,7 +1074,7 @@ const App = {
                         <thead>
                             <tr>
                                 <th>Role</th>
-                                <th>Urdu Title</th>
+                                <th>Office</th>
                                 <th>Designation / Office</th>
                                 <th>Core Capabilities & Guardrails</th>
                             </tr>
@@ -1085,31 +1082,31 @@ const App = {
                         <tbody>
                             <tr>
                                 <td><span class="status-pill gold">SUPER_ADMIN</span></td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.1rem; color: var(--gold-700);">حضرت مہتمم / مجلس شوریٰ</td>
+                                <td>Mohtamim / Majlis-e-Shura</td>
                                 <td>Principal Maulana Fazl-ur-Raheem Ashrafi</td>
                                 <td>Full administrative control, financial audits, branch creation, policy decrees, audit log access.</td>
                             </tr>
                             <tr>
                                 <td><span class="status-pill info">ACADEMIC_ADMIN</span></td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.1rem;">ناظم تعلیمات</td>
+                                <td>Nazim-e-Taleemat</td>
                                 <td>Maulana Hafiz Ajwad Ubaid</td>
                                 <td>Student admissions approval, roll number issuance, teacher assignments, timetables, Wifaq exam results.</td>
                             </tr>
                             <tr>
                                 <td><span class="status-pill success">TEACHER</span></td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.1rem;">استاذ / شیخ الحدیث</td>
+                                <td>Ustadh / Sheikh-ul-Hadith</td>
                                 <td>Qari Arshad Ubaid / Asatizah</td>
                                 <td>Host Zoom-like live classrooms, daily attendance marking, homework creation, subjective grading & feedback.</td>
                             </tr>
                             <tr>
                                 <td><span class="status-pill warning">STUDENT</span></td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.1rem;">طالب علم</td>
+                                <td>Talib-e-Ilm</td>
                                 <td>Dars-e-Nizami Scholars</td>
                                 <td>Join live classes, upload assignments, attempt timed online exam papers, view fee challans, search library.</td>
                             </tr>
                             <tr>
                                 <td><span class="status-pill info">ACCOUNTANT</span></td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.1rem;">ناظم مالیات و صدقات</td>
+                                <td>Nazim-e-Maliyat</td>
                                 <td>Haji Abdul Ghaffar</td>
                                 <td>3-part fee challan generation, Zakat & Sadaqah verification, Kafalat-e-Talib-e-Ilm disbursement receipts.</td>
                             </tr>
@@ -1124,7 +1121,7 @@ const App = {
                     <div class="card-header">
                         <h4 class="card-title"><i class="fas fa-server"></i> Cloud Infrastructure</h4>
                     </div>
-                    <ul style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.8;">
+                    <ul style="padding-inline-start: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.8;">
                         <li><strong>Database:</strong> AWS RDS PostgreSQL 16 (Multi-AZ, ACID compliant, 22 tables).</li>
                         <li><strong>WebRTC SFU:</strong> LiveKit / Mediasoup cluster with low-latency H.264 / Opus streams.</li>
                         <li><strong>Storage:</strong> S3 Bucket with SSE-KMS encryption for manuscript PDFs and recorded lectures.</li>
@@ -1172,8 +1169,7 @@ const App = {
             bodyEl.innerHTML = `
                 <div style="text-align: center; margin-bottom: 20px;">
                     <div class="user-avatar" style="width: 72px; height: 72px; font-size: 1.6rem; margin: 0 auto 12px; border: 2px solid var(--gold-400);">${Lms.esc(user.avatar || 'JA')}</div>
-                    <h3 style="color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(user.name)}</h3>
-                    <div style="font-family: 'Amiri', serif; font-size: 1.25rem; color: var(--gold-700);">${Lms.esc(user.urduName || '')}</div>
+                    <h3 style="color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(Lms.localName(user.name, user.urduName))}</h3>
                     <span class="status-pill ${roleDef.badgeClass || 'gold'}" style="margin-top: 6px;">${roleDef.title}</span>
                 </div>
 
@@ -1254,7 +1250,7 @@ const App = {
 
         setTimeout(() => {
             toast.style.opacity = '0';
-            toast.style.transform = 'translateX(100%)';
+            toast.style.transform = window.I18n && window.I18n.isRtl ? 'translateX(-100%)' : 'translateX(100%)';
             toast.style.transition = 'all 0.3s ease';
             setTimeout(() => toast.remove(), 300);
         }, 3500);

@@ -16,6 +16,17 @@ const Lms = {
             .replace(/'/g, '&#39;');
     },
 
+    // Records keep an English name and often an Urdu / Arabic one (urduName, urduTitle, arabicTitle).
+    // Pages show one of them, never both: the native-script name in Urdu and Arabic, the English one otherwise.
+    // urduOnly: the field holds Urdu wording rather than a proper name, so Arabic pages keep the English
+    // (which the catalog translates when it can).
+    localName(english, native, urduOnly) {
+        const lang = window.I18n ? window.I18n.lang : 'en';
+        const useNative = lang === 'ur' || (lang === 'ar' && !urduOnly);
+        if (useNative && native && String(native).trim()) return native;
+        return english || native || '';
+    },
+
     // Escaped text with line breaks preserved
     multiline(value) {
         return this.esc(value).replace(/\n/g, '<br>');

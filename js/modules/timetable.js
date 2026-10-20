@@ -117,7 +117,7 @@ const TimetableModule = {
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 12px;">
                     ${this.selectedDay === 'Friday' && !slots.length ? `
-                        <div style="padding: 16px; background: linear-gradient(135deg, rgba(18, 72, 85, 0.08) 0%, rgba(170, 134, 55, 0.12) 100%); border-left: 4px solid var(--gold-600); border-radius: var(--radius-sm);">
+                        <div style="padding: 16px; background: linear-gradient(135deg, rgba(18, 72, 85, 0.08) 0%, rgba(170, 134, 55, 0.12) 100%); border-inline-start: 4px solid var(--gold-600); border-radius: var(--radius-sm);">
                             <strong style="color: var(--gold-800);">Jumu'ah</strong>
                             <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Friday is reserved for Surah al-Kahf, Jumu'ah in the Grand Jamia Mosque and personal revision (Mutala'ah). Classes resume Saturday with the Fajr Dars.</div>
                         </div>` : ''}
@@ -139,7 +139,7 @@ const TimetableModule = {
                                     </div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 12px;">
-                                    <div style="text-align: right;">
+                                    <div style="text-align: end;">
                                         <div style="font-family: monospace; font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">${Lms.fmtTime(slot.startTime)} – ${Lms.fmtTime(slot.endTime)}</div>
                                         ${live ? '<span class="status-pill success" style="font-size: 0.65rem;">In progress</span>' : ''}
                                     </div>
@@ -218,7 +218,7 @@ const TimetableModule = {
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     ${items.length ? items.slice(0, 12).map(i => `
-                        <div style="display: flex; gap: 10px; padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-left: 3px solid ${i.color}; cursor: pointer;" onclick="App.navigate('${i.route}')">
+                        <div style="display: flex; gap: 10px; padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border-inline-start: 3px solid ${i.color}; cursor: pointer;" onclick="App.navigate('${i.route}')">
                             <i class="fas ${i.icon}" style="color: ${i.color}; margin-top: 3px;"></i>
                             <div style="min-width: 0;">
                                 <div style="font-weight: 700; font-size: 0.85rem; color: var(--primary-950);">${Lms.esc(i.title)}</div>

@@ -96,16 +96,19 @@ const UsersModule = {
             </div>
 
             <!-- REGISTRY SCOPE NOTICE BANNER -->
-            <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.25) 0%, rgba(30, 58, 138, 0.2) 100%); border-left: 4px solid var(--primary-400); margin-bottom: 22px; padding: 14px 18px;">
+            <div class="card" style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.25) 0%, rgba(30, 58, 138, 0.2) 100%); border-inline-start: 4px solid var(--primary-400); margin-bottom: 22px; padding: 14px 18px;">
                 <div style="display: flex; gap: 14px; align-items: center;">
                     <div style="font-size: 1.6rem; color: var(--primary-400);"><i class="fas fa-shield-alt"></i></div>
                     <div>
                         <h4 style="color: var(--primary-950); margin-bottom: 2px; font-size: 0.95rem;">Administrative & Application Users Registry</h4>
                         <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">
-                            This directory is reserved for application administrators, finance officers, and custom operational accounts. 
-                            <strong>Students</strong> and <strong>Teachers</strong> are managed in their dedicated academic portals: 
-                            <a href="#students" style="color: var(--primary-700); font-weight: 600; text-decoration: underline;">Students Management</a> and 
-                            <a href="#teachers" style="color: var(--primary-700); font-weight: 600; text-decoration: underline;">Teachers & Portals</a>.
+                            This directory is reserved for application administrators, finance officers, and custom operational accounts.
+                            ${I18n.t('{students} and {teachers} are managed in their dedicated academic portals: {studentsLink} and {teachersLink}.', {
+                                students: `<strong>${I18n.t('Students')}</strong>`,
+                                teachers: `<strong>${I18n.t('Teachers')}</strong>`,
+                                studentsLink: `<a href="#students" style="color: var(--primary-700); font-weight: 600; text-decoration: underline;">${I18n.t('Students Management')}</a>`,
+                                teachersLink: `<a href="#teachers" style="color: var(--primary-700); font-weight: 600; text-decoration: underline;">${I18n.t('Teachers & Portals')}</a>`
+                            })}
                         </p>
                     </div>
                 </div>
@@ -173,7 +176,7 @@ const UsersModule = {
                             `).join('')}
                         </select>
 
-                        <label style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; margin-left: 6px;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; margin-inline-start: 6px;">
                             Status:
                         </label>
                         <select class="form-control" style="width: auto; min-width: 130px;" onchange="UsersModule.handleStatusFilter(this.value)">
@@ -208,7 +211,7 @@ const UsersModule = {
                                 <th>Assigned Role</th>
                                 <th>Department / Title</th>
                                 <th style="text-align: center;">Status</th>
-                                <th style="text-align: right;">Administrative Actions</th>
+                                <th style="text-align: end;">Administrative Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -239,14 +242,9 @@ const UsersModule = {
                                                 </div>
                                                 <div>
                                                     <div style="font-weight: 700; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
-                                                        ${Lms.esc(u.name)}
+                                                        ${Lms.esc(Lms.localName(u.name, u.urduName))}
                                                         ${isCurrentLoggedIn ? `<span class="badge-pill gold" style="font-size: 0.65rem; padding: 1px 6px;">You</span>` : ''}
                                                     </div>
-                                                    ${u.urduName ? `
-                                                        <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">
-                                                            ${Lms.esc(u.urduName)}
-                                                        </div>
-                                                    ` : ''}
                                                     <div style="font-size: 0.75rem; color: var(--text-muted);">ID: ${Lms.esc(u.id)}</div>
                                                 </div>
                                             </div>
@@ -279,18 +277,18 @@ const UsersModule = {
                                                 <span>${status}</span>
                                             </span>
                                         </td>
-                                        <td style="text-align: right; white-space: nowrap;">
+                                        <td style="text-align: end; white-space: nowrap;">
                                             ${touchable && (isCurrentLoggedIn || window.AuthRBAC.can('users.update') || window.AuthRBAC.can('users.assign_roles')) ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openEditUserModal('${Lms.esc(u.id)}')" title="Edit User & Role">
                                                 <i class="fas fa-edit"></i> Edit
                                             </button>` : ''}
-                                            ${touchable && !isCurrentLoggedIn && window.AuthRBAC.can('users.reset_password') ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openResetPasswordModal('${Lms.esc(u.id)}')" title="Reset User Password" style="margin-left: 4px;">
+                                            ${touchable && !isCurrentLoggedIn && window.AuthRBAC.can('users.reset_password') ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openResetPasswordModal('${Lms.esc(u.id)}')" title="Reset User Password" style="margin-inline-start: 4px;">
                                                 <i class="fas fa-key"></i> Password
                                             </button>` : ''}
                                             ${window.AuthRBAC.isSuperAdmin() && !isCurrentLoggedIn && status === 'ACTIVE' ? (isSuperAdmin
-                                                ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openSuperAdminModal('${Lms.esc(u.id)}', false)" title="Remove Super Admin rights" style="margin-left: 4px;"><i class="fas fa-crown" style="color: var(--danger);"></i></button>`
-                                                : `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openSuperAdminModal('${Lms.esc(u.id)}', true)" title="Make Super Admin" style="margin-left: 4px;"><i class="fas fa-crown" style="color: var(--gold-500);"></i></button>`) : ''}
+                                                ? `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openSuperAdminModal('${Lms.esc(u.id)}', false)" title="Remove Super Admin rights" style="margin-inline-start: 4px;"><i class="fas fa-crown" style="color: var(--danger);"></i></button>`
+                                                : `<button class="btn btn-secondary btn-sm" onclick="UsersModule.openSuperAdminModal('${Lms.esc(u.id)}', true)" title="Make Super Admin" style="margin-inline-start: 4px;"><i class="fas fa-crown" style="color: var(--gold-500);"></i></button>`) : ''}
                                             ${!isCurrentLoggedIn && !isSuperAdmin && window.AuthRBAC.can('users.delete') ? `
-                                                <button class="btn btn-danger btn-sm" onclick="UsersModule.deleteUser('${Lms.esc(u.id)}')" title="Delete User" style="margin-left: 4px;">
+                                                <button class="btn btn-danger btn-sm" onclick="UsersModule.deleteUser('${Lms.esc(u.id)}')" title="Delete User" style="margin-inline-start: 4px;">
                                                     <i class="fas fa-trash-alt"></i>
                                                 </button>
                                             ` : ''}
@@ -347,7 +345,7 @@ const UsersModule = {
                     </div>
                     <div>
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
-                            Urdu Name (نام شریف)
+                            Urdu Name
                         </label>
                         <input type="text" id="add-user-urdu" class="form-control" placeholder="e.g. مولانا عبد الصمد" style="font-family: 'Amiri', serif;">
                     </div>
@@ -515,7 +513,7 @@ const UsersModule = {
                     </div>
                     <div>
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
-                            Urdu Name (نام شریف)
+                            Urdu Name
                         </label>
                         <input type="text" id="edit-user-urdu" class="form-control" value="${Lms.esc(user.urduName || '')}" style="font-family: 'Amiri', serif;">
                     </div>
@@ -539,7 +537,7 @@ const UsersModule = {
                             <select id="edit-user-role" class="form-control" required ${window.AuthRBAC.can('users.assign_roles') && userId !== (window.AuthRBAC.currentUser || {}).id ? '' : 'disabled title="Changing roles needs the users.assign_roles permission"'}>
                                 ${systemRoles.map(r => `
                                     <option value="${Lms.esc(r.id)}" ${user.role === r.id ? 'selected' : ''}>
-                                        ${Lms.esc(r.name || r.title)} (${Lms.esc(r.urduTitle || r.id)})
+                                        ${Lms.esc(Lms.localName(r.name || r.title, r.urduTitle, true))}
                                     </option>
                                 `).join('')}
                             </select>
@@ -678,8 +676,8 @@ const UsersModule = {
         Lms.openModal(
             grant ? `<i class="fas fa-crown" style="color: var(--gold-400);"></i> Make Super Admin` : `<i class="fas fa-crown" style="color: var(--danger);"></i> Remove Super Admin`,
             `<p style="margin-bottom: 12px;">${grant
-                ? `<strong>${Lms.esc(user.name)}</strong> will have full control of every account, role, record and setting. Their current role stays with them as an additional role.`
-                : `<strong>${Lms.esc(user.name)}</strong> will lose Super Admin rights and be signed out. There must always be at least one Super Admin.`}</p>
+                                ? I18n.t('{name} will have full control of every account, role, record and setting. Their current role stays with them as an additional role.', { name: `<strong>${Lms.esc(user.name)}</strong>` })
+                : I18n.t('{name} will lose Super Admin rights and be signed out. There must always be at least one Super Admin.', { name: `<strong>${Lms.esc(user.name)}</strong>` })}</p>
              ${grant ? '' : `<div class="form-group"><label for="sa-new-role">Role from now on *</label><select id="sa-new-role" class="form-control">${roles.map(r => `<option value="${Lms.esc(r.id)}">${Lms.esc(r.name || r.id)}</option>`).join('')}</select></div>`}
              <div class="form-group"><label for="sa-password">Your password (to confirm) *</label><input type="password" id="sa-password" class="form-control" autocomplete="current-password"></div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -810,9 +808,9 @@ const UsersModule = {
         modalContainer.innerHTML = `
             <div style="padding: 10px 0;">
                 <p style="color: var(--text-primary); font-size: 1rem; margin-bottom: 12px;">
-                    Are you sure you want to permanently delete system user <strong>"${Lms.esc(user.name)}"</strong>?
+                                        ${I18n.t('Are you sure you want to permanently delete system user {name}?', { name: `<strong>"${Lms.esc(user.name)}"</strong>` })}
                 </p>
-                <div style="padding: 12px; background: rgba(239, 68, 68, 0.08); border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.85rem; color: #7f1d1d;">
+                <div style="padding: 12px; background: rgba(239, 68, 68, 0.08); border-inline-start: 3px solid var(--danger); border-radius: 4px; font-size: 0.85rem; color: #7f1d1d;">
                     <div><strong>Email:</strong> ${Lms.esc(user.email)}</div>
                     <div><strong>Role:</strong> ${Lms.esc(user.role)}</div>
                     <div><strong>ID:</strong> ${Lms.esc(user.id)}</div>

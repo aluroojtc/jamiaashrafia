@@ -4,17 +4,26 @@
  * Creates throw-away accounts and records (ids starting with "sectest_"), checks every Phase 1 rule
  * through the real HTTP API with real sessions, then removes everything it created.
  *
+ * The tests never depend on the role rows of the live database, which administrators may change at any
+ * time. They create their own roles: an Admin with the approved Admin permissions (the code default in
+ * server/permissions.js), a finance role, a librarian role and a role manager. A drift report at the end
+ * says how the live roles differ from the approved defaults; it is information, not a failure.
+ *
  *   npm run test:security
  */
 
 const http = require('http');
 const db = require('./database/db');
 const auth = require('./server/auth');
+const catalog = require('./server/permissions');
 
 const TEST_PORT = 3056;
 process.env.PORT = TEST_PORT;
 
 const P = `sectest_${Date.now().toString(36)}_`;
+const R = P.toUpperCase();
+// Throw-away roles (removed afterwards)
+const roleIds = { admin: `${R}ADMIN`, finance: `${R}FINANCE`, librarian: `${R}LIBRARIAN`, roleMgr: `${R}ROLEMGR` };
 const ids = {
     admin: `${P}admin`, superAdmin: `${P}super`, t1: `${P}t1`, t2: `${P}t2`, s1: `${P}s1`, s2: `${P}s2`,
     acct: `${P}acct`, custom: `${P}custom`, noCred: `${P}nocred`,
@@ -22,7 +31,7 @@ const ids = {
     donation: `${P}don`, vcB: `${P}vcB`,
     coord: `${P}coord`, classC: `${P}clsC`, examC: `${P}examC`, resultC: `${P}resC`,
     assignA: `${P}asgA`, subA: `${P}subA`, examAClosed: `${P}examAx`, examAOpen: `${P}examAo`, admission: `${P}adm`,
-    mgr: `${P}mgr`, clerk: `${P}clerk`, deputy: `${P}deputy`, loanS2: `${P}loanS2`
+    mgr: `${P}mgr`, clerk: `${P}clerk`, deputy: `${P}deputy`, loanS2: `${P}loanS2`, roleMgr: `${P}rolemgr`
 };
 const passwords = {};
 
@@ -80,20 +89,31 @@ async function createUser(id, fields, withPassword = true) {
     }
 }
 
+async function createRole(id, name, scope, permissions) {
+    await db.query(`INSERT INTO roles (id, name, scope, is_system, status, version, updated_by) VALUES (?, ?, ?, 0, 'ACTIVE', 1, 'sectest')`, [id, name, scope]);
+    for (const perm of permissions) await db.query(`INSERT INTO role_permissions (role_id, permission) VALUES (?, ?)`, [id, perm]);
+}
+
 async function setupFixtures() {
+    await createRole(roleIds.admin, 'Sectest Admin', 'ALL', catalog.DEFAULT_PERMISSIONS.ACADEMIC_ADMIN);
+    await createRole(roleIds.finance, 'Sectest finance officer', 'ALL', catalog.DEFAULT_PERMISSIONS.ACCOUNTANT);
+    await createRole(roleIds.librarian, 'Sectest librarian', 'ALL', catalog.DEFAULT_PERMISSIONS.LIBRARIAN);
+    await createRole(roleIds.roleMgr, 'Sectest role manager', 'ALL', ['roles.view', 'roles.create', 'roles.update', 'exams.view', 'exams.mark', 'classes.view']);
+
     await createUser(ids.superAdmin, { role: 'SUPER_ADMIN' });
-    await createUser(ids.admin, { role: 'ACADEMIC_ADMIN' });
+    await createUser(ids.admin, { role: roleIds.admin });
     await createUser(ids.t1, { role: 'TEACHER' });
     await createUser(ids.t2, { role: 'TEACHER' });
     await createUser(ids.s1, { role: 'STUDENT', classId: ids.classA, rollNo: `${P}R1`, cnic: '35201-0000000-1' });
     await createUser(ids.s2, { role: 'STUDENT', classId: ids.classB, rollNo: `${P}R2`, cnic: '35201-0000000-2' });
-    await createUser(ids.acct, { role: 'ACCOUNTANT' });
+    await createUser(ids.acct, { role: roleIds.finance });
     await createUser(ids.custom, { role: 'SECTEST_CUSTOM_ROLE' });
     await createUser(ids.noCred, { role: 'STUDENT', classId: ids.classA }, false);
     await createUser(ids.coord, { role: `${P.toUpperCase()}COORD` });
     await createUser(ids.mgr, { role: `${P.toUpperCase()}STAFFMGR` });
     await createUser(ids.clerk, { role: `${P.toUpperCase()}NOTHING` });
-    await createUser(ids.deputy, { role: 'ACADEMIC_ADMIN' });
+    await createUser(ids.deputy, { role: roleIds.admin });
+    await createUser(ids.roleMgr, { role: roleIds.roleMgr });
 
     await insertRecord('classes', { id: ids.classA, name: 'Sectest A', teacherId: ids.t1, courseTeachers: [] });
     await insertRecord('classes', { id: ids.classB, name: 'Sectest B', teacherId: ids.t2, courseTeachers: [] });
@@ -121,6 +141,8 @@ async function setupFixtures() {
         `INSERT INTO student_admissions (id, application_no, candidate_name, father_name, phone, cnic_bform, status) VALUES (?, ?, 'Sectest Applicant', 'Sectest Father', '+92 300 0000000', '35201-0000000-9', 'UNDER_REVIEW')`,
         [ids.admission, `${P}APP`]
     );
+    // The server picks up the test roles and Super Admin row now rather than at its next periodic reload
+    await require('./server/roles').load();
 }
 
 async function cleanup(settingsBackup) {
@@ -227,10 +249,10 @@ async function run() {
         check('Teacher receives own class exam with answer key', (t2Pull.exams || []).some(e => e.id === ids.examB && e.questions[0].correctIndex === 1));
 
         const aPull = await pull('acct');
-        check('Accountant receives the donation ledger', has(aPull.donations, ids.donation));
-        check('Accountant receives no exam answer keys', !(aPull.exams || []).some(e => (e.questions || []).some(q => 'correctIndex' in q)));
-        check('Accountant receives no unpublished results', !has(aPull.examResults, ids.resultB));
-        check('Accountant does not receive student CNICs', !(aPull.users || []).some(u => u.role === 'STUDENT' && u.cnic));
+        check('Finance role receives the donation ledger', has(aPull.donations, ids.donation));
+        check('Finance role receives no exam answer keys', !(aPull.exams || []).some(e => (e.questions || []).some(q => 'correctIndex' in q)));
+        check('Finance role receives no unpublished results', !has(aPull.examResults, ids.resultB));
+        check('Finance role does not receive student CNICs', !(aPull.users || []).some(u => u.role === 'STUDENT' && u.cnic));
 
         const cPull = await pull('custom');
         check('Custom role without modules receives no students', !(cPull.users || []).some(u => u.role === 'STUDENT'));
@@ -291,7 +313,7 @@ async function run() {
 
         // --- Phase 2: roles, permissions, workflow rules, audit --------------------------
         const api = (key, method, path, body) => request(method, path, { cookie: sess[key], body });
-        const R = P.toUpperCase();
+        sess.roleMgr = (await login(`${ids.roleMgr}@test.local`, passwords[ids.roleMgr])).cookie;
         check('Old /api/permissions endpoint is retired', (await api('admin', 'GET', '/api/permissions')).status === 410);
 
         const me = async key => (await api(key, 'GET', '/api/auth/me')).body;
@@ -301,24 +323,28 @@ async function run() {
         const meSA = await me('superAdmin');
         check('/api/me: student has own-records scope and can sit exams but not mark', meS.scope === 'SELF' && meS.permissions.includes('exams.attempt') && !meS.permissions.includes('exams.mark'));
         check('/api/me: teacher has teaching scope and can mark', meT.scope === 'TEACHING' && meT.permissions.includes('exams.mark'));
-        check('/api/me: Admin has institution scope but no staff-account or audit permissions', meA.scope === 'ALL' && !meA.permissions.includes('users.update') && !meA.permissions.includes('audit.view'));
+        check('/api/me: Admin has institution scope but no staff-account, role-editing or audit permissions', meA.scope === 'ALL'
+            && !meA.permissions.includes('users.update') && !meA.permissions.includes('roles.create') && !meA.permissions.includes('audit.view'));
         check('/api/me: Super Admin holds everything', meSA.isSuperAdmin === true && meSA.permissions.includes('audit.view') && meSA.permissions.includes('users.assign_roles'));
 
         const coordId = `${R}COORD`;
-        const mk = await api('admin', 'POST', '/api/roles', { id: coordId, name: 'Sectest coordinator', scope: 'TEACHING', permissions: ['exams.view', 'exams.mark', 'classes.view'] });
-        check('Admin can create a role with permissions they hold', mk.status === 200 && mk.body.role && mk.body.role.version === 1, JSON.stringify(mk.body));
-        const mkBad = await api('admin', 'POST', '/api/roles', { id: `${R}BAD`, name: 'Bad', permissions: ['users.update'] });
+        check('Admin cannot create roles (Super Admin only)', (await api('admin', 'POST', '/api/roles', { id: `${R}BYADMIN`, name: 'By admin', permissions: [] })).status === 403);
+        const mk = await api('roleMgr', 'POST', '/api/roles', { id: coordId, name: 'Sectest coordinator', scope: 'TEACHING', permissions: ['exams.view', 'exams.mark', 'classes.view'] });
+        check('A role manager can create a role with permissions they hold', mk.status === 200 && mk.body.role && mk.body.role.version === 1, JSON.stringify(mk.body));
+        const mkBad = await api('roleMgr', 'POST', '/api/roles', { id: `${R}BAD`, name: 'Bad', permissions: ['users.update'] });
         check('Nobody can give a permission they do not hold', mkBad.status === 403);
-        check('Role identifiers are unique', (await api('admin', 'POST', '/api/roles', { id: coordId, name: 'Again' })).status === 409);
-        const stale = await api('admin', 'PUT', `/api/roles/${coordId}`, { version: 99, add: ['exams.results.publish'] });
+        check('Role identifiers are unique', (await api('roleMgr', 'POST', '/api/roles', { id: coordId, name: 'Again' })).status === 409);
+        const stale = await api('roleMgr', 'PUT', `/api/roles/${coordId}`, { version: 99, add: ['exams.results.publish'] });
         check('Editing a role with an old version is refused', stale.status === 409);
 
         const roleList = (await api('superAdmin', 'GET', '/api/roles')).body.roles;
         const versionOf = id => (roleList.find(r => r.id === id) || {}).version;
         const ceiling = await api('superAdmin', 'PUT', '/api/roles/TEACHER', { version: versionOf('TEACHER'), add: ['fees.challans.verify'] });
         check('The Teacher role can never hold office permissions', ceiling.status === 400);
-        const ownRole = await api('admin', 'PUT', '/api/roles/ACADEMIC_ADMIN', { version: versionOf('ACADEMIC_ADMIN'), add: [] });
-        check('Admin cannot edit the role they hold', ownRole.status === 403);
+        const ownRole = await api('roleMgr', 'PUT', `/api/roles/${roleIds.roleMgr}`, { version: versionOf(roleIds.roleMgr), add: [] });
+        check('Nobody but the Super Admin can edit the role they hold', ownRole.status === 403);
+        const adminEdit = await api('admin', 'PUT', `/api/roles/${roleIds.admin}`, { version: versionOf(roleIds.admin), add: [] });
+        check('Admin cannot edit roles', adminEdit.status === 403);
         const namesOnly = (await api('s1', 'GET', '/api/roles')).body.roles;
         check('Students see role names but not what roles may do', namesOnly.length > 0 && namesOnly.every(r => r.permissions === undefined));
 
@@ -335,7 +361,7 @@ async function run() {
         const anon = (finPull.donations || []).find(d => d.id === ids.donation);
         check('Anonymous donors stay hidden without the donor-identity permission', anon && anon.donorName === 'Anonymous');
         const acctPull = (await request('GET', '/api/store', { cookie: sess.acct })).body.collections || {};
-        check('Finance Officer sees anonymous donors', (acctPull.donations || []).some(d => d.id === ids.donation && d.donorName === 'Sectest donor'));
+        check('Finance role with the donor-identity permission sees anonymous donors', (acctPull.donations || []).some(d => d.id === ids.donation && d.donorName === 'Sectest donor'));
         check('A role somebody holds cannot be deleted', (await api('superAdmin', 'DELETE', `/api/roles/${finId}`)).status === 409);
         await api('superAdmin', 'POST', '/api/roles', { id: `${R}EMPTY`, name: 'Sectest empty', permissions: [] });
         check('An unused custom role can be deleted', (await api('superAdmin', 'DELETE', `/api/roles/${R}EMPTY`)).status === 200);
@@ -404,14 +430,13 @@ async function run() {
 
         // --- Phase 3: multiple roles, escalation, Super Admin grants, preview -------------
         const rolesNow = (await api('superAdmin', 'GET', '/api/roles')).body.roles;
-        check('Template roles exist (Examination Officer, Librarian)', ['EXAM_OFFICER', 'LIBRARIAN'].every(id => rolesNow.some(r => r.id === id)));
-        check('Accountant is presented as Finance Officer', /Finance Officer/.test((rolesNow.find(r => r.id === 'ACCOUNTANT') || {}).name || ''));
+        check('Admin, Teacher and Student always exist as system roles', ['ACADEMIC_ADMIN', 'TEACHER', 'STUDENT'].every(id => rolesNow.some(r => r.id === id && r.isSystem)));
 
         // Teacher who is also Librarian: library powers institution-wide, teaching powers still only for own classes
-        const giveLib = await sync('superAdmin', { users: [{ ...(await stored('users', ids.t1)), additionalRoles: ['LIBRARIAN'] }] });
+        const giveLib = await sync('superAdmin', { users: [{ ...(await stored('users', ids.t1)), additionalRoles: [roleIds.librarian] }] });
         check('Super Admin can give an additional role', accepted(giveLib, 'users', ids.t1), JSON.stringify(giveLib.body));
         const meT1 = await me('t1');
-        check('/api/me lists both roles and keeps teaching scope for exams', meT1.roles.map(r => r.id).join() === 'TEACHER,LIBRARIAN'
+        check('/api/me lists both roles and keeps teaching scope for exams', meT1.roles.map(r => r.id).join() === `TEACHER,${roleIds.librarian}`
             && meT1.scopes['library.loans.issue'] === 'ALL' && meT1.scopes['exams.mark'] === 'TEACHING' && meT1.scope === 'TEACHING');
         const bookId = `${P}book`;
         check('Additional role adds its powers (teacher-librarian adds a book)', accepted(await sync('t1', { libraryBooks: [{ id: bookId, title: 'Sectest kitab' }] }), 'libraryBooks', bookId));
@@ -419,7 +444,7 @@ async function run() {
         check('Teacher-librarian sees everyone\'s loans', has(t1Pull2.libraryLoans, ids.loanS2));
         check('Additional role does not widen teaching powers', rejected(await sync('t1', { exams: [{ ...(await stored('exams', ids.examB)), title: 'Still not mine' }] }), 'exams', ids.examB));
         const saPull = (await request('GET', '/api/store', { cookie: sess.superAdmin })).body.collections || {};
-        check('Additional roles come from the server in user records', (saPull.users || []).some(u => u.id === ids.t1 && (u.additionalRoles || []).includes('LIBRARIAN')));
+        check('Additional roles come from the server in user records', (saPull.users || []).some(u => u.id === ids.t1 && (u.additionalRoles || []).includes(roleIds.librarian)));
         check('Additional roles cannot be given through one\'s own profile', rejected(await sync('s1', { users: [{ ...(await stored('users', ids.s1)), additionalRoles: ['ACADEMIC_ADMIN'] }] }), 'users', ids.s1)
             || !((await me('s1')).roles || []).some(r => r.id === 'ACADEMIC_ADMIN'));
 
@@ -431,13 +456,13 @@ async function run() {
         await api('superAdmin', 'POST', '/api/roles', { id: `${R}NOTHING`, name: 'Sectest no permissions', scope: 'ALL', permissions: [] });
         sess.mgr = (await login(`${ids.mgr}@test.local`, passwords[ids.mgr])).cookie;
         sess.clerk = (await login(`${ids.clerk}@test.local`, passwords[ids.clerk])).cookie;
-        const strongerRole = await sync('mgr', { users: [{ ...(await stored('users', ids.clerk)), role: 'ACCOUNTANT' }] });
+        const strongerRole = await sync('mgr', { users: [{ ...(await stored('users', ids.clerk)), role: roleIds.finance }] });
         check('Nobody can give a role stronger than their own', rejected(strongerRole, 'users', ids.clerk) && /cannot/.test((strongerRole.body.errors.users || {})[ids.clerk] || ''));
         const resetAdmin = await sync('mgr', { users: [{ ...(await stored('users', ids.admin)), password: 'Temporary-123' }] });
         check('Nobody can reset the password of someone more powerful', rejected(resetAdmin, 'users', ids.admin));
         const resetClerk = await sync('mgr', { users: [{ ...(await stored('users', ids.clerk)), password: auth.temporaryPassword(10) }] });
         check('A weaker person\'s password can be reset', accepted(resetClerk, 'users', ids.clerk), JSON.stringify(resetClerk.body));
-        const reshapeAdmin = await api('mgr', 'PUT', '/api/roles/ACADEMIC_ADMIN', { version: versionOf('ACADEMIC_ADMIN'), remove: ['roles.view'] });
+        const reshapeAdmin = await api('mgr', 'PUT', `/api/roles/${roleIds.admin}`, { version: versionOf(roleIds.admin), remove: ['roles.view'] });
         check('A role cannot be edited by someone it outranks', reshapeAdmin.status === 403);
         const liteRole = `${R}LITE`;
         await api('superAdmin', 'POST', '/api/roles', { id: liteRole, name: 'Sectest directory reader', scope: 'ALL', permissions: ['users.view'] });
@@ -452,14 +477,14 @@ async function run() {
         const grant = await api('superAdmin', 'POST', '/api/super-admins', { userId: ids.deputy, password: passwords[ids.superAdmin] });
         sess.deputy = (await login(`${ids.deputy}@test.local`, passwords[ids.deputy])).cookie;
         check('Super Admin can be granted', grant.status === 200 && (await me('deputy')).isSuperAdmin === true, JSON.stringify(grant.body));
-        const revoke = await api('deputy', 'POST', '/api/super-admins/revoke', { userId: ids.superAdmin, newRole: 'ACADEMIC_ADMIN', password: passwords[ids.deputy] });
-        check('Super Admin can be removed by another Super Admin', revoke.status === 200 && (await stored('users', ids.superAdmin)).role === 'ACADEMIC_ADMIN');
+        const revoke = await api('deputy', 'POST', '/api/super-admins/revoke', { userId: ids.superAdmin, newRole: roleIds.admin, password: passwords[ids.deputy] });
+        check('Super Admin can be removed by another Super Admin', revoke.status === 200 && (await stored('users', ids.superAdmin)).role === roleIds.admin);
         // Temporarily hide any other Super Admins so the deputy is the last one, then restore them
         const [otherAdmins] = await db.query(`SELECT * FROM super_admins WHERE user_id <> ?`, [ids.deputy]);
         try {
             await db.query(`DELETE FROM super_admins WHERE user_id <> ?`, [ids.deputy]);
             await require('./server/roles').load();
-            const last = await api('deputy', 'POST', '/api/super-admins/revoke', { userId: ids.deputy, newRole: 'ACADEMIC_ADMIN', password: passwords[ids.deputy] });
+            const last = await api('deputy', 'POST', '/api/super-admins/revoke', { userId: ids.deputy, newRole: roleIds.admin, password: passwords[ids.deputy] });
             check('The last Super Admin cannot be removed', last.status === 409);
         } finally {
             for (const row of otherAdmins) {
@@ -485,6 +510,47 @@ async function run() {
         const log3 = (await api('deputy', 'GET', '/api/audit?limit=200')).body.entries || [];
         check('Audit log records Super Admin grants, removals and previews',
             ['superadmin.grant', 'superadmin.revoke', 'preview.start', 'preview.end', 'user.roles_change'].every(a => log3.some(e => e.action === a)));
+
+        // --- Three-role model: Super Admin controls everything, Admin only what it was given ---
+        const stuId = `${P}saStudent`;
+        const teaId = `${P}saTeacher`;
+        const clsId = `${P}saClass`;
+        const crsId = `${P}saCourse`;
+        const saCreate = await sync('superAdmin', {
+            users: [{ id: stuId, role: 'STUDENT', name: 'Sectest SA student', email: `${stuId}@test.local`, classId: ids.classA },
+                { id: teaId, role: 'TEACHER', name: 'Sectest SA teacher', email: `${teaId}@test.local` }],
+            classes: [{ id: clsId, name: 'Sectest SA class', courseTeachers: [] }],
+            courses: [{ id: crsId, title: 'Sectest SA kitab', code: `${R}K1` }]
+        });
+        check('Super Admin can create students, teachers, classes and courses',
+            ['users:' + stuId, 'users:' + teaId, 'classes:' + clsId, 'courses:' + crsId].every(k => { const [c, id] = k.split(':'); return accepted(saCreate, c, id); }), JSON.stringify(saCreate.body));
+        const saEdit = await sync('superAdmin', {
+            users: [{ ...(await stored('users', stuId)), name: 'Sectest SA student (edited)' }],
+            classes: [{ ...(await stored('classes', clsId)), name: 'Sectest SA class (edited)' }],
+            courses: [{ ...(await stored('courses', crsId)), title: 'Sectest SA kitab (edited)' }]
+        });
+        check('Super Admin can edit students, classes and courses', accepted(saEdit, 'users', stuId) && accepted(saEdit, 'classes', clsId) && accepted(saEdit, 'courses', crsId), JSON.stringify(saEdit.body));
+        const saDecide = await request('PUT', `/api/admissions/${ids.admission}`, { cookie: sess.superAdmin, body: { status: 'APPROVED' } });
+        check('Super Admin can decide admission applications', saDecide.status === 200, `(got ${saDecide.status})`);
+
+        const adminDelStudent = await sync('admin', {}, { users: [stuId] });
+        check('Admin cannot delete a student through the API', rejected(adminDelStudent, 'users', stuId) && !!(await stored('users', stuId)) && !(await stored('users', stuId))._deleted);
+        const adminDelTeacher = await sync('admin', {}, { users: [teaId] });
+        check('Admin cannot delete a teacher through the API', rejected(adminDelTeacher, 'users', teaId) && !(await stored('users', teaId))._deleted);
+        const adminStaff = `${P}byAdmin`;
+        check('Admin cannot create staff (Admin) accounts', rejected(await sync('admin', { users: [{ id: adminStaff, role: roleIds.admin, name: 'X', email: `${adminStaff}@test.local` }] }), 'users', adminStaff));
+        const adminWork = await sync('admin', {
+            users: [{ ...(await stored('users', stuId)), name: 'Sectest SA student (edited by Admin)' }],
+            classes: [{ ...(await stored('classes', clsId)), room: 'Hall 2' }]
+        });
+        check('Admin can still edit students and classes it is allowed to', accepted(adminWork, 'users', stuId) && accepted(adminWork, 'classes', clsId), JSON.stringify(adminWork.body));
+        check('Admin cannot purge recordings', (await api('admin', 'POST', '/api/virtual-class/cleanup', {})).status === 403);
+        const adminDonations = (await request('GET', '/api/store', { cookie: sess.admin })).body.collections || {};
+        check('Admin does not see who gave anonymous donations', (adminDonations.donations || []).some(d => d.id === ids.donation && d.donorName === 'Anonymous'));
+
+        const saDelete = await sync('superAdmin', {}, { users: [stuId, teaId], classes: [clsId], courses: [crsId] });
+        check('Super Admin can delete students, teachers, classes and courses',
+            accepted(saDelete, 'users', stuId) && accepted(saDelete, 'users', teaId) && accepted(saDelete, 'classes', clsId) && accepted(saDelete, 'courses', crsId), JSON.stringify(saDelete.body));
 
         // --- Password reset, forced change, session revocation -----------------------------
         const tempPwd = auth.temporaryPassword(10);
@@ -526,6 +592,20 @@ async function run() {
     } finally {
         await cleanup(settingsBackup);
     }
+
+    // How the live roles differ from the approved code defaults (configuration, not a test failure)
+    try {
+        const [rows] = await db.query(`SELECT role_id, permission FROM role_permissions WHERE role_id IN ('ACADEMIC_ADMIN', 'TEACHER', 'STUDENT')`);
+        for (const roleId of ['ACADEMIC_ADMIN', 'TEACHER', 'STUDENT']) {
+            const live = new Set(rows.filter(r => r.role_id === roleId).map(r => r.permission));
+            const approved = new Set(catalog.DEFAULT_PERMISSIONS[roleId]);
+            const extra = [...live].filter(k => !approved.has(k));
+            const lacking = [...approved].filter(k => !live.has(k));
+            console.log(extra.length || lacking.length
+                ? `[CONFIG] Live ${roleId} differs from the approved defaults: +${extra.length} (${extra.join(', ') || '-'}) / -${lacking.length} (${lacking.join(', ') || '-'})`
+                : `[CONFIG] Live ${roleId} matches the approved defaults`);
+        }
+    } catch (e) { /* the report is information only */ }
 
     console.log(`\n${passed} passed, ${failed} failed. Test data removed.`);
     process.exit(failed ? 1 : 0);

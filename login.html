@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Language (English / Urdu / Arabic): sets <html lang dir> and loads the catalog before the page renders -->
+    <script src="js/i18n.js?v=1.0"></script>
     <meta name="description" content="Jamia Ashrafia Lahore - Cloud Learning Management System Login Portal">
     <title>Login - Jamia Ashrafia Lahore LMS</title>
     
@@ -12,14 +15,15 @@
     <!-- Google Fonts: Amiri, Scheherazade, Outfit, Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Scheherazade+New:wght@400;600;700&family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 
     <!-- Core CSS -->
-    <link rel="stylesheet" href="css/main.css?v=3.0">
-    <link rel="stylesheet" href="css/components.css?v=3.0">
+    <link rel="stylesheet" href="css/main.css?v=4.1">
+    <link rel="stylesheet" href="css/components.css?v=5.2">
+    <link rel="stylesheet" href="css/i18n.css?v=1.0">
 
     <!-- Check existing session -->
     <script>
@@ -31,7 +35,8 @@
         body {
             min-height: 100vh;
             display: flex;
-            align-items: center;
+            /* Centred with auto margins (below) so a card taller than the screen scrolls instead of losing its top */
+            align-items: flex-start;
             justify-content: center;
             background: linear-gradient(135deg, rgba(244, 248, 250, 0.94) 0%, rgba(225, 241, 244, 0.96) 100%),
                         url('assets/images/campus.jpg') center/cover no-repeat fixed;
@@ -41,6 +46,7 @@
         .login-wrapper {
             width: 100%;
             max-width: 480px;
+            margin: auto 0;
             background: #ffffff;
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-subtle);
@@ -76,12 +82,12 @@
             letter-spacing: -0.01em;
         }
 
-        .login-title-urdu {
-            font-family: 'Amiri', serif;
-            font-size: 1.35rem;
-            color: var(--gold-600);
-            font-weight: 700;
-            margin-top: 2px;
+        /* Language menu in the card's top corner (top-right in English, top-left in Urdu and Arabic) */
+        .login-lang-bar {
+            display: flex;
+            justify-content: flex-end;
+            margin: -18px 0 6px;
+            margin-inline-end: -12px;
         }
 
         .login-motto {
@@ -111,7 +117,7 @@
         #eadmission-modal-backdrop {
             position: fixed;
             top: 0;
-            left: 0;
+            inset-inline-start: 0;
             width: 100%;
             height: 100%;
             background: rgba(15, 34, 41, 0.65);
@@ -223,16 +229,31 @@
 
         .form-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 14px;
+        }
+
+        /* Long option text (program / campus names) must not widen the grid past the modal */
+        .form-grid .form-group {
+            min-width: 0;
+        }
+
+        .form-grid select.form-control {
+            width: 100%;
+            min-width: 0;
+            text-overflow: ellipsis;
         }
 
         @media (max-width: 600px) {
             .form-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr);
             }
             .login-wrapper {
                 padding: 28px 20px;
+            }
+            .login-lang-bar {
+                margin-top: -12px;
+                margin-inline-end: -6px;
             }
         }
 
@@ -250,12 +271,16 @@
 <body>
 
     <div class="login-wrapper">
+        <!-- LANGUAGE MENU (English / اردو / العربية), built by js/i18n.js -->
+        <div class="login-lang-bar">
+            <div data-language-switcher></div>
+        </div>
+
         <!-- CREST & BRAND -->
         <div class="login-crest-box">
             <img src="assets/images/logo.png?v=3.0" alt="Jamia Ashrafia Logo" class="login-crest-img">
             <h1 class="login-title-eng">JAMIA ASHRAFIA LAHORE</h1>
-            <div class="login-title-urdu">جامعہ اشرفیہ، لاہور - پورٹل ورود</div>
-            <div class="login-motto">Knowledge & Piety (علم اور تقویٰ) • Est. 1947</div>
+            <div class="login-motto">Knowledge & Piety • Est. 1947</div>
             <div class="login-portal-badge">
                 <i class="fas fa-shield-alt"></i> Unified Cloud LMS Authentication
             </div>
@@ -281,7 +306,7 @@
                 </label>
                 <input type="text" id="login-identifier" class="form-control" placeholder="Roll No, Email, Teacher ID, or Admin Username" required autofocus style="padding: 12px 14px; font-size: 0.95rem;">
                 <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
-                    Enter your Scholar Roll No (e.g. <code>ASH-2024-001</code>), Faculty Email, or Admin ID
+                    Enter your Scholar Roll No (e.g. ASH-2024-001), Faculty Email, or Admin ID
                 </div>
             </div>
 
@@ -294,8 +319,8 @@
                     <a href="javascript:void(0)" onclick="alert('For credential recovery, please contact Nazim-e-Taleemat Office at Jamia Ashrafia Ferozepur Road campus.')" style="font-size: 0.75rem; color: var(--primary-700); text-decoration: none; font-weight: 600;">Forgot Password?</a>
                 </div>
                 <div style="position: relative;">
-                    <input type="password" id="login-password" class="form-control" placeholder="Enter your account password" required style="padding: 12px 42px 12px 14px; font-size: 0.95rem;">
-                    <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;" aria-label="Toggle password visibility">
+                    <input type="password" id="login-password" class="form-control" placeholder="Enter your account password" required style="width: 100%; padding-block: 12px; padding-inline: 14px 42px; font-size: 0.95rem;">
+                    <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; inset-inline-end: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;" aria-label="Toggle password visibility">
                         <i class="fas fa-eye" id="eye-icon"></i>
                     </button>
                 </div>
@@ -399,7 +424,7 @@
                             <!-- STUDENT TYPE SELECTION -->
                             <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 4px;">
                                 <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span><i class="fas fa-user-tag" style="color: var(--primary-600); margin-right: 6px;"></i> Student Type / طالب علم کی قسم *</span>
+                                    <span><i class="fas fa-user-tag" style="color: var(--primary-600); margin-inline-end: 6px;"></i> Student Type *</span>
                                     <span style="font-size: 0.72rem; color: var(--primary-700);">Select applicant category</span>
                                 </label>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -454,7 +479,7 @@
                             <!-- INTERNATIONAL: CURRENT COUNTRY / RESIDENCE FIELD -->
                             <div class="form-group" id="eadm-country-group" style="display: none;">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <span><i class="fas fa-globe" style="color: var(--primary-600); margin-right: 4px;"></i> Current Country / Country of Residence *</span>
+                                    <span><i class="fas fa-globe" style="color: var(--primary-600); margin-inline-end: 4px;"></i> Current Country / Country of Residence *</span>
                                     <span style="font-size: 0.72rem; color: var(--primary-700);">Searchable</span>
                                 </label>
                                 <input type="text" id="eadm-country" list="eadm-country-datalist" class="form-control" placeholder="Search or select country..." autocomplete="off">
@@ -494,7 +519,7 @@
                             <div class="form-group" style="justify-content: center; display: flex; align-items: center;">
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 15px;">
                                     <input type="checkbox" id="eadm-hafiz" checked style="width: 18px; height: 18px; accent-color: var(--primary-500);">
-                                    <strong style="color: var(--gold-700); font-size: 0.85rem;">Is the Candidate Hafiz-ul-Quran? (حافظ قرآن)</strong>
+                                    <strong style="color: var(--gold-700); font-size: 0.85rem;">Is the Candidate Hafiz-ul-Quran?</strong>
                                 </label>
                             </div>
                         </div>
@@ -527,7 +552,7 @@
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px; background: var(--bg-surface-elevated); border-radius: 6px; border: 1px solid var(--border-subtle);">
                                     <input type="checkbox" id="eadm-hostel" checked style="width: 18px; height: 18px; accent-color: var(--primary-500);">
                                     <div>
-                                        <strong style="color: var(--text-primary); font-size: 0.85rem;">Boarding / Hostel Accommodation Required (رہائش و طعام)</strong>
+                                        <strong style="color: var(--text-primary); font-size: 0.85rem;">Boarding / Hostel Accommodation Required</strong>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">Subject to interview committee clearance and hostel room availability</div>
                                     </div>
                                 </label>
@@ -659,10 +684,12 @@
                 const res = await fetch('/api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifier: idVal, password: pwdVal })
+                    // A language picked on this device is saved on the account; otherwise the account's own applies
+                    body: JSON.stringify({ identifier: idVal, password: pwdVal, language: I18n.explicit ? I18n.lang : undefined })
                 });
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.success && data.user) {
+                    if (data.language) I18n.remember(data.language);
                     if (data.mustChangePassword) {
                         showChangePassword(data.user, pwdVal);
                     } else {
@@ -758,7 +785,7 @@
             localStorage.removeItem('JAMIA_AUTH_TOKEN');
             localStorage.setItem('JAMIA_CURRENT_USER_ID', user.id);
 
-            showToast(`Welcome! Signing in to ${roleTitleOf(user.role)} Dashboard...`, 'success');
+            showToast(I18n.t('Welcome! Signing in to {role} Dashboard...', { role: I18n.translateText(roleTitleOf(user.role)) }), 'success');
             setTimeout(() => {
                 window.location.href = 'index.html#dashboard';
             }, 600);
@@ -936,9 +963,9 @@
                 return;
             }
             const st = admissionWindow;
-            const fmt = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+            const fmt = d => d ? I18n.formatDate(d + 'T00:00:00') : '';
             if (st.isAcceptingApplications) {
-                line.innerHTML = `<span class="status-pill success" style="font-weight: 700;"><i class="fas fa-door-open"></i> Admissions Open — ${escapeHtml(st.session)}</span>
+                line.innerHTML = `<span class="status-pill success" style="font-weight: 700;"><i class="fas fa-door-open"></i> ${I18n.t('Admissions Open — {x}', { x: `<bdi>${escapeHtml(st.session)}</bdi>` })}</span>
                     <div style="margin-top: 6px;">${escapeHtml(st.message || '')}</div>
                     <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">Last date: <strong>${fmt(st.deadline)}</strong> • Registration fee: <strong>PKR ${Number(st.registrationFee || 0).toLocaleString()}</strong></div>`;
                 if (applyBtn) applyBtn.disabled = false;
@@ -972,7 +999,7 @@
             if (feeNote) {
                 const fee = admissionWindow ? Number(admissionWindow.registrationFee || 0) : 0;
                 feeNote.innerHTML = fee > 0
-                    ? `<i class="fas fa-money-check-alt"></i> <strong>Registration fee: PKR ${fee.toLocaleString()}</strong>. After submitting you will receive an Application No. Deposit the fee at Meezan Bank / HBL (A/C 0142-7901452203, Jamia Ashrafia Lahore) quoting your Application No, and bring the receipt to your interview.`
+                    ? `<i class="fas fa-money-check-alt"></i> <strong>Registration fee: PKR ${fee.toLocaleString()}</strong>. <span>After submitting you will receive an Application No. Deposit the fee at Meezan Bank / HBL (A/C 0142-7901452203, Jamia Ashrafia Lahore) quoting your Application No, and bring the receipt to your interview.</span>`
                     : '<i class="fas fa-info-circle"></i> No registration fee is charged for this session.';
             }
             populateEadmCountries();
@@ -1211,7 +1238,7 @@
                         Your admission request has been recorded into the Jamia Ashrafia LMS admissions registry.
                     </p>
 
-                    <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 18px; max-width: 460px; margin: 0 auto; text-align: left; line-height: 2; font-size: 0.85rem; color: var(--text-primary);">
+                    <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 18px; max-width: 460px; margin: 0 auto; text-align: start; line-height: 2; font-size: 0.85rem; color: var(--text-primary);">
                         <div><strong>Candidate Name:</strong> ${record.name}</div>
                         <div><strong>Father's Name:</strong> ${record.fatherName}</div>
                         <div><strong>Student Category:</strong> ${record.studentType === 'INTERNATIONAL' ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
@@ -1225,10 +1252,13 @@
                         <div><strong>Status:</strong> <span class="status-pill primary"><i class="fas fa-inbox"></i> Applied (Pending Review)</span></div>
                     </div>
 
-                    <div style="margin-top: 18px; font-size: 0.8rem; color: var(--gold-800); background: var(--gold-50); border: 1px solid var(--gold-200); border-radius: 6px; padding: 10px 14px; max-width: 460px; margin-left: auto; margin-right: auto;">
-                        <i class="fas fa-info-circle"></i> Please save your <strong>Application Tracking No</strong>. The Nazim-e-Taleemat committee will verify your credentials and schedule your academic interview.
-                        ${admissionWindow && Number(admissionWindow.registrationFee) > 0 ? `<br><br><i class="fas fa-money-check-alt"></i> Deposit the <strong>registration fee of PKR ${Number(admissionWindow.registrationFee).toLocaleString()}</strong> at Meezan Bank / HBL (A/C 0142-7901452203) quoting <strong>${escapeHtml(record.applicationNo)}</strong>.` : ''}
-                        <br><br>Check your status any time with <strong>"Track Application"</strong> on the login page.
+                    <div style="margin-top: 18px; font-size: 0.8rem; color: var(--gold-800); background: var(--gold-50); border: 1px solid var(--gold-200); border-radius: 6px; padding: 10px 14px; max-width: 460px; margin-inline-start: auto; margin-inline-end: auto;">
+                        <i class="fas fa-info-circle"></i> ${I18n.t('Please save your {no}. The Nazim-e-Taleemat committee will verify your credentials and schedule your academic interview.', { no: `<strong>${I18n.t('Application Tracking No')}</strong>` })}
+                        ${admissionWindow && Number(admissionWindow.registrationFee) > 0 ? `<br><br><i class="fas fa-money-check-alt"></i> ${I18n.t('Deposit the registration fee of {fee} at Meezan Bank / HBL (A/C 0142-7901452203) quoting {no}.', {
+                            fee: `<strong>${I18n.translateText('PKR ' + Number(admissionWindow.registrationFee).toLocaleString())}</strong>`,
+                            no: `<strong>${escapeHtml(record.applicationNo)}</strong>`
+                        })}` : ''}
+                        <br><br>${I18n.t('Check your status any time with {link} on the login page.', { link: `<strong>"${I18n.t('Track Application')}"</strong>` })}
                     </div>
                 </div>
             `;
@@ -1295,8 +1325,8 @@
                         <div><strong>${escapeHtml(a.name)}</strong> • ${escapeHtml(a.applicationNo)}</div>
                         <div>Applied: ${escapeHtml(a.appliedAt)}</div>
                         <div><span class="status-pill ${pill}">${escapeHtml(text)}</span></div>
-                        ${a.interviewDate && a.status === 'INTERVIEW_SCHEDULED' ? `<div><i class="fas fa-calendar-alt"></i> Interview: <strong>${escapeHtml(a.interviewDate)}</strong> at Jamia Ashrafia, Ferozepur Road</div>` : ''}
-                        ${a.allottedRollNo ? `<div>Allotted Roll No: <strong>${escapeHtml(a.allottedRollNo)}</strong>${a.status === 'ENROLLED' ? ' — sign in with your roll number and the password given by the Academic Office.' : ''}</div>` : ''}
+                        ${a.interviewDate && a.status === 'INTERVIEW_SCHEDULED' ? `<div><i class="fas fa-calendar-alt"></i> ${I18n.t('Interview: {date} at Jamia Ashrafia, Ferozepur Road', { date: `<strong>${escapeHtml(a.interviewDate)}</strong>` })}</div>` : ''}
+                        ${a.allottedRollNo ? `<div>Allotted Roll No: <strong>${escapeHtml(a.allottedRollNo)}</strong>${a.status === 'ENROLLED' ? ` — ${I18n.t('sign in with your roll number and the password given by the Academic Office.')}` : ''}</div>` : ''}
                     </div>`;
             } catch (e) {
                 out.innerHTML = '<div style="color: var(--danger);">Could not reach the server. Please try again.</div>';

@@ -220,9 +220,9 @@ const VirtualClassModule = {
                     <strong style="color: #991b1b;">Institutional Security & Class Access Enforcement Active:</strong>
                     <span>
                         ${isStudent ? `
-                            You are signed in as <strong>${Lms.esc(currentUser.name)}</strong> (Class: <em>${Lms.esc(studentEnrolledClass ? Lms.className(studentEnrolledClass) : 'not enrolled')}</em>). Only your own class's live sessions can be joined.
+                            ${I18n.t("You are signed in as {name} (Class: {cls}). Only your own class's live sessions can be joined.", { name: `<strong>${Lms.esc(currentUser.name)}</strong>`, cls: `<em>${Lms.esc(studentEnrolledClass ? Lms.className(studentEnrolledClass) : I18n.t('not enrolled'))}</em>` })}
                         ` : isTeacher ? `
-                            You are instructing as <strong>${Lms.esc(currentUser.name)}</strong>. You possess host moderation authority over your designated Dars-e-Nizami sections.
+                            ${I18n.t('You are instructing as {name}. You possess host moderation authority over your designated Dars-e-Nizami sections.', { name: `<strong>${Lms.esc(currentUser.name)}</strong>` })}
                         ` : `
                             Super Admin Global Oversight active. Full supervisory authority, moderation override, and storage retention privileges enabled.
                         `}
@@ -252,8 +252,8 @@ const VirtualClassModule = {
                         <input type="text" placeholder="Search class, course or Sheikh..." value="${this.lobbySearch}" 
                                oninput="VirtualClassModule.handleLobbySearch(this.value)"
                                class="form-control"
-                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px 7px 32px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 270px;">
-                        <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
+                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding-block: 7px; padding-inline: 32px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 270px;">
+                        <i class="fas fa-search" style="position: absolute; inset-inline-start: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </div>
                 </div>
             </div>
@@ -309,8 +309,7 @@ const VirtualClassModule = {
                 </div>
 
                 <div class="vc-card-body">
-                    <div class="vc-class-title">${Lms.esc(session.title)}</div>
-                    <div class="vc-class-urdu">${Lms.esc(session.urduTitle || '')}</div>
+                    <div class="vc-class-title">${Lms.esc(Lms.localName(session.title, session.urduTitle, true))}</div>
 
                     <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
                         <div class="vc-meta-item">
@@ -520,7 +519,7 @@ const VirtualClassModule = {
                     <div class="vc-access-denied-icon"><i class="fas fa-shield-virus"></i></div>
                     <h2 style="color: #ef4444; margin-bottom: 8px;">Access Restricted</h2>
                     <p style="max-width: 600px; color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px; line-height: 1.6;">${Lms.esc(this.accessBlockedReason)}</p>
-                    <div style="background: rgba(0,0,0,0.05); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px 20px; margin-bottom: 24px; text-align: left; font-size: 0.85rem;">
+                    <div style="background: rgba(0,0,0,0.05); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px 20px; margin-bottom: 24px; text-align: start; font-size: 0.85rem;">
                         <div><strong>Session:</strong> ${Lms.esc(session.title)}</div>
                         <div><strong>For class:</strong> ${Lms.esc(session.className || Lms.className(session.classId))}</div>
                         <div><strong>Your class:</strong> ${Lms.esc(currentUser.classId ? Lms.className(currentUser.classId) : 'Not enrolled')}</div>
@@ -564,7 +563,9 @@ const VirtualClassModule = {
                 <div class="card" style="text-align: center; padding: 40px 20px;">
                     <i class="fas fa-external-link-alt" style="font-size: 2.4rem; color: var(--primary-600);"></i>
                     <h3 style="margin: 12px 0 6px;">This class runs on ${Lms.esc(this.platformName(session.externalUrl))}</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Your attendance has been recorded. Open the meeting in a new tab${session.passcode ? ` and use passcode <code>${Lms.esc(session.passcode)}</code> if asked` : ''}.</p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">${session.passcode
+                        ? I18n.t('Your attendance has been recorded. Open the meeting in a new tab and use passcode {code} if asked.', { code: `<code>${Lms.esc(session.passcode)}</code>` })
+                        : I18n.t('Your attendance has been recorded. Open the meeting in a new tab.')}</p>
                     <a class="btn btn-primary" href="${Lms.esc(session.externalUrl)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-video"></i> Open Meeting</a>
                 </div>` : !this.canEmbed() ? '' : `
                 <div id="jitsi-container" style="width: 100%; height: 72vh; min-height: 460px; background: #0b1114; border-radius: var(--radius-md); overflow: hidden; display: flex; align-items: center; justify-content: center; color: #cbd5e1;">
@@ -649,8 +650,8 @@ const VirtualClassModule = {
                         <input type="text" placeholder="Search lectures, teachers, topics..." value="${this.recordingSearch}" 
                                oninput="VirtualClassModule.handleRecordingSearch(this.value)"
                                class="form-control"
-                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px 7px 32px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 280px;">
-                        <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
+                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding-block: 7px; padding-inline: 32px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 280px;">
+                        <i class="fas fa-search" style="position: absolute; inset-inline-start: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </div>
 
                     ${!isStudent ? `
@@ -667,7 +668,7 @@ const VirtualClassModule = {
                 </div>
 
                 <div style="font-size: 0.85rem; color: var(--text-muted);">
-                    Showing <strong>${filtered.length}</strong> recorded lecture${filtered.length === 1 ? '' : 's'}
+                    ${I18n.t('Showing {n} recorded lecture(s)', { n: `<strong>${filtered.length}</strong>` })}
                 </div>
             </div>
 
@@ -687,14 +688,11 @@ const VirtualClassModule = {
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-                                    <h4 style="color: var(--primary-950); margin: 0; font-size: 1.05rem; font-weight: 700;">${Lms.esc(rec.title)}</h4>
+                                    <h4 style="color: var(--primary-950); margin: 0; font-size: 1.05rem; font-weight: 700;">${Lms.esc(Lms.localName(rec.title, rec.urduTitle, true))}</h4>
                                     <span class="status-pill neutral" style="font-size: 0.72rem;">${Lms.esc(rec.className)}</span>
                                     <span class="vc-retention-pill ${rec.daysRemaining < 15 ? 'warning' : ''}">
                                         <i class="fas fa-hourglass-half"></i> ${Lms.esc(rec.daysRemaining)} days remaining in vault
                                     </span>
-                                </div>
-                                <div style="font-family: 'Amiri', serif; color: var(--gold-700); font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
-                                    ${Lms.esc(rec.urduTitle || '')}
                                 </div>
                                 <div style="display: flex; gap: 16px; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap;">
                                     <span><i class="fas fa-user-tie" style="color: var(--primary-400);"></i> ${Lms.esc(rec.teacherName)}</span>
@@ -836,7 +834,7 @@ const VirtualClassModule = {
                                     <span class="status-pill ${att.role === 'TEACHER' ? 'gold' : 'neutral'}" style="font-size: 0.72rem;">
                                         ${Lms.esc(att.role)}
                                     </span>
-                                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 4px;">
+                                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-inline-start: 4px;">
                                         ${Lms.esc(att.identifier || '')}
                                     </span>
                                 </td>
@@ -857,7 +855,7 @@ const VirtualClassModule = {
                                 </td>
                                 <td>
                                     <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-700);">
-                                        <i class="fas fa-video" style="color: var(--primary-600); margin-right: 4px;"></i> WebRTC Studio
+                                        <i class="fas fa-video" style="color: var(--primary-600); margin-inline-end: 4px;"></i> WebRTC Studio
                                     </span>
                                 </td>
                             </tr>
@@ -933,7 +931,7 @@ const VirtualClassModule = {
                             Active Storage Provider: <strong>${settings.cloudProvider}</strong>
                         </div>
                     </div>
-                    <div style="text-align: right;">
+                    <div style="text-align: end;">
                         <div style="font-size: 1.45rem; font-weight: 800; color: var(--primary-950);">${settings.usedStorageGB} GB / ${settings.storageQuotaGB} GB</div>
                         <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary-700);">${pctUsed}% Utilized</div>
                     </div>
@@ -977,7 +975,7 @@ const VirtualClassModule = {
                                 <input type="checkbox" id="retention-auto-record" ${settings.autoRecord ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: var(--primary-500);">
                                 <span style="font-weight: 600;">Automatically Record All Virtual Classes on Host Join</span>
                             </label>
-                            <small style="color: var(--text-muted); display: block; margin-left: 28px;">
+                            <small style="color: var(--text-muted); display: block; margin-inline-start: 28px;">
                                 Ensures that no sacred Hadith discourse or Fiqh seminar is lost due to teacher omission.
                             </small>
                         </div>
@@ -987,7 +985,7 @@ const VirtualClassModule = {
                                 <input type="checkbox" id="retention-allow-download" ${settings.allowStudentDownload ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: var(--primary-500);">
                                 <span style="font-weight: 600;">Allow Direct MP4 Downloads for Students</span>
                             </label>
-                            <small style="color: var(--text-muted); display: block; margin-left: 28px;">
+                            <small style="color: var(--text-muted); display: block; margin-inline-start: 28px;">
                                 When disabled, students can only stream in-browser; faculty and admins maintain download permissions.
                             </small>
                         </div>
@@ -1012,8 +1010,7 @@ const VirtualClassModule = {
                     </div>
                     <div class="card-body">
                         <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6; margin-bottom: 14px;">
-                            The free public <strong>meet.jit.si</strong> service ends embedded calls after 5 minutes, so classes on it open in a new tab (no time limit).
-                            If you run your own Jitsi server or an 8x8 JaaS account, enter its domain and tick "embed" to show classes inside the portal.
+                            ${I18n.t('The free public {service} service ends embedded calls after 5 minutes, so classes on it open in a new tab (no time limit). If you run your own Jitsi server or an 8x8 JaaS account, enter its domain and tick "embed" to show classes inside the portal.', { service: '<strong>meet.jit.si</strong>' })}
                         </p>
                         <div class="form-group" style="margin-bottom: 12px;">
                             <label>Jitsi server domain</label>
@@ -1034,12 +1031,12 @@ const VirtualClassModule = {
                     </div>
                     <div class="card-body">
                         <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; margin-bottom: 16px;">
-                            Run an immediate storage audit across the <strong>${recordings.length}</strong> recorded lectures. Any recordings exceeding the <strong>${settings.retentionDays}-day retention threshold</strong> will be permanently pruned from cloud buckets and database records updated.
+                            ${I18n.t('Run an immediate storage audit across the {count} recorded lectures. Any recordings exceeding the {days}-day retention threshold will be permanently pruned from cloud buckets and database records updated.', { count: `<strong>${recordings.length}</strong>`, days: `<strong>${settings.retentionDays}</strong>` })}
                         </p>
                         <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); padding: 14px; border-radius: 8px; margin-bottom: 20px;">
                             <div style="font-weight: 600; color: #f87171; margin-bottom: 4px;">Important Preservation Note:</div>
                             <div style="font-size: 0.8rem; color: #fca5a5;">
-                                Master lectures flagged with <em>Auto-Delete Protection</em> (such as Takhassus Fiqh Seminar) are permanently exempted from automated deletion cycles.
+                                ${I18n.t('Master lectures flagged with {flag} (such as Takhassus Fiqh Seminar) are permanently exempted from automated deletion cycles.', { flag: `<em>${I18n.t('Auto-Delete Protection')}</em>` })}
                             </div>
                         </div>
 
@@ -1256,9 +1253,8 @@ const VirtualClassModule = {
                     <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.08);">
                         <div class="modal-title-group">
                             <h3 style="color: #ffffff; margin: 0; font-size: 1.1rem;">
-                                <i class="fas fa-play-circle" style="color: var(--primary-500);"></i> ${Lms.esc(recording.title)}
+                                <i class="fas fa-play-circle" style="color: var(--primary-500);"></i> ${Lms.esc(Lms.localName(recording.title, recording.urduTitle, true))}
                             </h3>
-                            <div style="font-size: 0.8rem; color: var(--gold-300);">${Lms.esc(recording.urduTitle || '')}</div>
                         </div>
                         <button class="modal-close-btn" onclick="VirtualClassModule.closeVideoPlayer()">&times;</button>
                     </div>

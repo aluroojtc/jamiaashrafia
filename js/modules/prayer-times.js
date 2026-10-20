@@ -767,7 +767,7 @@
                                     </div>
                                 </div>
 
-                                <div style="text-align: right;">
+                                <div style="text-align: end;">
                                     <span class="status-pill primary" style="font-size: 0.82rem; padding: 4px 10px;">
                                         <i class="fas fa-globe"></i> ${loc.timezone}
                                     </span>
@@ -815,27 +815,27 @@
                                 <i class="fas fa-city"></i> Switch to Location (Test Required Cities):
                             </label>
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
-                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Kuala_Lumpur')" style="text-align: left; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
+                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Kuala_Lumpur')" style="text-align: start; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
                                     <strong>🇲🇾 Kuala Lumpur</strong>
                                     <span style="font-size: 0.68rem; color: var(--text-muted);">Asia/Kuala_Lumpur (UTC+8)</span>
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Karachi')" style="text-align: left; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
+                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Karachi')" style="text-align: start; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
                                     <strong>🇵🇰 Lahore</strong>
                                     <span style="font-size: 0.68rem; color: var(--text-muted);">Asia/Karachi (UTC+5)</span>
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Europe/London')" style="text-align: left; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
+                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Europe/London')" style="text-align: start; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
                                     <strong>🇬🇧 London</strong>
                                     <span style="font-size: 0.68rem; color: var(--text-muted);">Europe/London (BST/GMT)</span>
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('America/New_York')" style="text-align: left; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
+                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('America/New_York')" style="text-align: start; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
                                     <strong>🇺🇸 New York</strong>
                                     <span style="font-size: 0.68rem; color: var(--text-muted);">America/New_York (EDT)</span>
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Dubai')" style="text-align: left; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
+                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Dubai')" style="text-align: start; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
                                     <strong>🇦🇪 Dubai</strong>
                                     <span style="font-size: 0.68rem; color: var(--text-muted);">Asia/Dubai (UTC+4)</span>
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Tokyo')" style="text-align: left; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
+                                <button class="btn btn-secondary btn-sm" onclick="PrayerTimesService.quickSwitchCity('Asia/Tokyo')" style="text-align: start; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;">
                                     <strong>🇯🇵 Tokyo</strong>
                                     <span style="font-size: 0.68rem; color: var(--text-muted);">Asia/Tokyo (UTC+9)</span>
                                 </button>

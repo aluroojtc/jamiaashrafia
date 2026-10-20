@@ -1,0 +1,352 @@
+/**
+ * JAMIA ASHRAFIA LAHORE - LANGUAGE MENU, URDU / ARABIC TYPOGRAPHY & RIGHT-TO-LEFT LAYOUT
+ * Layout rules in main.css / components.css use logical properties (margin-inline-start, inset-inline-end …),
+ * so they mirror on their own when <html dir="rtl">. This file holds what logical properties cannot express.
+ */
+
+/* ==========================================================================
+   LANGUAGE MENU
+   ========================================================================== */
+.lang-switcher {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.lang-switcher-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 12px;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.lang-switcher-btn:hover,
+.lang-switcher.open .lang-switcher-btn {
+    background: var(--bg-surface-hover);
+    border-color: var(--primary-200);
+    color: var(--primary-800);
+}
+
+.lang-switcher-btn:focus-visible,
+.lang-switcher-option:focus-visible {
+    outline: 2px solid var(--primary-500);
+    outline-offset: 2px;
+}
+
+.lang-switcher-btn .fa-globe {
+    color: var(--primary-600);
+}
+
+.lang-switcher-caret {
+    font-size: 0.65rem;
+    color: var(--gold-500);
+    transition: transform var(--transition-fast);
+}
+
+.lang-switcher.open .lang-switcher-caret {
+    transform: rotate(180deg);
+}
+
+.lang-switcher.busy .lang-switcher-btn {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.lang-switcher-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    inset-inline-end: 0;
+    min-width: 168px;
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    background: #ffffff;
+    border: 1px solid var(--border-prominent);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 1200;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast), visibility var(--transition-fast);
+}
+
+.lang-switcher.open .lang-switcher-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.lang-switcher-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 12px;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.92rem;
+    text-align: start;
+    cursor: pointer;
+}
+
+.lang-switcher-option:hover {
+    background: var(--bg-surface-hover);
+}
+
+.lang-switcher-option.active {
+    color: var(--primary-800);
+    font-weight: 700;
+    background: var(--primary-50);
+}
+
+.lang-switcher-option .fa-check {
+    font-size: 0.75rem;
+    color: var(--primary-600);
+}
+
+/* Each language name is written in its own script and font */
+.lang-switcher [lang="ur"] {
+    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Noto Naskh Arabic', serif;
+    line-height: 1.6;
+}
+
+.lang-switcher [lang="ar"] {
+    font-family: 'Noto Naskh Arabic', 'Amiri', serif;
+}
+
+.lang-switcher [lang="en"] {
+    font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+/* The app header is crowded: below wide-desktop widths the menu button keeps only its globe,
+   and the prayer ticker shows the current prayer only (as it already does on tablets) */
+@media (max-width: 1440px) {
+    .lang-switcher-current-compact {
+        display: none;
+    }
+}
+
+@media (max-width: 1400px) {
+    .prayer-pills-list .prayer-pill:not(.active) {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .lang-switcher-btn {
+        height: 36px;
+        padding: 0 10px;
+        gap: 6px;
+    }
+}
+
+/* ==========================================================================
+   URDU & ARABIC TYPOGRAPHY
+   ========================================================================== */
+html[lang="ur"] {
+    --font-ui: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Noto Naskh Arabic', serif;
+}
+
+html[lang="ar"] {
+    --font-ui: 'Noto Naskh Arabic', 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif;
+}
+
+html[lang="ur"] body,
+html[lang="ar"] body,
+html[lang="ur"] button, html[lang="ur"] input, html[lang="ur"] select, html[lang="ur"] textarea,
+html[lang="ar"] button, html[lang="ar"] input, html[lang="ar"] select, html[lang="ar"] textarea,
+html[lang="ur"] h1, html[lang="ur"] h2, html[lang="ur"] h3, html[lang="ur"] h4, html[lang="ur"] h5, html[lang="ur"] h6,
+html[lang="ar"] h1, html[lang="ar"] h2, html[lang="ar"] h3, html[lang="ar"] h4, html[lang="ar"] h5, html[lang="ar"] h6,
+html[lang="ur"] .card-title, html[lang="ar"] .card-title,
+html[lang="ur"] .brand-title, html[lang="ar"] .brand-title,
+html[lang="ur"] .btn, html[lang="ar"] .btn {
+    font-family: var(--font-ui);
+}
+
+/* Nastaliq is tall: give lines room so ascenders and descenders are not clipped */
+html[lang="ur"] body {
+    line-height: 1.95;
+}
+
+html[lang="ar"] body {
+    line-height: 1.7;
+}
+
+html[lang="ur"] .btn,
+html[lang="ur"] .status-pill,
+html[lang="ur"] .badge-pill,
+html[lang="ur"] .nav-item,
+html[lang="ur"] .tab-btn,
+html[lang="ur"] .form-control,
+html[lang="ur"] th,
+html[lang="ur"] td,
+html[lang="ur"] label {
+    line-height: 1.9;
+}
+
+html[lang="ur"] .form-control,
+html[lang="ur"] select.form-control {
+    min-height: 2.6em;
+}
+
+/* Fixed line heights written for Latin text (inline styles included) are too tight for Nastaliq */
+html[lang="ur"] [style*="line-height"],
+html[lang="ur"] .ashrafia-hero-desc,
+html[lang="ur"] .sanad-student-details,
+html[lang="ur"] .chat-text,
+html[lang="ur"] p,
+html[lang="ur"] li {
+    line-height: 2.05 !important;
+}
+
+html[lang="ur"] h1,
+html[lang="ur"] h2,
+html[lang="ur"] h3,
+html[lang="ur"] h4,
+html[lang="ur"] .ashrafia-hero-title,
+html[lang="ur"] .vc-class-title,
+html[lang="ur"] .vc-stat-card .stat-val,
+html[lang="ur"] .card-title {
+    line-height: 1.75;
+}
+
+html[lang="ar"] .ashrafia-hero-title,
+html[lang="ar"] .vc-class-title {
+    line-height: 1.5;
+}
+
+/* Header: Urdu and Arabic words are wider and taller, keep each label on one line */
+html[dir="rtl"] .brand-title,
+html[dir="rtl"] .brand-subtitle,
+html[dir="rtl"] .user-meta,
+html[dir="rtl"] .prayer-ticker {
+    white-space: nowrap;
+}
+
+html[lang="ur"] .top-header .brand-title,
+html[lang="ur"] .top-header .brand-subtitle,
+html[lang="ur"] .top-header .user-meta span,
+html[lang="ur"] .prayer-ticker {
+    line-height: 1.6;
+}
+
+html[lang="ur"] .brand-subtitle .urdu-motto,
+html[lang="ar"] .brand-subtitle .urdu-motto {
+    font-family: var(--font-ui);
+}
+
+@media (max-width: 1100px) {
+    html[dir="rtl"] .brand-subtitle {
+        display: none;
+    }
+}
+
+html[lang="ur"] input.form-control,
+html[lang="ur"] select.form-control {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+/* Letter spacing and capitals break cursive scripts */
+html[dir="rtl"] *,
+html[dir="rtl"] *::before,
+html[dir="rtl"] *::after {
+    letter-spacing: normal !important;
+}
+
+html[dir="rtl"] .nav-section-title,
+html[dir="rtl"] .status-pill,
+html[dir="rtl"] th {
+    text-transform: none;
+}
+
+/* Codes, roll numbers, e-mail addresses and numbers stay left-to-right inside right-to-left text */
+html[dir="rtl"] code,
+html[dir="rtl"] input[type="email"],
+html[dir="rtl"] input[type="tel"],
+html[dir="rtl"] input[type="url"],
+html[dir="rtl"] input[type="number"],
+html[dir="rtl"] input[type="password"] {
+    direction: ltr;
+    unicode-bidi: plaintext;
+}
+
+html[dir="rtl"] input[type="email"],
+html[dir="rtl"] input[type="tel"],
+html[dir="rtl"] input[type="url"],
+html[dir="rtl"] input[type="password"] {
+    text-align: end;
+}
+
+/* Typed text decides its own direction (Arabic question, English name …) */
+html[dir="rtl"] input[type="text"],
+html[dir="rtl"] input[type="search"],
+html[dir="rtl"] textarea {
+    unicode-bidi: plaintext;
+    text-align: start;
+}
+
+/* ==========================================================================
+   RIGHT-TO-LEFT MIRRORING
+   ========================================================================== */
+
+/* Arrows and chevrons that point "forward" or "back" */
+html[dir="rtl"] .fa-arrow-right,
+html[dir="rtl"] .fa-arrow-left,
+html[dir="rtl"] .fa-chevron-right,
+html[dir="rtl"] .fa-chevron-left,
+html[dir="rtl"] .fa-angle-right,
+html[dir="rtl"] .fa-angle-left,
+html[dir="rtl"] .fa-angle-double-right,
+html[dir="rtl"] .fa-angle-double-left,
+html[dir="rtl"] .fa-long-arrow-alt-right,
+html[dir="rtl"] .fa-long-arrow-alt-left,
+html[dir="rtl"] .fa-caret-right,
+html[dir="rtl"] .fa-caret-left,
+html[dir="rtl"] .fa-sign-out-alt,
+html[dir="rtl"] .fa-sign-in-alt,
+html[dir="rtl"] .fa-reply,
+html[dir="rtl"] .fa-share,
+html[dir="rtl"] .fa-external-link-alt,
+html[dir="rtl"] .fa-list-ul,
+html[dir="rtl"] .fa-paper-plane {
+    transform: scaleX(-1);
+}
+
+html[dir="rtl"] .nav-item:hover {
+    transform: translateX(-2px);
+}
+
+/* Toasts slide in from the start edge */
+html[dir="rtl"] .toast {
+    animation-name: slideInLeft;
+}
+
+@keyframes slideInLeft {
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* Gradients that fade towards the reading direction */
+html[dir="rtl"] .nav-item.active {
+    background: linear-gradient(270deg, var(--primary-50) 0%, rgba(242, 249, 251, 0.4) 100%);
+}
+
+/* Tables and grids read from the right */
+html[dir="rtl"] table th,
+html[dir="rtl"] table td {
+    text-align: start;
+}

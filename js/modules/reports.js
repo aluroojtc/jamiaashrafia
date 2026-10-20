@@ -151,9 +151,6 @@ const ReportsModule = {
                         <h3 class="card-title">
                             <i class="${cat.icon}"></i> ${cat.label}
                         </h3>
-                        <div style="font-family: 'Amiri', serif; font-size: 1.15rem; color: var(--gold-200); margin-top: 2px;">
-                            ${cat.urdu}
-                        </div>
                     </div>
 
                     <!-- Search and Filters -->
@@ -162,7 +159,7 @@ const ReportsModule = {
                             <i class="fas fa-search"></i>
                             <input type="text" class="form-control" placeholder="Search records..." 
                                    value="${this.searchQuery}" oninput="ReportsModule.setSearch(this.value)" 
-                                   style="padding: 6px 12px 6px 36px; font-size: 0.82rem;">
+                                   style="padding-block: 6px; padding-inline: 36px 12px; font-size: 0.82rem;">
                         </div>
 
                         <div>
@@ -209,8 +206,7 @@ const ReportsModule = {
                             <tr>
                                 <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(s.rollNo || 'N/A')}</span></td>
                                 <td>
-                                    <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(s.name)}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 0.9rem; color: var(--gold-700);">${Lms.esc(s.urduName || '')}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(s.name, s.urduName))}</div>
                                 </td>
                                 <td>${Lms.esc(s.program || 'Dars-e-Nizami')}</td>
                                 <td style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(s.hostel || 'Day Scholar')}</td>
@@ -246,8 +242,7 @@ const ReportsModule = {
                         ${teachers.map(t => `
                             <tr>
                                 <td>
-                                    <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(t.name)}</div>
-                                    <div style="font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--gold-700);">${Lms.esc(t.urduName || '')}</div>
+                                    <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(t.name, t.urduName))}</div>
                                 </td>
                                 <td><span class="status-pill gold">${Lms.esc(t.designation)}</span></td>
                                 <td style="color: var(--text-secondary);">${Lms.esc(t.specialization)}</td>
@@ -313,7 +308,6 @@ const ReportsModule = {
                         <tr>
                             <th>Course Code</th>
                             <th>Kitab Title</th>
-                            <th>Urdu Title</th>
                             <th>Author / Imam</th>
                             <th>Dars-e-Nizami Year</th>
                             <th>Credit Hours</th>
@@ -323,8 +317,7 @@ const ReportsModule = {
                         ${courses.map(c => `
                             <tr>
                                 <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(c.code)}</span></td>
-                                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(c.title)}</td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-700);">${Lms.esc(c.urduTitle || '')}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(c.title, c.urduTitle))}</td>
                                 <td style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(c.kitabAuthor)}</td>
                                 <td>Year ${Lms.esc(c.year)}</td>
                                 <td><strong>${Lms.esc(c.credits)} Credits</strong></td>
@@ -478,7 +471,6 @@ const ReportsModule = {
                         <tr>
                             <th>Accession No</th>
                             <th>Book Title</th>
-                            <th>Arabic / Urdu</th>
                             <th>Author</th>
                             <th>Category</th>
                             <th>Total Copies</th>
@@ -489,8 +481,7 @@ const ReportsModule = {
                         ${books.map(b => `
                             <tr>
                                 <td><span class="status-pill primary">${b.accessionNo}</span></td>
-                                <td style="font-weight: 700; color: var(--primary-950);">${b.title}</td>
-                                <td style="font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold-700);">${b.arabicTitle || ''}</td>
+                                <td style="font-weight: 700; color: var(--primary-950);" dir="auto">${Lms.esc(Lms.localName(b.title, b.arabicTitle))}</td>
                                 <td style="color: var(--text-muted);">${b.author}</td>
                                 <td><span class="status-pill gold">${b.category}</span></td>
                                 <td>${b.totalCopies}</td>

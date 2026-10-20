@@ -59,7 +59,7 @@ const NotificationsModule = {
 
             ${this.canBroadcast() ? `
                 <div class="tabs-nav">
-                    <button class="tab-btn ${this.tab === 'inbox' ? 'active' : ''}" onclick="NotificationsModule.setTab('inbox')"><i class="fas fa-inbox"></i> Inbox ${unread ? `<span class="badge-pill gold" style="margin-left: 4px;">${unread}</span>` : ''}</button>
+                    <button class="tab-btn ${this.tab === 'inbox' ? 'active' : ''}" onclick="NotificationsModule.setTab('inbox')"><i class="fas fa-inbox"></i> Inbox ${unread ? `<span class="badge-pill gold" style="margin-inline-start: 4px;">${unread}</span>` : ''}</button>
                     <button class="tab-btn ${this.tab === 'sent' ? 'active' : ''}" onclick="NotificationsModule.setTab('sent')"><i class="fas fa-paper-plane"></i> Sent by Me</button>
                 </div>` : ''}
 
