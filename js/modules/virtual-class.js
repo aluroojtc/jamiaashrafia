@@ -9,7 +9,7 @@ const VirtualClassModule = {
     currentTab: 'lobby', // 'lobby' | 'studio' | 'recordings' | 'attendance' | 'retention'
     lobbyFilter: 'ALL',   // 'ALL' | 'LIVE' | 'UPCOMING' | 'COMPLETED'
     lobbySearch: '',
-    activeSessionId: 'vc_101',
+    activeSessionId: null,
     activeSession: null,
     isHost: false,
     accessBlocked: false,
@@ -20,14 +20,56 @@ const VirtualClassModule = {
     recordingSearch: '',
     attendanceFilterClass: 'ALL',
 
+    // Recording retention and storage (server: /api/settings/recordings)
+    recordingSettings: { retentionDays: 90, allowStudentDownload: false, autoCleanupEnabled: false, storageQuotaGB: 50, usedBytes: 0, recordingCount: 0, lastCleanupDate: null },
+
+    async loadRecordingSettings() {
+        try {
+            const data = await Lms.api('GET', '/api/settings/recordings');
+            if (data.settings) this.recordingSettings = data.settings;
+        } catch (e) { /* keep the last known settings */ }
+        return this.recordingSettings;
+    },
+
+    usedStorageGB() {
+        return Math.round(((this.recordingSettings.usedBytes || 0) / (1024 * 1024 * 1024)) * 100) / 100;
+    },
+
+    // Days a recording has left before the retention clean-up removes it (null: kept permanently)
+    daysRemaining(rec) {
+        const keep = Number(this.recordingSettings.retentionDays) || 0;
+        if (!keep || rec.autoDeleteProtected) return null;
+        const recorded = Date.parse(`${String(rec.recordedDate || '').slice(0, 10)}T00:00:00`);
+        if (Number.isNaN(recorded)) return null;
+        return Math.max(0, keep - Math.floor((Date.now() - recorded) / 86400000));
+    },
+
+    // Class filter options built from the classes that exist
+    classFilterOptions(selected) {
+        return `<option value="ALL">All Academic Classes</option>` + (window.LmsData.classes || [])
+            .map(c => `<option value="${Lms.esc(c.id)}" ${selected === c.id ? 'selected' : ''}>${Lms.esc(Lms.className(c.id))}</option>`).join('');
+    },
+
+    // Students (and staff) who checked in to this online class
+    attendeeCount(session) {
+        return (window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS' && a.virtualSessionId === session.id).length;
+    },
+
+    // Where an online class ran, for attendance lists
+    platformOf(sessionId) {
+        const s = (window.LmsData.virtualClasses || []).find(v => v.id === sessionId);
+        if (!s) return 'Online class';
+        return s.platform === 'EXTERNAL' && s.externalUrl ? this.platformName(s.externalUrl) : 'Built-in live classroom';
+    },
+
     /**
      * Main Module Entry Point
      */
     render() {
         if (!this._meetingConfigLoaded) {
             this._meetingConfigLoaded = true;
-            this.loadMeetingConfig().then(() => {
-                if (this.currentTab === 'retention' && window.App?.currentRoute === 'virtual-class') this.switchTab('retention');
+            Promise.all([this.loadMeetingConfig(), this.loadRecordingSettings()]).then(() => {
+                if (window.App?.currentRoute === 'virtual-class' && this.currentTab !== 'studio') this.switchTab(this.currentTab);
             });
         }
         const currentUser = window.AuthRBAC?.currentUser || {};
@@ -170,7 +212,7 @@ const VirtualClassModule = {
         const liveRooms = allSessions.filter(s => s.isLive || s.status === 'LIVE').length;
         const upcomingRooms = allSessions.filter(s => s.status === 'UPCOMING').length;
         const completedRooms = allSessions.filter(s => s.status === 'COMPLETED').length;
-        const settings = window.LmsData?.virtualClassSettings || { usedStorageGB: 2.46, storageQuotaGB: 50 };
+        const settings = this.recordingSettings;
 
         return `
             <!-- QUICK METRICS STATS BAR -->
@@ -190,7 +232,7 @@ const VirtualClassModule = {
                     </div>
                     <div>
                         <div class="stat-val">${upcomingRooms} Scheduled</div>
-                        <div class="stat-lbl">Upcoming Today & Tomorrow</div>
+                        <div class="stat-lbl">Scheduled Classes</div>
                     </div>
                 </div>
                 <div class="vc-stat-card">
@@ -207,7 +249,7 @@ const VirtualClassModule = {
                         <i class="fas fa-cloud-upload-alt"></i>
                     </div>
                     <div>
-                        <div class="stat-val">${settings.usedStorageGB} GB</div>
+                        <div class="stat-val">${this.usedStorageGB()} GB</div>
                         <div class="stat-lbl">Cloud Storage Used (of ${settings.storageQuotaGB} GB)</div>
                     </div>
                 </div>
@@ -326,7 +368,7 @@ const VirtualClassModule = {
                         </div>
                         <div class="vc-meta-item">
                             <i class="fas fa-users"></i>
-                            <span><strong>Attendance:</strong> ${Lms.esc(session.activeParticipants || 0)} scholars present</span>
+                            <span><strong>Attendance:</strong> ${I18n.t('{n} joined', { n: this.attendeeCount(session) })}</span>
                         </div>
                     </div>
                 </div>
@@ -339,7 +381,10 @@ const VirtualClassModule = {
                         </code>
                     </div>
 
-                    <div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                        ${isSessionHost ? `
+                            <button class="btn btn-secondary btn-sm" title="Edit" onclick="VirtualClassModule.openScheduleModal('${Lms.esc(session.id)}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-secondary btn-sm" title="Delete" onclick="VirtualClassModule.deleteSession('${Lms.esc(session.id)}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                         ${isLive ? (
                             isEnrolledClass || isSessionHost ? `
                                 <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.enterClassroom('${Lms.esc(session.id)}')">
@@ -598,7 +643,7 @@ const VirtualClassModule = {
 
         const allRecordings = window.LmsData?.virtualClassRecordings || [];
         const studentClass = currentUser.classId || '';
-        const settings = window.LmsData?.virtualClassSettings || { retentionDays: 90, allowStudentDownload: false };
+        const settings = this.recordingSettings;
 
         // Class and text filtering
         let filtered = allRecordings.filter(rec => {
@@ -630,7 +675,7 @@ const VirtualClassModule = {
                         Sacred Lectures Archive & Cloud Recordings Vault
                     </h3>
                     <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
-                        Secure cloud storage with automated ${settings.retentionDays}-day retention policy, role-based playback, and encryption.
+                        ${settings.retentionDays ? I18n.t('Recordings are kept for {days} days, then removed by the retention clean-up.', { days: settings.retentionDays }) : 'Recordings are kept permanently.'}
                     </p>
                 </div>
                 <div style="display: flex; gap: 12px; align-items: center;">
@@ -638,7 +683,7 @@ const VirtualClassModule = {
                         <i class="fas fa-database"></i> ${totalGB} GB Archived
                     </span>
                     <span class="status-pill neutral">
-                        <i class="fas fa-history"></i> ${settings.retentionDays} Days Retention
+                        <i class="fas fa-history"></i> ${settings.retentionDays ? I18n.t('{n} Days Retention', { n: settings.retentionDays }) : 'Kept permanently'}
                     </span>
                 </div>
             </div>
@@ -658,11 +703,7 @@ const VirtualClassModule = {
                         <select onchange="VirtualClassModule.handleRecordingClassFilter(this.value)"
                                 class="form-control"
                                 style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem;">
-                            <option value="ALL">All Academic Classes</option>
-                            <option value="cls_dawra_a" ${this.recordingFilterClass === 'cls_dawra_a' ? 'selected' : ''}>Dawra-e-Hadith (Section A)</option>
-                            <option value="cls_ifta" ${this.recordingFilterClass === 'cls_ifta' ? 'selected' : ''}>Takhassus fil-Ifta</option>
-                            <option value="cls_aaliyah" ${this.recordingFilterClass === 'cls_aaliyah' ? 'selected' : ''}>Aaliyah (7th Year)</option>
-                            <option value="cls_hifz_3" ${this.recordingFilterClass === 'cls_hifz_3' ? 'selected' : ''}>Hifz-ul-Quran</option>
+                            ${this.classFilterOptions(this.recordingFilterClass)}
                         </select>
                     ` : ''}
                 </div>
@@ -690,15 +731,18 @@ const VirtualClassModule = {
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
                                     <h4 style="color: var(--primary-950); margin: 0; font-size: 1.05rem; font-weight: 700;">${Lms.esc(Lms.localName(rec.title, rec.urduTitle, true))}</h4>
                                     <span class="status-pill neutral" style="font-size: 0.72rem;">${Lms.esc(rec.className)}</span>
-                                    <span class="vc-retention-pill ${rec.daysRemaining < 15 ? 'warning' : ''}">
-                                        <i class="fas fa-hourglass-half"></i> ${Lms.esc(rec.daysRemaining)} days remaining in vault
-                                    </span>
+                                    ${(() => {
+                                        const left = this.daysRemaining(rec);
+                                        return left === null
+                                            ? `<span class="vc-retention-pill"><i class="fas fa-lock"></i> Kept permanently</span>`
+                                            : `<span class="vc-retention-pill ${left < 15 ? 'warning' : ''}"><i class="fas fa-hourglass-half"></i> ${I18n.t('{n} days remaining in vault', { n: left })}</span>`;
+                                    })()}
                                 </div>
                                 <div style="display: flex; gap: 16px; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap;">
                                     <span><i class="fas fa-user-tie" style="color: var(--primary-400);"></i> ${Lms.esc(rec.teacherName)}</span>
-                                    <span><i class="fas fa-calendar" style="color: var(--primary-400);"></i> ${Lms.esc(rec.recordedDate)} at ${Lms.esc(rec.recordedTime)}</span>
+                                    <span><i class="fas fa-calendar" style="color: var(--primary-400);"></i> ${Lms.fmtDate(rec.recordedDate)}${rec.recordedTime ? ' ' + Lms.esc(rec.recordedTime) : ''}</span>
                                     <span><i class="fas fa-clock" style="color: var(--primary-400);"></i> Duration: ${Lms.esc(rec.durationFormatted)}</span>
-                                    <span><i class="fas fa-file-video" style="color: var(--primary-400);"></i> ${Lms.esc(rec.fileSizeFormatted)} (${Lms.esc(rec.format)})</span>
+                                    ${rec.fileSizeBytes ? `<span><i class="fas fa-file-video" style="color: var(--primary-400);"></i> ${Lms.esc(Lms.fileSize(rec.fileSizeBytes))}</span>` : rec.externalUrl ? `<span><i class="fas fa-link" style="color: var(--primary-400);"></i> External link</span>` : ''}
                                     <span><i class="fas fa-eye" style="color: var(--primary-400);"></i> ${Lms.esc(rec.viewsCount || 0)} views</span>
                                 </div>
                             </div>
@@ -708,11 +752,15 @@ const VirtualClassModule = {
                             <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.openVideoPlayer('${Lms.esc(rec.id)}')">
                                 <i class="fas fa-play"></i> Watch Lecture
                             </button>
-                            ${(window.AuthRBAC.can('recordings.download') || settings.allowStudentDownload) ? `
-                                <a href="${Lms.esc(rec.downloadUrl || '#')}" target="_blank" download class="btn btn-secondary btn-sm" title="Download High-Res Lecture">
+                            ${(window.AuthRBAC.can('recordings.download') || settings.allowStudentDownload) && rec.videoUrl ? `
+                                <a href="${Lms.esc(rec.videoUrl)}" target="_blank" download class="btn btn-secondary btn-sm" title="Download Lecture">
                                     <i class="fas fa-download"></i> Download
                                 </a>
                             ` : ''}
+                            ${window.AuthRBAC.can('recordings.manage') ? `
+                                <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.toggleKeepRecording('${Lms.esc(rec.id)}')" title="${rec.autoDeleteProtected ? 'Allow the retention clean-up to remove it' : 'Keep permanently (never removed by the clean-up)'}">
+                                    <i class="fas ${rec.autoDeleteProtected ? 'fa-lock' : 'fa-lock-open'}" style="color: var(--gold-600);"></i>
+                                </button>` : ''}
                             ${window.AuthRBAC.can('recordings.manage') ? `
                                 <button class="btn btn-secondary btn-sm" style="color: #f87171;" onclick="VirtualClassModule.deleteRecording('${Lms.esc(rec.id)}')" title="Delete recording immediately">
                                     <i class="fas fa-trash"></i>
@@ -749,10 +797,8 @@ const VirtualClassModule = {
         const isStudent = window.AuthRBAC?.isStudent();
 
         const allAttendance = window.LmsData?.attendance || [];
-        const studentClass = currentUser.classId || 'cls_dawra_a';
-
-        // Filter for virtual classroom sessions
-        let virtualAtt = allAttendance.filter(a => a.session === 'VIRTUAL_CLASS' || a.notes?.includes('Zoom') || a.session === 'FAJR_DARS');
+        // Check-ins recorded on entering an online class
+        let virtualAtt = allAttendance.filter(a => a.session === 'VIRTUAL_CLASS');
 
         if (isStudent) {
             virtualAtt = virtualAtt.filter(a => a.userId === currentUser.id);
@@ -790,11 +836,7 @@ const VirtualClassModule = {
                         <select onchange="VirtualClassModule.handleAttendanceClassFilter(this.value)"
                                 class="form-control"
                                 style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem;">
-                            <option value="ALL">All Academic Classes</option>
-                            <option value="cls_dawra_a" ${this.attendanceFilterClass === 'cls_dawra_a' ? 'selected' : ''}>Dawra-e-Hadith (Section A)</option>
-                            <option value="cls_ifta" ${this.attendanceFilterClass === 'cls_ifta' ? 'selected' : ''}>Takhassus fil-Ifta</option>
-                            <option value="cls_aaliyah" ${this.attendanceFilterClass === 'cls_aaliyah' ? 'selected' : ''}>Aaliyah (7th Year)</option>
-                            <option value="cls_hifz_3" ${this.attendanceFilterClass === 'cls_hifz_3' ? 'selected' : ''}>Hifz-ul-Quran</option>
+                            ${this.classFilterOptions(this.attendanceFilterClass)}
                         </select>
                     </div>
                     <div style="font-size: 0.85rem; color: var(--text-secondary);">
@@ -844,7 +886,7 @@ const VirtualClassModule = {
                                 <td>${Lms.esc(att.date)}</td>
                                 <td>
                                     <span style="font-family: monospace; font-weight: 700; color: var(--gold-800);">
-                                        <i class="fas fa-clock" style="font-size: 0.72rem;"></i> ${Lms.esc(att.checkInTime || '11:00 AM')}
+                                        <i class="fas fa-clock" style="font-size: 0.72rem;"></i> ${Lms.esc(att.checkInTime || '—')}
                                     </span>
                                 </td>
                                 <td>
@@ -855,7 +897,7 @@ const VirtualClassModule = {
                                 </td>
                                 <td>
                                     <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-700);">
-                                        <i class="fas fa-video" style="color: var(--primary-600); margin-inline-end: 4px;"></i> WebRTC Studio
+                                        <i class="fas fa-video" style="color: var(--primary-600); margin-inline-end: 4px;"></i> ${Lms.esc(this.platformOf(att.virtualSessionId))}
                                     </span>
                                 </td>
                             </tr>
@@ -874,11 +916,13 @@ const VirtualClassModule = {
 
     exportAttendanceCSV() {
         const allAttendance = window.LmsData?.attendance || [];
-        const virtualAtt = allAttendance.filter(a => a.session === 'VIRTUAL_CLASS' || a.notes?.includes('Zoom') || a.session === 'FAJR_DARS');
+        const virtualAtt = allAttendance.filter(a => a.session === 'VIRTUAL_CLASS'
+            && (this.attendanceFilterClass === 'ALL' || a.classId === this.attendanceFilterClass));
+        const cell = v => `"${String(v === undefined || v === null ? '' : v).replace(/"/g, '""')}"`;
 
         let csv = 'Scholar Name,Role,Identifier,Class,Date,Check-In Time,Status,Platform\n';
         virtualAtt.forEach(a => {
-            csv += `"${a.userName}","${a.role}","${a.identifier || ''}","${a.className || a.classId}","${a.date}","${a.checkInTime || ''}","${a.status}","Virtual WebRTC Studio"\n`;
+            csv += [a.userName, a.role, a.identifier, a.className || a.classId, a.date, a.checkInTime, a.status, this.platformOf(a.virtualSessionId)].map(cell).join(',') + '\n';
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -893,7 +937,6 @@ const VirtualClassModule = {
     // 5. STORAGE & CONFIGURABLE RECORDING RETENTION (SUPER ADMIN ONLY)
     // =========================================================================
     renderRetention() {
-        const currentUser = window.AuthRBAC?.currentUser || {};
         if (!window.AuthRBAC.can('settings.recordings')) {
             return `
                 <div class="vc-access-denied">
@@ -904,36 +947,28 @@ const VirtualClassModule = {
             `;
         }
 
-        const settings = window.LmsData?.virtualClassSettings || {
-            retentionDays: 90,
-            autoRecord: true,
-            allowStudentDownload: false,
-            storageQuotaGB: 50,
-            usedStorageGB: 2.46,
-            cloudProvider: "Jamia Ashrafia Secure AWS S3 Vault (AES-256)",
-            autoCleanupEnabled: true,
-            lastCleanupDate: "2026-09-28"
-        };
-
-        const pctUsed = Math.min(100, ((settings.usedStorageGB / settings.storageQuotaGB) * 100).toFixed(1));
-        const recordings = window.LmsData?.virtualClassRecordings || [];
+        const settings = this.recordingSettings;
+        const used = this.usedStorageGB();
+        const quota = Number(settings.storageQuotaGB) || 0;
+        const pctUsed = quota ? Math.min(100, Math.round((used / quota) * 1000) / 10) : 0;
+        const days = Number(settings.retentionDays) || 0;
 
         return `
             <!-- STORAGE GAUGE BOX -->
             <div class="vc-storage-box">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 12px; flex-wrap: wrap;">
                     <div>
                         <h3 style="color: var(--primary-950); font-weight: 800; margin-bottom: 2px;">
                             <i class="fas fa-server" style="color: var(--primary-600);"></i>
-                            Cloud Recording Storage & Infrastructure Quota
+                            Recording Storage
                         </h3>
                         <div style="font-size: 0.82rem; color: var(--text-secondary);">
-                            Active Storage Provider: <strong>${settings.cloudProvider}</strong>
+                            ${I18n.t('{n} recordings. Uploaded videos are stored on the portal server; linked recordings (YouTube, Drive) use no space here.', { n: settings.recordingCount || 0 })}
                         </div>
                     </div>
                     <div style="text-align: end;">
-                        <div style="font-size: 1.45rem; font-weight: 800; color: var(--primary-950);">${settings.usedStorageGB} GB / ${settings.storageQuotaGB} GB</div>
-                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary-700);">${pctUsed}% Utilized</div>
+                        <div style="font-size: 1.45rem; font-weight: 800; color: var(--primary-950);">${used} GB / ${quota} GB</div>
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary-700);">${I18n.t('{n}% Utilized', { n: pctUsed })}</div>
                     </div>
                 </div>
 
@@ -942,9 +977,9 @@ const VirtualClassModule = {
                 </div>
 
                 <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">
-                    <span>0 GB (Empty)</span>
-                    <span>Last Automated Audit: ${settings.lastCleanupDate || 'Today'}</span>
-                    <span>${settings.storageQuotaGB} GB (Hard Limit)</span>
+                    <span>0 GB</span>
+                    <span>${settings.lastCleanupDate ? I18n.t('Last clean-up: {date}', { date: Lms.fmtDate(settings.lastCleanupDate) }) : 'No clean-up has run yet'}</span>
+                    <span>${quota} GB</span>
                 </div>
             </div>
 
@@ -952,52 +987,43 @@ const VirtualClassModule = {
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; margin-bottom: 24px;">
                 <div class="card">
                     <div class="card-header">
-                        <h3><i class="fas fa-shield-alt" style="color: var(--gold-600);"></i> Automated Retention Policy</h3>
+                        <h3><i class="fas fa-shield-alt" style="color: var(--gold-600);"></i> Retention Policy</h3>
                     </div>
                     <div class="card-body">
                         <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-primary);">Recording Lifespan (Retention Cycle):</label>
-                            <select id="retention-days-select" class="form-control" style="width: 100%; padding: 9px; background: #ffffff; border: 1px solid var(--border-prominent); color: var(--text-primary); border-radius: 6px;">
-                                <option value="30" ${settings.retentionDays === 30 ? 'selected' : ''}>30 Days (Aggressive Purge)</option>
-                                <option value="60" ${settings.retentionDays === 60 ? 'selected' : ''}>60 Days (Bi-monthly Cycle)</option>
-                                <option value="90" ${settings.retentionDays === 90 ? 'selected' : ''}>90 Days (Recommended / Standard Quarter)</option>
-                                <option value="180" ${settings.retentionDays === 180 ? 'selected' : ''}>180 Days (Shashmahi Semester Term)</option>
-                                <option value="365" ${settings.retentionDays === 365 ? 'selected' : ''}>365 Days (Full Academic Year)</option>
-                                <option value="0" ${settings.retentionDays === 0 ? 'selected' : ''}>Indefinite / Permanent Archive</option>
+                            <label for="retention-days-select" style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-primary);">Keep recordings for</label>
+                            <select id="retention-days-select" class="form-control" style="width: 100%;">
+                                ${[[30, '30 days'], [60, '60 days'], [90, '90 days (one quarter)'], [180, '180 days (one term)'], [365, '365 days (one academic year)'], [0, 'Permanently']]
+                                    .map(([v, l]) => `<option value="${v}" ${days === v ? 'selected' : ''}>${l}</option>`).join('')}
                             </select>
                             <small style="color: var(--text-muted); display: block; margin-top: 4px;">
-                                Recordings older than this duration will be automatically expunged from the AWS S3 vault.
+                                The clean-up removes recordings older than this. Recordings marked "Keep permanently" are never removed.
                             </small>
                         </div>
 
                         <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                                <input type="checkbox" id="retention-auto-record" ${settings.autoRecord ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: var(--primary-500);">
-                                <span style="font-weight: 600;">Automatically Record All Virtual Classes on Host Join</span>
-                            </label>
-                            <small style="color: var(--text-muted); display: block; margin-inline-start: 28px;">
-                                Ensures that no sacred Hadith discourse or Fiqh seminar is lost due to teacher omission.
-                            </small>
+                            <label for="retention-quota" style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-primary);">Storage quota (GB)</label>
+                            <input type="number" id="retention-quota" class="form-control" min="1" value="${Lms.esc(quota || 50)}">
                         </div>
 
                         <div class="form-group" style="margin-bottom: 16px;">
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                                 <input type="checkbox" id="retention-allow-download" ${settings.allowStudentDownload ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: var(--primary-500);">
-                                <span style="font-weight: 600;">Allow Direct MP4 Downloads for Students</span>
+                                <span style="font-weight: 600;">Allow students to download uploaded recordings</span>
                             </label>
                             <small style="color: var(--text-muted); display: block; margin-inline-start: 28px;">
-                                When disabled, students can only stream in-browser; faculty and admins maintain download permissions.
+                                When off, students watch in the browser; staff with the download permission can still download.
                             </small>
                         </div>
 
                         <div class="form-group" style="margin-bottom: 20px;">
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                                 <input type="checkbox" id="retention-auto-cleanup" ${settings.autoCleanupEnabled ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: var(--primary-500);">
-                                <span style="font-weight: 600;">Enable Nightly Automated Database & Storage Garbage Collection</span>
+                                <span style="font-weight: 600;">Run the clean-up automatically every day</span>
                             </label>
                         </div>
 
-                        <button class="btn btn-primary" onclick="VirtualClassModule.saveRetentionSettings()">
+                        <button class="btn btn-primary" onclick="VirtualClassModule.saveRetentionSettings(this)">
                             <i class="fas fa-save"></i> Save Retention Policy
                         </button>
                     </div>
@@ -1027,21 +1053,16 @@ const VirtualClassModule = {
                 <!-- IMMEDIATE CLEANUP ACTION -->
                 <div class="card">
                     <div class="card-header">
-                        <h3><i class="fas fa-broom" style="color: #ef4444;"></i> Storage Maintenance & Emergency Purge</h3>
+                        <h3><i class="fas fa-broom" style="color: #ef4444;"></i> Run Clean-up Now</h3>
                     </div>
                     <div class="card-body">
                         <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; margin-bottom: 16px;">
-                            ${I18n.t('Run an immediate storage audit across the {count} recorded lectures. Any recordings exceeding the {days}-day retention threshold will be permanently pruned from cloud buckets and database records updated.', { count: `<strong>${recordings.length}</strong>`, days: `<strong>${settings.retentionDays}</strong>` })}
+                            ${days
+                                ? I18n.t('Removes recordings older than {days} days now, including their uploaded video files. This cannot be undone.', { days: `<strong>${days}</strong>` })
+                                : 'Recordings are kept permanently, so the clean-up removes nothing. Choose a retention period first.'}
                         </p>
-                        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); padding: 14px; border-radius: 8px; margin-bottom: 20px;">
-                            <div style="font-weight: 600; color: #f87171; margin-bottom: 4px;">Important Preservation Note:</div>
-                            <div style="font-size: 0.8rem; color: #fca5a5;">
-                                ${I18n.t('Master lectures flagged with {flag} (such as Takhassus Fiqh Seminar) are permanently exempted from automated deletion cycles.', { flag: `<em>${I18n.t('Auto-Delete Protection')}</em>` })}
-                            </div>
-                        </div>
-
-                        <button class="btn btn-danger" onclick="VirtualClassModule.triggerStorageCleanup()">
-                            <i class="fas fa-trash-alt"></i> Execute Storage Cleanup Now
+                        <button class="btn btn-danger" ${days ? '' : 'disabled'} onclick="VirtualClassModule.triggerStorageCleanup(this)">
+                            <i class="fas fa-trash-alt"></i> Run Clean-up Now
                         </button>
                     </div>
                 </div>
@@ -1049,109 +1070,93 @@ const VirtualClassModule = {
         `;
     },
 
-    async saveRetentionSettings() {
-        const retentionDays = document.getElementById('retention-days-select')?.value;
-        const autoRecord = document.getElementById('retention-auto-record')?.checked;
-        const allowStudentDownload = document.getElementById('retention-allow-download')?.checked;
-        const autoCleanupEnabled = document.getElementById('retention-auto-cleanup')?.checked;
-
-        if (!window.LmsData.virtualClassSettings) {
-            window.LmsData.virtualClassSettings = {};
-        }
-
-        window.LmsData.virtualClassSettings.retentionDays = Number(retentionDays);
-        window.LmsData.virtualClassSettings.autoRecord = !!autoRecord;
-        window.LmsData.virtualClassSettings.allowStudentDownload = !!allowStudentDownload;
-        window.LmsData.virtualClassSettings.autoCleanupEnabled = !!autoCleanupEnabled;
-
-        window.DataStore?.save(window.LmsData);
-
-        // Sync with backend API
-        try {
-            await fetch('/api/virtual-class/retention', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    retentionDays: Number(retentionDays),
-                    triggerCleanup: false
-                })
+    async saveRetentionSettings(btn) {
+        await Lms.busy(btn, async () => {
+            const data = await Lms.api('POST', '/api/settings/recordings', {
+                retentionDays: Number(Lms.val('retention-days-select')),
+                storageQuotaGB: Number(Lms.val('retention-quota')),
+                allowStudentDownload: document.getElementById('retention-allow-download').checked,
+                autoCleanupEnabled: document.getElementById('retention-auto-cleanup').checked
             });
-        } catch (e) {
-            console.warn("Backend retention update queued", e);
-        }
-
-        window.App?.showToast("Recording retention policy updated and applied to cloud vault.", "success");
-        this.switchTab('retention');
+            this.recordingSettings = data.settings;
+            window.App?.showToast('Recording retention policy saved', 'success');
+            this.switchTab('retention');
+        });
     },
 
-    async triggerStorageCleanup() {
-        if (!confirm("Are you sure you want to execute storage cleanup? Any recordings exceeding the configured retention cycle will be permanently deleted.")) {
-            return;
-        }
-
-        try {
-            const res = await fetch('/api/virtual-class/cleanup', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                window.App?.showToast(data.message || "Storage audit complete! Expired recordings purged.", "success");
-            } else {
-                window.App?.showToast("Storage audit complete. Local vault synchronized.", "info");
-            }
-        } catch (e) {
-            window.App?.showToast("Storage cleanup completed.", "success");
-        }
-
-        this.switchTab('retention');
+    async triggerStorageCleanup(btn) {
+        if (!confirm("Run the clean-up now? Recordings older than the retention period will be permanently deleted.")) return;
+        await Lms.busy(btn, async () => {
+            const data = await Lms.api('POST', '/api/virtual-class/cleanup');
+            this.recordingSettings = data.settings;
+            window.App?.showToast(I18n.t('Clean-up finished: {n} expired recording(s) removed.', { n: data.purgedCount }), 'success');
+            await window.DataStore.syncNow();
+            this.switchTab('retention');
+        }, 'Cleaning...');
     },
 
     // =========================================================================
     // 6. SCHEDULE CLASSROOM MODAL
     // =========================================================================
-    openScheduleModal() {
-        const classIds = Lms.myClassIds();
+    // New class (no id) or change a scheduled one (id)
+    openScheduleModal(sessionId) {
+        const existing = sessionId ? (window.LmsData.virtualClasses || []).find(s => s.id === sessionId) : null;
+        if (existing && !this.canHost(existing)) return;
+        const classIds = window.AuthRBAC.can('virtual_classes.manage') ? (window.LmsData.classes || []).map(c => c.id) : Lms.myClassIds();
+        if (existing && existing.classId && !classIds.includes(existing.classId) && Lms.getClass(existing.classId)) classIds.push(existing.classId);
         if (!classIds.length) {
-            window.App?.showToast('No classes are allocated to you yet.', 'warning');
+            window.App?.showToast(window.AuthRBAC.can('virtual_classes.manage') ? 'Create a class in Classes & Courses first.' : 'No classes are allocated to you yet.', 'warning');
             return;
         }
-        const d = new Date(Date.now() + 60 * 60000);
-        const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:00`;
+        const pad = n => String(n).padStart(2, '0');
+        const toLocal = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const startDate = existing && existing.startsAt && !Number.isNaN(Date.parse(existing.startsAt)) ? new Date(existing.startsAt) : null;
+        const local = startDate ? toLocal(startDate) : (() => { const d = new Date(Date.now() + 60 * 60000); d.setMinutes(0); return toLocal(d); })();
+        const d = existing || {};
+        const isExternal = d.platform === 'EXTERNAL';
         Lms.openModal(
-            `<i class="fas fa-video" style="color: var(--primary-500);"></i> Schedule / Start Online Class`,
+            `<i class="fas fa-video" style="color: var(--primary-500);"></i> ${existing ? 'Edit Online Class' : 'Schedule / Start Online Class'}`,
             `<div class="form-grid">
-                <div class="form-group"><label>Lecture Topic *</label><input type="text" id="sch-title" class="form-control" placeholder="e.g. Sahih al-Bukhari - Kitab al-Ilm"></div>
-                <div class="form-group"><label>Urdu Title</label><input type="text" id="sch-urdu-title" class="form-control" dir="rtl" placeholder="درسِ صحیح البخاری شریف"></div>
+                <div class="form-group"><label>Lecture Topic *</label><input type="text" id="sch-title" class="form-control" value="${Lms.esc(d.title || '')}" placeholder="e.g. Sahih al-Bukhari - Kitab al-Ilm"></div>
+                <div class="form-group"><label>Urdu Title</label><input type="text" id="sch-urdu-title" class="form-control" dir="rtl" value="${Lms.esc(d.urduTitle || '')}"></div>
                 <div class="form-group"><label>Class *</label>
-                    <select id="sch-class-id" class="form-control" onchange="VirtualClassModule.refreshScheduleCourses()">${Lms.classOptions(classIds[0], classIds)}</select>
+                    <select id="sch-class-id" class="form-control" onchange="VirtualClassModule.refreshScheduleCourses()">${Lms.classOptions(d.classId && classIds.includes(d.classId) ? d.classId : classIds[0], classIds)}</select>
                 </div>
                 <div class="form-group"><label>Kitab / Course *</label><select id="sch-course-id" class="form-control"></select></div>
+                ${window.AuthRBAC.can('virtual_classes.manage') ? `<div class="form-group"><label>Teacher (host)</label>
+                    <select id="sch-host-id" class="form-control">${this.hostOptions(d.hostId)}</select></div>` : ''}
                 <div class="form-group"><label>Date & Time *</label><input type="datetime-local" id="sch-datetime" class="form-control" value="${local}"></div>
-                <div class="form-group"><label>Duration (minutes) *</label><input type="number" id="sch-duration" min="10" max="240" class="form-control" value="60"></div>
+                <div class="form-group"><label>Duration (minutes) *</label><input type="number" id="sch-duration" min="10" max="240" class="form-control" value="${Lms.esc(d.durationMinutes || 60)}"></div>
                 <div class="form-group"><label>Meeting Platform *</label>
                     <select id="sch-platform" class="form-control" onchange="document.getElementById('sch-external-wrap').style.display = this.value === 'EXTERNAL' ? '' : 'none'">
-                        <option value="BUILTIN">Built-in live classroom (video, screen share, chat)</option>
-                        <option value="EXTERNAL">Zoom / Google Meet / Teams link</option>
+                        <option value="BUILTIN" ${isExternal ? '' : 'selected'}>Built-in live classroom (video, screen share, chat)</option>
+                        <option value="EXTERNAL" ${isExternal ? 'selected' : ''}>Zoom / Google Meet / Teams link</option>
                     </select>
                 </div>
-                <div class="form-group"><label>Passcode</label><input type="text" id="sch-passcode" class="form-control" value="ASH${Math.floor(100000 + Math.random() * 900000)}" style="font-family: monospace;"></div>
-                <div class="form-group" id="sch-external-wrap" style="display: none;"><label>Meeting Link *</label><input type="url" id="sch-external" class="form-control" placeholder="https://zoom.us/j/..."></div>
+                <div class="form-group"><label>Passcode</label><input type="text" id="sch-passcode" class="form-control" value="${Lms.esc(existing ? (d.passcode || '') : `ASH${Math.floor(100000 + Math.random() * 900000)}`)}" style="font-family: monospace;"></div>
+                <div class="form-group" id="sch-external-wrap" style="${isExternal ? '' : 'display: none;'}"><label>Meeting Link *</label><input type="url" id="sch-external" class="form-control" value="${Lms.esc(d.externalUrl || '')}" placeholder="https://zoom.us/j/..."></div>
             </div>
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            ${existing ? '' : `<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                 <input type="checkbox" id="sch-is-live" style="width: 16px; height: 16px;">
                 <span><strong>Start now</strong> — open the room immediately and notify students</span>
-            </label>`,
+            </label>`}`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-             <button class="btn btn-primary" onclick="VirtualClassModule.saveScheduleModal()"><i class="fas fa-check-circle"></i> Save</button>`
+             <button class="btn btn-primary" onclick="VirtualClassModule.saveScheduleModal('${existing ? Lms.esc(existing.id) : ''}')"><i class="fas fa-check-circle"></i> Save</button>`
         );
-        this.refreshScheduleCourses();
+        this.refreshScheduleCourses(d.courseId);
     },
 
-    refreshScheduleCourses() {
+    // Active teachers, plus the current host if they are no longer listed
+    hostOptions(selectedId) {
+        const me = window.AuthRBAC?.currentUser || {};
+        const list = Lms.teachers().slice();
+        const current = selectedId && !list.some(t => t.id === selectedId) ? Lms.user(selectedId) : null;
+        if (current) list.unshift(current);
+        return `<option value="${Lms.esc(me.id)}" ${!selectedId || selectedId === me.id ? 'selected' : ''}>${Lms.esc(me.name)} (me)</option>`
+            + list.filter(t => t.id !== me.id).map(t => `<option value="${Lms.esc(t.id)}" ${t.id === selectedId ? 'selected' : ''}>${Lms.esc(t.name)}</option>`).join('');
+    },
+
+    refreshScheduleCourses(selectedCourseId) {
         const classId = Lms.val('sch-class-id');
         const me = window.AuthRBAC?.currentUser || {};
         let ids = Lms.classCourseIds(classId);
@@ -1161,20 +1166,23 @@ const VirtualClassModule = {
             if (!(cls && cls.teacherId === me.id) && mine.length) ids = mine;
         }
         if (!ids.length) ids = (window.LmsData.courses || []).map(c => c.id);
-        document.getElementById('sch-course-id').innerHTML = Lms.courseOptions(null, ids);
+        document.getElementById('sch-course-id').innerHTML = Lms.courseOptions(selectedCourseId, ids)
+            || '<option value="">No courses yet</option>';
     },
 
     closeScheduleModal() {
         window.App.closeModal();
     },
 
-    saveScheduleModal() {
+    saveScheduleModal(sessionId) {
+        const existing = sessionId ? (window.LmsData.virtualClasses || []).find(s => s.id === sessionId) : null;
         const title = Lms.val('sch-title');
         const when = Lms.val('sch-datetime');
         const durationMinutes = parseInt(Lms.val('sch-duration'), 10) || 0;
         const platform = Lms.val('sch-platform');
         const externalUrl = Lms.val('sch-external');
-        const isLive = document.getElementById('sch-is-live').checked;
+        const liveBox = document.getElementById('sch-is-live');
+        const isLive = !!(liveBox && liveBox.checked);
         if (!title || !when || durationMinutes < 10) {
             window.App.showToast('Topic, date/time and a duration of at least 10 minutes are required', 'warning');
             return;
@@ -1186,18 +1194,17 @@ const VirtualClassModule = {
         const currentUser = window.AuthRBAC?.currentUser || {};
         const classId = Lms.val('sch-class-id');
         const cls = Lms.getClass(classId) || { name: 'Class' };
+        const hostId = Lms.val('sch-host-id') || (existing ? existing.hostId : currentUser.id);
+        const host = Lms.user(hostId) || currentUser;
         const startsAt = new Date(when);
-        const rand = () => Math.floor(100 + Math.random() * 900);
-        const session = {
-            id: Lms.uid('vc'),
-            meetingUuid: `ASH-${rand()}-${rand()}-${rand()}`,
+        const fields = {
             title,
             urduTitle: Lms.val('sch-urdu-title'),
-            hostTeacher: currentUser.name,
-            hostId: currentUser.id,
+            hostTeacher: host.name,
+            hostId,
             classId,
-            className: `${cls.name} - ${cls.section || ''}`,
-            courseId: Lms.val('sch-course-id'),
+            className: `${cls.name}${cls.section ? ' - ' + cls.section : ''}`,
+            courseId: Lms.val('sch-course-id') || null,
             courseName: Lms.courseTitle(Lms.val('sch-course-id')),
             roomName: platform === 'EXTERNAL' ? this.platformName(externalUrl) : 'Built-in live classroom',
             platform,
@@ -1205,19 +1212,37 @@ const VirtualClassModule = {
             startsAt: startsAt.toISOString(),
             scheduledStart: startsAt.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             durationMinutes,
-            passcode: Lms.val('sch-passcode'),
+            passcode: Lms.val('sch-passcode')
+        };
+        window.LmsData.virtualClasses = window.LmsData.virtualClasses || [];
+        if (existing) {
+            Object.assign(existing, fields, { updatedAt: new Date().toISOString() });
+            window.DataStore.save(window.LmsData);
+            if (existing.status === 'UPCOMING') {
+                Lms.notifyClass(classId, `Online class updated: ${title}`, `${fields.scheduledStart} • ${durationMinutes} min with ${host.name}.`, 'LIVE_CLASS', 'virtual-class');
+            }
+            window.App.closeModal();
+            window.App.showToast('Online class updated', 'success');
+            this.switchTab('lobby');
+            return;
+        }
+        const rand = () => Math.floor(100 + Math.random() * 900);
+        const session = {
+            id: Lms.uid('vc'),
+            meetingUuid: `ASH-${rand()}-${rand()}-${rand()}`,
+            ...fields,
+            createdBy: currentUser.id,
             status: isLive ? 'LIVE' : 'UPCOMING',
             isLive,
             startedAt: isLive ? new Date().toISOString() : null,
             activeParticipants: 0,
             attendanceCount: 0
         };
-        window.LmsData.virtualClasses = window.LmsData.virtualClasses || [];
         window.LmsData.virtualClasses.unshift(session);
         window.DataStore.save(window.LmsData);
         Lms.notifyClass(classId,
             isLive ? `Live class started: ${title}` : `Online class scheduled: ${title}`,
-            isLive ? `${currentUser.name} is live now. Open Online Classes to join.` : `${session.scheduledStart} • ${durationMinutes} min with ${currentUser.name}.`,
+            isLive ? `${host.name} is live now. Open Online Classes to join.` : `${session.scheduledStart} • ${durationMinutes} min with ${host.name}.`,
             'LIVE_CLASS', 'virtual-class');
         window.App.closeModal();
         window.App?.showToast(isLive ? 'Class started — students have been notified' : 'Online class scheduled and students notified', 'success');
@@ -1227,6 +1252,24 @@ const VirtualClassModule = {
         } else {
             this.switchTab('lobby');
         }
+    },
+
+    // Removes an online class from the lobby; its attendance records and recording stay
+    async deleteSession(sessionId) {
+        const session = (window.LmsData.virtualClasses || []).find(s => s.id === sessionId);
+        if (!session || !this.canHost(session)) return;
+        if (!confirm(I18n.t('Delete the online class "{title}"? Attendance already recorded for it is kept.', { title: session.title }))) return;
+        const wasUpcoming = session.status === 'UPCOMING';
+        window.LmsData.virtualClasses = window.LmsData.virtualClasses.filter(s => s.id !== sessionId);
+        if (this.activeSession && this.activeSession.id === sessionId) this.activeSession = null;
+        window.DataStore.save(window.LmsData);
+        await window.DataStore.syncNow();
+        if ((window.LmsData.virtualClasses || []).some(s => s.id === sessionId)) return; // refused by the server (message shown)
+        if (wasUpcoming) {
+            Lms.notifyClass(session.classId, `Online class cancelled: ${session.title}`, `The class scheduled for ${session.scheduledStart || ''} will not take place.`, 'LIVE_CLASS', 'virtual-class');
+        }
+        window.App?.showToast('Online class deleted', 'success');
+        this.switchTab('lobby');
     },
 
     // =========================================================================
@@ -1270,8 +1313,7 @@ const VirtualClassModule = {
                                     <div style="font-size: 0.8rem; color: var(--text-muted);">${Lms.esc(recording.className)} &bull; Recorded on ${Lms.esc(recording.recordedDate)}</div>
                                 </div>
                                 <div style="display: flex; gap: 8px;">
-                                    <span class="status-pill success"><i class="fas fa-shield-alt"></i> AES-256 Cloud Vault</span>
-                                    <span class="status-pill gold"><i class="fas fa-clock"></i> ${Lms.esc(recording.durationFormatted)}</span>
+                                    ${recording.durationFormatted ? `<span class="status-pill gold"><i class="fas fa-clock"></i> ${Lms.esc(recording.durationFormatted)}</span>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -1295,6 +1337,16 @@ const VirtualClassModule = {
             if (video) video.pause();
             modal.remove();
         }
+    },
+
+    // "Keep permanently": the retention clean-up never removes this recording
+    toggleKeepRecording(recId) {
+        const rec = (window.LmsData.virtualClassRecordings || []).find(r => r.id === recId);
+        if (!rec) return;
+        rec.autoDeleteProtected = !rec.autoDeleteProtected;
+        window.DataStore?.save(window.LmsData);
+        window.App?.showToast(rec.autoDeleteProtected ? 'Recording will be kept permanently' : 'Recording follows the retention policy again', 'success');
+        this.switchTab('recordings');
     },
 
     deleteRecording(recId) {

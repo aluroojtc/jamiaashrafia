@@ -24,6 +24,13 @@ The Jamia Ashrafia Cloud LMS handles sensitive student records, financial contri
 | **Live Virtual Classroom Host** | Full | Full | Host & Moderate | Attend as Participant| - |
 | **Broadcast Announcements** | Full | Full | To Assigned Classes| - | - |
 | **System Audit Logs & Security** | Full | - | - | - | - |
+| **Institution Setup (campuses, programmes, sessions, profile)** | Full | - | - | - | - |
+| **Delete students, teachers, admission applications** | Full | - | - | - | - |
+| **Sample data clean-up** | Full (Super Admin only) | - | - | - | - |
+
+The live permissions are defined in `server/permissions.js` and assigned per role on the Roles & Permissions page;
+the table shows the defaults. `settings.master_data` and `admissions.delete` are held only by the Super Admin
+until given to another role.
 
 ---
 

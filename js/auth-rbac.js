@@ -31,7 +31,8 @@ const ROUTE_MODULE_MAP = {
     'fees': 'fees',
     'library': 'library',
     'notifications': 'notifications',
-    'security': 'security'
+    'security': 'security',
+    'setup': 'setup'
 };
 
 const MODULE_DEFINITIONS = {
@@ -51,7 +52,8 @@ const MODULE_DEFINITIONS = {
     teachers: { title: "Teachers & Faculty Management", urdu: "اساتذہ و انتظامیہ", icon: "fas fa-user-tie" },
     fees: { title: "Fees, Challans & Zakat", urdu: "فیس و کفالت فنڈ", icon: "fas fa-hand-holding-heart" },
     heritage: { title: "Institutional Heritage & Branches", urdu: "تاریخ جامعہ و شاخیں", icon: "fas fa-landmark" },
-    security: { title: "Cloud Architecture & Specs", urdu: "سسٹم آرکیٹیکچر", icon: "fas fa-shield-alt" }
+    security: { title: "Cloud Architecture & Specs", urdu: "سسٹم آرکیٹیکچر", icon: "fas fa-shield-alt" },
+    setup: { title: "Institution Setup", urdu: "ادارہ جاتی ترتیبات", icon: "fas fa-sliders-h" }
 };
 
 // A page opens when the user holds any of these permissions (an empty list: every signed-in user)
@@ -72,7 +74,9 @@ const MODULE_ACCESS = {
     fees: ['fees.challans.view', 'fees.structures.view', 'donations.view'],
     library: ['library.catalog.view'],
     notifications: [],
-    security: ['settings.architecture']
+    security: ['settings.architecture'],
+    // Branches, programmes, sessions, profile; the data clean-up tab is for the Super Admin only
+    setup: ['settings.master_data']
 };
 
 // Old capability names still used in a few places; they map onto catalog permissions
@@ -388,12 +392,15 @@ const AuthRBAC = {
         const roleEl = document.getElementById('header-user-role');
         const avatarEl = document.getElementById('header-user-avatar');
         if (this.currentUser) {
+            const names = (this.session.roles || []).map(r => r.name);
+            const roleText = names.length ? names.join(' + ') : this.roleName(this.currentUser.role);
             if (nameEl) nameEl.textContent = this.currentUser.name;
-            if (roleEl) {
-                const names = (this.session.roles || []).map(r => r.name);
-                roleEl.textContent = names.length ? names.join(' + ') : this.roleName(this.currentUser.role);
-            }
-            if (avatarEl) avatarEl.textContent = this.currentUser.avatar || 'JA';
+            if (roleEl) roleEl.textContent = roleText;
+            if (avatarEl) avatarEl.textContent = this.currentUser.avatar || window.Lms?.initials(this.currentUser.name) || 'JA';
+            const ddName = document.getElementById('dropdown-user-name');
+            const ddRole = document.getElementById('dropdown-user-role');
+            if (ddName) ddName.textContent = this.currentUser.name;
+            if (ddRole) ddRole.textContent = roleText;
         }
     }
 };

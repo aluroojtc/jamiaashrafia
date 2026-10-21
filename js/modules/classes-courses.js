@@ -242,7 +242,7 @@ const ClassesCoursesModule = {
                 <div class="form-group">
                     <label>Campus / Branch *</label>
                     <select id="cls-branch" class="form-control">
-                        ${branches.map(b => `<option value="${Lms.esc(b.id)}" ${cls && cls.branchId === b.id ? 'selected' : ''}>${Lms.esc(b.name)}</option>`).join('')}
+                        ${branches.map(b => `<option value="${Lms.esc(b.id)}" ${(cls ? cls.branchId : Lms.defaultBranchId()) === b.id ? 'selected' : ''}>${Lms.esc(b.name)}</option>`).join('')}
                     </select>
                 </div>
                 <div class="form-group">

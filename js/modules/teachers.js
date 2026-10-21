@@ -96,6 +96,8 @@ const TeachersModule = {
                                     <button class="btn btn-secondary btn-sm" title="Reset password" onclick="TeachersModule.resetPassword('${t.id}')"><i class="fas fa-key"></i></button>` : ''}
                                 ${Lms.can('teachers.deactivate') ? `
                                     <button class="btn btn-secondary btn-sm" title="${t.status === 'INACTIVE' ? 'Activate' : 'Deactivate'}" onclick="TeachersModule.toggleStatus('${t.id}')"><i class="fas ${t.status === 'INACTIVE' ? 'fa-user-check' : 'fa-user-slash'}"></i></button>` : ''}
+                                ${Lms.can('teachers.delete') ? `
+                                    <button class="btn btn-secondary btn-sm" title="Delete" onclick="TeachersModule.deleteTeacher('${t.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                             </div>
                         </div>`;
                 }).join('') : `<div class="card" style="grid-column: 1 / -1;">${window.App.dashEmpty('No teachers registered yet.')}</div>`}
@@ -110,7 +112,6 @@ const TeachersModule = {
         if (!this.canManage()) return;
         const t = teacherId ? Lms.user(teacherId) : null;
         const d = t || {};
-        const branches = ((window.LmsData.institution || {}).branches || []);
         Lms.openModal(
             `<i class="fas fa-user-plus" style="color: var(--gold-400);"></i> ${t ? 'Edit Teacher' : 'Register New Teacher'}`,
             `<div class="form-grid">
@@ -121,7 +122,7 @@ const TeachersModule = {
                 <div class="form-group"><label>Specialization</label><input type="text" id="reg-t-spec" class="form-control" value="${Lms.esc(d.specialization || '')}" placeholder="Hadith, Fiqh, Tajweed..."></div>
                 <div class="form-group"><label>Mobile</label><input type="tel" id="reg-t-phone" class="form-control" value="${Lms.esc(d.phone || '')}"></div>
                 <div class="form-group"><label>Campus</label>
-                    <select id="reg-t-branch" class="form-control">${branches.map(b => `<option value="${Lms.esc(b.id)}" ${(d.branchId || 'b1') === b.id ? 'selected' : ''}>${Lms.esc(b.name)}</option>`).join('')}</select>
+                    <select id="reg-t-branch" class="form-control">${Lms.branchOptions(d.branchId || Lms.defaultBranchId(), true)}</select>
                 </div>
                 <div class="form-group"><label>Login Email *</label><input type="email" id="reg-t-email" class="form-control" value="${Lms.esc(d.email || '')}" placeholder="name@jamiaashrafia.org"></div>
                 ${t ? '' : `<div class="form-group"><label>Initial Password *</label><input type="text" id="reg-t-pwd" class="form-control" value="${Lms.esc(this.randomPassword())}"></div>`}
@@ -153,7 +154,7 @@ const TeachersModule = {
         const fields = {
             name, designation: desig, email,
             urduName: Lms.val('reg-t-urdu') || name, sanad: Lms.val('reg-t-sanad'), specialization: Lms.val('reg-t-spec'),
-            phone: Lms.val('reg-t-phone'), branchId: Lms.val('reg-t-branch') || 'b1'
+            phone: Lms.val('reg-t-phone'), branchId: Lms.val('reg-t-branch') || null
         };
         // Additional roles (e.g. Librarian), when the picker was shown
         const extra = teacherId && window.UsersModule ? window.UsersModule.readRolePicker() : null;
@@ -214,6 +215,28 @@ const TeachersModule = {
         t.status = deactivate ? 'INACTIVE' : 'ACTIVE';
         Lms.save();
         window.App.navigate('teachers');
+    },
+
+    // Removes the teacher's account and their teaching allocations (class teacher, kitabs, timetable periods).
+    // Assignments, exams, recordings and attendance they recorded stay as they are.
+    async deleteTeacher(teacherId) {
+        const t = Lms.user(teacherId);
+        if (!t || t.role !== 'TEACHER' || !Lms.can('teachers.delete')) return;
+        const classes = window.LmsData.classes || [];
+        const periods = (window.LmsData.timetables || []).filter(p => p.teacherId === teacherId);
+        const allocations = classes.reduce((n, c) => n + (c.teacherId === teacherId ? 1 : 0) + (c.courseTeachers || []).filter(ct => ct.teacherId === teacherId).length, 0);
+        if (!confirm(I18n.t('Delete the teacher {name}? They will no longer be able to sign in, and {n} class / kitab allocation(s) and {p} timetable period(s) will be left without a teacher. To keep their history, deactivate them instead.', { name: t.name, n: allocations, p: periods.length }))) return;
+        window.LmsData.users = window.LmsData.users.filter(u => u.id !== teacherId);
+        classes.forEach(c => {
+            if (c.teacherId === teacherId) c.teacherId = null;
+            (c.courseTeachers || []).forEach(ct => { if (ct.teacherId === teacherId) ct.teacherId = null; });
+        });
+        periods.forEach(p => { p.teacherId = null; });
+        Lms.save();
+        await window.DataStore.syncNow();
+        if ((window.LmsData.users || []).some(u => u.id === teacherId)) return; // refused by the server (message shown)
+        window.App.showToast(`Teacher ${t.name} deleted`, 'success');
+        if (window.App.currentRoute === 'teachers') window.App.navigate('teachers');
     },
 
     viewFacultyProfile(id) {

@@ -44,12 +44,12 @@ const InstitutionalModule = {
                             <span class="hero-stat-label">Main Campus Land</span>
                         </div>
                         <div class="hero-stat-item">
-                            <span class="hero-stat-value">12</span>
+                            <span class="hero-stat-value">${(inst.branches || []).length}</span>
                             <span class="hero-stat-label">Campuses & Branches</span>
                         </div>
                         <div class="hero-stat-item">
-                            <span class="hero-stat-value">Over 2,000+</span>
-                            <span class="hero-stat-label">Resident Scholars</span>
+                            <span class="hero-stat-value">${(inst.branches || []).reduce((n, b) => n + (Number(b.students) || 0), 0).toLocaleString()}</span>
+                            <span class="hero-stat-label">Student Strength</span>
                         </div>
                         <div class="hero-stat-item">
                             <span class="hero-stat-value">Wifaq al-Arabia</span>
@@ -87,9 +87,12 @@ const InstitutionalModule = {
                         <ul style="padding-inline-start: 20px; margin-bottom: 12px;">
                             <li>${I18n.t(`<strong>Maulana Mufti Muhammad Ubaidullah (Late):</strong> Pioneered international academic outreach.`)}</li>
                             <li>${I18n.t(`<strong>Maulana Abd-ur-Rahman Ashrafi (Late):</strong> Champion of community welfare and education.`)}</li>
-                            <li>${I18n.t(`<strong>Maulana Fazl-ur-Raheem Ashrafi:</strong> Current Principal / Mohtamim, leading modern reforms and the Cloud LMS initiative.`)}</li>
-                            <li>${I18n.t(`<strong>Maulana Hafiz Ajwad Ubaid & Qari Arshad Ubaid:</strong> Guiding academic administration and Hadith discourse.`)}</li>
                         </ul>
+                        ${(inst.leadership || []).length ? `
+                            <p style="margin-bottom: 6px;"><strong>Current leadership:</strong></p>
+                            <ul style="padding-inline-start: 20px; margin-bottom: 12px;">
+                                ${inst.leadership.map(l => `<li><strong>${Lms.esc(l.name)}</strong>${l.office ? ` — ${Lms.esc(l.office)}` : ''}</li>`).join('')}
+                            </ul>` : ''}
                         <p>${I18n.t(`<strong>Wifaq ul Madaris Equivalence:</strong> The <em>Shahadat-ul-Alimiyyah</em> degree awarded by Jamia Ashrafia under Wifaq-ul-Madaris Al-Arabia Pakistan is recognized by the Higher Education Commission (HEC) of Pakistan as equivalent to an M.A. in Islamic Studies and Arabic.`)}</p>
                     </div>
                 </div>
@@ -99,9 +102,8 @@ const InstitutionalModule = {
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">
-                        <i class="fas fa-network-wired"></i> Branch Network (12 Regional Campuses)
+                        <i class="fas fa-network-wired"></i> ${I18n.t('Branch Network ({n} Campuses)', { n: (inst.branches || []).length })}
                     </h3>
-                    <span class="status-pill gold">Lahore & Rawalpindi</span>
                 </div>
                 <div class="table-responsive">
                     <table class="data-table">
@@ -120,19 +122,19 @@ const InstitutionalModule = {
                                 <tr>
                                     <td>
                                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(b.name)}</div>
-                                        <div style="font-size: 0.75rem; color: var(--text-muted);">${b.code} Campus</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(b.code)}</div>
                                     </td>
-                                    <td><i class="fas fa-map-marker-alt" style="color: var(--danger); margin-inline-end: 6px;"></i>${b.location || [b.address, b.city].filter(Boolean).join(', ')}</td>
+                                    <td><i class="fas fa-map-marker-alt" style="color: var(--danger); margin-inline-end: 6px;"></i>${Lms.esc(b.location || Lms.branchLocation(b))}</td>
                                     <td>
                                         ${b.isWomens ? 
                                             '<span class="status-pill warning"><i class="fas fa-female"></i> Women\'s Campus</span>' : 
                                             '<span class="status-pill info"><i class="fas fa-university"></i> Main Academic</span>'}
                                     </td>
-                                    <td>${b.established}</td>
+                                    <td>${Lms.esc(b.established || '—')}</td>
                                     <td><strong>${Number(b.students || 0).toLocaleString()}</strong> Students</td>
                                     <td><span class="status-pill success"><i class="fas fa-check-circle"></i> Connected to LMS</span></td>
                                 </tr>
-                            `).join('')}
+                            `).join('') || `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No campuses set up yet.</td></tr>`}
                         </tbody>
                     </table>
                 </div>

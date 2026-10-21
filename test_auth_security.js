@@ -158,6 +158,13 @@ async function cleanup(settingsBackup) {
     const roleLike = `${P.toUpperCase()}%`;
     await db.query(`DELETE FROM role_permissions WHERE role_id LIKE ?`, [roleLike]);
     await db.query(`DELETE FROM roles WHERE id LIKE ?`, [roleLike]);
+    // Institution setup records made by the tests (codes / names carry the test prefix)
+    await db.query(`DELETE FROM academic_programs WHERE code LIKE ?`, [roleLike]);
+    await db.query(`DELETE FROM departments WHERE code LIKE ?`, [roleLike]);
+    await db.query(`DELETE FROM branches WHERE code LIKE ?`, [roleLike]);
+    await db.query(`DELETE FROM academic_sessions WHERE name LIKE ?`, [like]);
+    await db.query(`DELETE FROM notifications WHERE message LIKE ?`, [`%${P}%`]);
+    await db.query(`DELETE FROM student_admissions WHERE candidate_name LIKE ?`, [`Sectest Applicant ${P}%`]);
     // Test-only audit entries (real entries are never removed by the application)
     await db.query(`DELETE FROM audit_log WHERE entity_id LIKE ? OR entity_id LIKE ? OR actor_id LIKE ? OR summary LIKE ?`, [like, roleLike, like, `%${P}%`]);
     for (const [key, value] of Object.entries(settingsBackup)) {
@@ -174,7 +181,7 @@ async function run() {
 
     // Role settings are restored exactly as they were
     const settingsBackup = {};
-    for (const key of ['roleDefinitions', 'rolePermissions']) {
+    for (const key of ['roleDefinitions', 'rolePermissions', 'institution', 'recordings']) {
         const [rows] = await db.query(`SELECT setting_value FROM system_settings WHERE setting_key = ?`, [key]);
         settingsBackup[key] = rows.length ? rows[0].setting_value : undefined;
     }
@@ -551,6 +558,91 @@ async function run() {
         const saDelete = await sync('superAdmin', {}, { users: [stuId, teaId], classes: [clsId], courses: [crsId] });
         check('Super Admin can delete students, teachers, classes and courses',
             accepted(saDelete, 'users', stuId) && accepted(saDelete, 'users', teaId) && accepted(saDelete, 'classes', clsId) && accepted(saDelete, 'courses', crsId), JSON.stringify(saDelete.body));
+        check('A deleted account keeps no password', !(await auth.getCredential(stuId)));
+
+        // --- Institution setup: branches, departments, programmes, sessions, profile -----------
+        check('Signed out: nobody can add a campus', (await request('POST', '/api/branches', { body: { code: `${R}X`, name: 'X' } })).status === 401);
+        check('Admin cannot add a campus (institution setup is for the Super Admin)', (await api('admin', 'POST', '/api/branches', { code: `${R}X`, name: 'X' })).status === 403);
+        const brNew = await api('superAdmin', 'POST', '/api/branches', { code: `${R}BR`, name: 'Sectest campus', city: 'Lahore', established: 2026 });
+        const brId = brNew.body.id;
+        check('Super Admin can add a campus', brNew.status === 201 && !!brId, JSON.stringify(brNew.body));
+        check('Campus codes are unique', (await api('superAdmin', 'POST', '/api/branches', { code: `${R}BR`, name: 'Dup' })).status === 409);
+        check('Campus fields are validated', (await api('superAdmin', 'PUT', `/api/branches/${brId}`, { established: 'abc' })).status === 400);
+        await api('superAdmin', 'PUT', `/api/branches/${brId}`, { name: 'Sectest campus (renamed)' });
+        const listed = ((await request('GET', '/api/branches')).body.branches || []).find(b => b.id === brId);
+        check('Campus changes appear in the public list at once', !!listed && listed.name === 'Sectest campus (renamed)');
+        check('Admin cannot delete a campus', (await api('admin', 'DELETE', `/api/branches/${brId}`)).status === 403);
+        await insertRecord('classes', { id: `${P}clsBr`, name: 'Sectest class on campus', branchId: brId, courseTeachers: [] });
+        const brInUse = await api('superAdmin', 'DELETE', `/api/branches/${brId}`);
+        check('A campus that classes still use cannot be deleted', brInUse.status === 409 && /class/.test(brInUse.body.error || ''), JSON.stringify(brInUse.body));
+        await db.query(`DELETE FROM lms_records WHERE id = ?`, [`${P}clsBr`]);
+        check('An unused campus can be deleted', (await api('superAdmin', 'DELETE', `/api/branches/${brId}`)).status === 200
+            && !((await request('GET', '/api/branches')).body.branches || []).some(b => b.id === brId));
+        const dep = await api('superAdmin', 'POST', '/api/departments', { code: `${R}D`, name: 'Sectest department' });
+        const prog = await api('superAdmin', 'POST', '/api/programs', { code: `${R}P`, name: 'Sectest programme', departmentId: dep.body.id, durationYears: 2 });
+        check('Super Admin can add departments and programmes', dep.status === 201 && prog.status === 201, JSON.stringify([dep.body, prog.body]));
+        check('A programme needs an existing department', (await api('superAdmin', 'POST', '/api/programs', { code: `${R}Q`, name: 'X', departmentId: `${P}none`, durationYears: 2 })).status === 400);
+        check('A department with programmes cannot be deleted', (await api('superAdmin', 'DELETE', `/api/departments/${dep.body.id}`)).status === 409);
+        check('Programmes and departments can be removed in order', (await api('superAdmin', 'DELETE', `/api/programs/${prog.body.id}`)).status === 200
+            && (await api('superAdmin', 'DELETE', `/api/departments/${dep.body.id}`)).status === 200);
+        check('A session must end after it starts', (await api('superAdmin', 'POST', '/api/sessions', { name: `${P}session`, startDate: '2031-01-01', endDate: '2030-01-01' })).status === 400);
+        const current = ((await request('GET', '/api/sessions')).body.sessions || []).find(s => s.isCurrent);
+        if (current) check('The current session cannot be deleted', (await api('superAdmin', 'DELETE', `/api/sessions/${current.id}`)).status === 409);
+        check('Anyone can read the institution profile (public admission form)', (await request('GET', '/api/settings/institution')).status === 200);
+        check('Admin cannot change the institution profile', (await api('admin', 'POST', '/api/settings/institution', { motto: 'x' })).status === 403);
+        const prof = await api('superAdmin', 'POST', '/api/settings/institution', { motto: `${P}motto`, leadership: [{ office: 'Mohtamim', name: 'Sectest' }] });
+        check('Super Admin can change the institution profile', prof.status === 200 && prof.body.institution.motto === `${P}motto` && prof.body.institution.leadership.length === 1);
+        check('The main campus must exist', (await api('superAdmin', 'POST', '/api/settings/institution', { mainBranchId: `${P}none` })).status === 400);
+
+        // --- Recording retention ---------------------------------------------------------------
+        check('Admin cannot change recording retention', (await api('admin', 'POST', '/api/settings/recordings', { retentionDays: 30 })).status === 403);
+        check('Retention periods are validated', (await api('superAdmin', 'POST', '/api/settings/recordings', { retentionDays: 45 })).status === 400);
+        const recSet = await api('superAdmin', 'POST', '/api/settings/recordings', { allowStudentDownload: true });
+        check('Super Admin can change recording settings', recSet.status === 200 && recSet.body.settings.allowStudentDownload === true);
+        check('Recording storage use is computed from the recordings', typeof recSet.body.settings.usedBytes === 'number' && typeof recSet.body.settings.recordingCount === 'number');
+        // The clean-up itself runs on test recordings only, so real recordings are never touched by the tests
+        const recs = [
+            { id: `${P}recOld`, title: 'old', recordedDate: '2020-01-01', fileSizeBytes: 10 },
+            { id: `${P}recKeep`, title: 'kept', recordedDate: '2020-01-01', autoDeleteProtected: true },
+            { id: `${P}recNew`, title: 'new', recordedDate: new Date().toISOString().slice(0, 10) }
+        ];
+        for (const r of recs) await insertRecord('virtualClassRecordings', r);
+        const purge = await require('./server/master-data').cleanupRecordings({
+            loadCollection: async () => recs, getSetting: async () => ({ retentionDays: 30 }), saveSetting: async () => {}
+        }, { auth: { id: ids.superAdmin, role: 'SUPER_ADMIN' }, headers: {} });
+        check('Retention clean-up removes only expired, unprotected recordings', purge.purgedCount === 1
+            && (await stored('virtualClassRecordings', `${P}recOld`))._deleted
+            && !(await stored('virtualClassRecordings', `${P}recKeep`))._deleted && !(await stored('virtualClassRecordings', `${P}recNew`))._deleted);
+
+        // --- Admissions: numbering, campus check, deleting ------------------------------------
+        const branch0 = ((await request('GET', '/api/branches')).body.branches || [])[0];
+        const prog0 = ((await request('GET', '/api/programs')).body.programs || [])[0];
+        const appBody = { name: `Sectest Applicant ${P}1`, fatherName: 'Sectest Father', phone: '+92 300 0000002', cnic: '35201-0000003-1', programId: prog0 && prog0.id };
+        // Sent as office staff, who may record applications whatever the public admission window says
+        check('An application needs an existing campus', (await api('superAdmin', 'POST', '/api/admissions', { ...appBody, branchId: `${P}none` })).status === 400);
+        if (branch0 && prog0) {
+            const app = await api('superAdmin', 'POST', '/api/admissions', { ...appBody, branchId: branch0.id });
+            const appNo = app.body.record && app.body.record.applicationNo;
+            check('Application numbers follow the current year', app.status === 201 && new RegExp(`^ASH-ADM-${new Date().getFullYear()}-\\d{3,}$`).test(appNo || ''), JSON.stringify(app.body));
+            const [[notice]] = await db.query(`SELECT COUNT(*) AS n FROM notifications WHERE message LIKE ?`, [`%(${appNo})%`]);
+            check('Admin cannot delete applications', (await api('admin', 'DELETE', `/api/admissions/${app.body.record.id}`)).status === 403);
+            const appDel = await api('superAdmin', 'DELETE', `/api/admissions/${app.body.record.id}`);
+            const [[gone]] = await db.query(`SELECT COUNT(*) AS n FROM student_admissions WHERE id = ?`, [app.body.record.id]);
+            const [[noticeGone]] = await db.query(`SELECT COUNT(*) AS n FROM notifications WHERE message LIKE ?`, [`%(${appNo})%`]);
+            check('Super Admin can delete an application, with its notice', appDel.status === 200 && !Number(gone.n) && Number(notice.n) === 1 && !Number(noticeGone.n));
+        }
+
+        // --- Sample data clean-up --------------------------------------------------------------
+        const testAppId = `${P}testapp`;
+        await db.query(`INSERT INTO student_admissions (id, application_no, candidate_name, father_name, phone, status) VALUES (?, ?, 'John Doe Test 424242', 'Richard Doe', '+44 0000', 'APPLIED')`, [testAppId, `${P}APP2`]);
+        check('Admin cannot review sample data', (await api('admin', 'GET', '/api/admin/sample-data')).status === 403);
+        const review = await api('superAdmin', 'GET', '/api/admin/sample-data');
+        const offered = (review.body.groups || []).flatMap(g => g.records.map(r => `${g.kind}:${r.collection}:${r.id}`));
+        check('Sample data review lists applications left by tests', offered.includes(`test:admissions:${testAppId}`), JSON.stringify(offered.slice(0, 5)));
+        check('Sample data review never offers a Super Admin account', !offered.some(k => k.endsWith(`:users:${ids.superAdmin}`)) && !(review.body.groups || []).some(g => g.collection === 'users' && g.records.some(r => /SUPER_ADMIN/.test(r.label))));
+        const removeRes = await api('superAdmin', 'POST', '/api/admin/sample-data/remove', { items: [{ collection: 'admissions', id: testAppId }, { collection: 'users', id: ids.s1 }] });
+        const [[testAppGone]] = await db.query(`SELECT COUNT(*) AS n FROM student_admissions WHERE id = ?`, [testAppId]);
+        check('Sample data clean-up removes what was offered and nothing else', removeRes.status === 200 && removeRes.body.total === 1 && !Number(testAppGone.n) && !(await stored('users', ids.s1))._deleted, JSON.stringify(removeRes.body));
 
         // --- Password reset, forced change, session revocation -----------------------------
         const tempPwd = auth.temporaryPassword(10);

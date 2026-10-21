@@ -138,3 +138,26 @@ Records online Zakat or Sadaqah contribution and generates a verified receipt.
 - **Signal Offer / Answer / ICE Candidates:** WebRTC peer exchange.
 - **Whiteboard Stroke Broadcast:** `{ "type": "wb_draw", "x": 120, "y": 80, "color": "#124855" }`
 - **Host Mute Decree:** `{ "type": "host_mute_all" }`
+
+---
+
+## 7. Institution Setup, Recordings & Data Clean-up (implemented in `server/master-data.js`, `server/sample-data.js`)
+
+No institutional records (teachers, students, classes, online classes, campuses, programmes) are written in the
+browser code. They live in MySQL and are managed by the Super Admin in the portal (**Institution Setup**,
+Students, Teachers, Classes & Courses, Online Classes). Every change below is checked on the server.
+
+| Method & path | Who may call it | Notes |
+|---|---|---|
+| `GET /api/branches`, `/api/departments`, `/api/programs`, `/api/sessions` | Everyone (public admission form) | Lists |
+| `POST /api/<kind>` · `PUT /api/<kind>/{id}` · `DELETE /api/<kind>/{id}` | `settings.master_data` | `<kind>` = branches, departments, programs, sessions. Codes are unique (409). A record still in use (students, classes, applications, programmes, the main campus, the current session) cannot be deleted (409 with what uses it). |
+| `GET /api/settings/institution` | Everyone | Name, contacts, current leadership, main campus, fee bank account |
+| `POST /api/settings/institution` | `settings.master_data` | |
+| `GET /api/settings/recordings` | Signed in | Retention days, quota, nightly clean-up switch, storage used (computed from the recordings) |
+| `POST /api/settings/recordings` | `settings.recordings` | Retention: 0 (permanent), 30, 60, 90, 180 or 365 days |
+| `POST /api/virtual-class/cleanup` | `settings.recordings` | Removes recordings older than the retention period (not those marked "Keep permanently") and their uploaded files. Also runs daily when the nightly clean-up is on. |
+| `DELETE /api/admissions/{id}` | `admissions.delete` | Also removes the application's "New Student Admission" notice. The student account of an enrolled applicant stays. |
+| `GET /api/admin/sample-data` · `POST /api/admin/sample-data/remove` | Super Admin only (not while previewing a role) | Reviews and removes the demonstration records that portal versions up to October 2026 copied into the database, applications left by automated tests, and (unticked by default) records that only point at those. Only offered records can be removed; the Super Admin account is never offered. |
+
+Application numbers are `ASH-ADM-<year>-<n>`, numbered per year from the highest existing number, so a
+deleted application never causes a duplicate number. Applications must name an existing programme and campus.

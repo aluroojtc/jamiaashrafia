@@ -531,21 +531,13 @@
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Academic Program Sought *</label>
                                 <select id="eadm-program" class="form-control" required>
-                                    <option value="p1">Dars-e-Nizami (Shahadat-ul-Alimiyyah)</option>
-                                    <option value="p2">Takhassus fil-Fiqh wal-Ifta (Postgraduate)</option>
-                                    <option value="p3">Hifz-ul-Quran & Tajweed</option>
-                                    <option value="p4">Qira'at Sab'ah and Asharah</option>
-                                    <option value="p5">Alimiyyah for Women (Lil Bannat)</option>
+                                    <option value="">Loading programmes...</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Campus / Branch *</label>
                                 <select id="eadm-branch" class="form-control" required>
-                                    <option value="b1">Main Campus (Central Headquarters & Dawra-e-Hadith) - Ferozepur Road</option>
-                                    <option value="b2">Madrisatul Faisal Lil Bannat - Model Town, Lahore</option>
-                                    <option value="b3">Madrisa Ashrafia - Old Anarkali, Lahore</option>
-                                    <option value="b4">Mahad al-Quba - Johar Town, Lahore</option>
-                                    <option value="b5">Madrisa Baitul Quran - Samanabad, Lahore</option>
+                                    <option value="">Loading campuses...</option>
                                 </select>
                             </div>
                             <div class="form-group" style="grid-column: 1 / -1;">
@@ -606,7 +598,7 @@
     <!-- TOAST CONTAINER -->
     <div id="toast-container"></div>
 
-    <script src="js/data.js?v=6.2"></script>
+    <script src="js/data.js?v=6.4"></script>
     <script>
         // Ensure data store is loaded
         window.LmsData = window.DataStore ? window.DataStore.get() : null;
@@ -898,46 +890,39 @@
             });
         }
 
+        // Programmes and campuses come from Institution Setup (public lists)
+        let eadmBranches = [];
         async function loadEadmMasterData() {
+            const fill = (id, items, label, empty) => {
+                const select = document.getElementById(id);
+                if (!select) return;
+                const curVal = select.value;
+                select.innerHTML = items.length
+                    ? `<option value="" disabled ${curVal ? '' : 'selected'}>${escapeHtml(I18n.t('Choose...'))}</option>` + items.map(i => `<option value="${escapeHtml(i.id)}">${escapeHtml(label(i))}</option>`).join('')
+                    : `<option value="">${escapeHtml(I18n.t(empty))}</option>`;
+                if (curVal && items.some(i => i.id === curVal)) select.value = curVal;
+            };
             try {
                 const [progRes, branchRes] = await Promise.all([
                     fetch('/api/programs').catch(() => null),
                     fetch('/api/branches').catch(() => null)
                 ]);
-
-                if (progRes && progRes.ok) {
-                    const data = await progRes.json();
-                    if (data && data.programs && data.programs.length > 0) {
-                        const progSelect = document.getElementById('eadm-program');
-                        if (progSelect) {
-                            const curVal = progSelect.value;
-                            progSelect.innerHTML = data.programs.map(p => 
-                                `<option value="${p.id}">${p.name} (${p.urduName || p.code})</option>`
-                            ).join('');
-                            if (curVal && data.programs.some(p => p.id === curVal)) {
-                                progSelect.value = curVal;
-                            }
-                        }
-                    }
+                const programs = progRes && progRes.ok ? ((await progRes.json()).programs || []) : null;
+                const branches = branchRes && branchRes.ok ? ((await branchRes.json()).branches || []) : null;
+                if (programs) fill('eadm-program', programs, p => p.urduName ? `${p.name} (${p.urduName})` : p.name, 'No programmes are open yet');
+                if (branches) {
+                    eadmBranches = branches;
+                    fill('eadm-branch', branches, b => [b.name, b.city].filter(Boolean).join(' - '), 'No campuses are set up yet');
                 }
-
-                if (branchRes && branchRes.ok) {
-                    const data = await branchRes.json();
-                    if (data && data.branches && data.branches.length > 0) {
-                        const branchSelect = document.getElementById('eadm-branch');
-                        if (branchSelect) {
-                            const curVal = branchSelect.value;
-                            branchSelect.innerHTML = data.branches.map(b => 
-                                `<option value="${b.id}">${b.name} - ${b.city || 'Lahore'}</option>`
-                            ).join('');
-                            if (curVal && data.branches.some(b => b.id === curVal)) {
-                                branchSelect.value = curVal;
-                            }
-                        }
-                    }
-                }
+                if (!programs || !branches) throw new Error('lists unavailable');
             } catch (err) {
                 console.warn('Could not load master data from API:', err);
+                ['eadm-program', 'eadm-branch'].forEach(id => {
+                    const select = document.getElementById(id);
+                    if (select && select.options.length <= 1 && !select.value) {
+                        select.innerHTML = `<option value="">${escapeHtml(I18n.t('Could not load the list. Please reload the page.'))}</option>`;
+                    }
+                });
             }
         }
 
@@ -946,6 +931,9 @@
         let eadmPristineHtml = null;
 
         let admissionWindow = null;
+        // Name, contacts and fee bank account from Institution Setup
+        let institutionProfile = {};
+        fetch('/api/settings/institution').then(r => (r.ok ? r.json() : null)).then(d => { if (d && d.institution) institutionProfile = d.institution; }).catch(() => {});
 
         async function loadAdmissionWindow() {
             const line = document.getElementById('adm-status-line');
@@ -999,7 +987,10 @@
             if (feeNote) {
                 const fee = admissionWindow ? Number(admissionWindow.registrationFee || 0) : 0;
                 feeNote.innerHTML = fee > 0
-                    ? `<i class="fas fa-money-check-alt"></i> <strong>Registration fee: PKR ${fee.toLocaleString()}</strong>. <span>After submitting you will receive an Application No. Deposit the fee at Meezan Bank / HBL (A/C 0142-7901452203, Jamia Ashrafia Lahore) quoting your Application No, and bring the receipt to your interview.</span>`
+                    ? `<i class="fas fa-money-check-alt"></i> <strong>Registration fee: PKR ${fee.toLocaleString()}</strong>. <span>${institutionProfile.bankAccountNumber
+                        ? I18n.t('After submitting you will receive an Application No. Deposit the fee at {bank} (A/C {account}, {title}) quoting your Application No, and bring the receipt to your interview.', {
+                            bank: escapeHtml(institutionProfile.bankName || ''), account: escapeHtml(institutionProfile.bankAccountNumber), title: escapeHtml(institutionProfile.bankAccountTitle || institutionProfile.name || '') })
+                        : I18n.t('After submitting you will receive an Application No.')}</span>`
                     : '<i class="fas fa-info-circle"></i> No registration fee is charged for this session.';
             }
             populateEadmCountries();
@@ -1140,6 +1131,10 @@
             const programId = document.getElementById('eadm-program').value;
             const branchId = document.getElementById('eadm-branch').value;
             const hostel = document.getElementById('eadm-hostel').checked;
+            if (!programId || !branchId) {
+                showToast("Please choose the programme and the campus you are applying to.", "warning");
+                return;
+            }
 
             const nextBtn = document.getElementById('btn-wiz-next');
             const prevBtn = document.getElementById('btn-wiz-prev');
@@ -1244,18 +1239,20 @@
                         <div><strong>Student Category:</strong> ${record.studentType === 'INTERNATIONAL' ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
                         <div><strong>Application Tracking No:</strong> <code style="color: var(--primary-800); font-weight: 700; font-size: 1.05rem; background: var(--primary-50); padding: 2px 6px; border-radius: 4px;">${record.applicationNo}</code></div>
                         ${record.studentType === 'INTERNATIONAL' ? `
-                            <div><strong>Passport Number:</strong> <code style="color: var(--primary-800); font-weight: 700;">${record.passport}</code></div>
-                            <div><strong>Country of Residence:</strong> ${record.country}</div>
+                            <div><strong>Passport Number:</strong> <code style="color: var(--primary-800); font-weight: 700;">${escapeHtml(record.passport)}</code></div>
+                            <div><strong>Country of Residence:</strong> ${escapeHtml(record.country)}</div>
                         ` : `
-                            <div><strong>CNIC / B-Form:</strong> <code style="color: var(--primary-800); font-weight: 700;">${record.cnic}</code></div>
+                            <div><strong>CNIC / B-Form:</strong> <code style="color: var(--primary-800); font-weight: 700;">${escapeHtml(record.cnic)}</code></div>
                         `}
                         <div><strong>Status:</strong> <span class="status-pill primary"><i class="fas fa-inbox"></i> Applied (Pending Review)</span></div>
                     </div>
 
                     <div style="margin-top: 18px; font-size: 0.8rem; color: var(--gold-800); background: var(--gold-50); border: 1px solid var(--gold-200); border-radius: 6px; padding: 10px 14px; max-width: 460px; margin-inline-start: auto; margin-inline-end: auto;">
                         <i class="fas fa-info-circle"></i> ${I18n.t('Please save your {no}. The Nazim-e-Taleemat committee will verify your credentials and schedule your academic interview.', { no: `<strong>${I18n.t('Application Tracking No')}</strong>` })}
-                        ${admissionWindow && Number(admissionWindow.registrationFee) > 0 ? `<br><br><i class="fas fa-money-check-alt"></i> ${I18n.t('Deposit the registration fee of {fee} at Meezan Bank / HBL (A/C 0142-7901452203) quoting {no}.', {
+                        ${admissionWindow && Number(admissionWindow.registrationFee) > 0 && institutionProfile.bankAccountNumber ? `<br><br><i class="fas fa-money-check-alt"></i> ${I18n.t('Deposit the registration fee of {fee} at {bank} (A/C {account}) quoting {no}.', {
                             fee: `<strong>${I18n.translateText('PKR ' + Number(admissionWindow.registrationFee).toLocaleString())}</strong>`,
+                            bank: escapeHtml(institutionProfile.bankName || ''),
+                            account: escapeHtml(institutionProfile.bankAccountNumber),
                             no: `<strong>${escapeHtml(record.applicationNo)}</strong>`
                         })}` : ''}
                         <br><br>${I18n.t('Check your status any time with {link} on the login page.', { link: `<strong>"${I18n.t('Track Application')}"</strong>` })}
@@ -1325,7 +1322,12 @@
                         <div><strong>${escapeHtml(a.name)}</strong> • ${escapeHtml(a.applicationNo)}</div>
                         <div>Applied: ${escapeHtml(a.appliedAt)}</div>
                         <div><span class="status-pill ${pill}">${escapeHtml(text)}</span></div>
-                        ${a.interviewDate && a.status === 'INTERVIEW_SCHEDULED' ? `<div><i class="fas fa-calendar-alt"></i> ${I18n.t('Interview: {date} at Jamia Ashrafia, Ferozepur Road', { date: `<strong>${escapeHtml(a.interviewDate)}</strong>` })}</div>` : ''}
+                        ${a.interviewDate && a.status === 'INTERVIEW_SCHEDULED' ? `<div><i class="fas fa-calendar-alt"></i> ${(() => {
+                            const campus = (eadmBranches.find(b => b.id === a.branchId) || {}).name;
+                            return campus
+                                ? I18n.t('Interview: {date} at {place}', { date: `<strong>${escapeHtml(a.interviewDate)}</strong>`, place: escapeHtml(campus) })
+                                : I18n.t('Interview: {date}', { date: `<strong>${escapeHtml(a.interviewDate)}</strong>` });
+                        })()}</div>` : ''}
                         ${a.allottedRollNo ? `<div>Allotted Roll No: <strong>${escapeHtml(a.allottedRollNo)}</strong>${a.status === 'ENROLLED' ? ` — ${I18n.t('sign in with your roll number and the password given by the Academic Office.')}` : ''}</div>` : ''}
                     </div>`;
             } catch (e) {

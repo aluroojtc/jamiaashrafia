@@ -49,8 +49,8 @@ const AttendanceModule = {
             userName: user.name,
             role: user.role,
             identifier: user.rollNo || user.email || user.id,
-            classId: user.classId || "cls_dawra_a",
-            className: user.program || (user.role === 'TEACHER' ? "Faculty Dars" : "General Studies"),
+            classId: user.classId || null,
+            className: user.classId ? Lms.className(user.classId) : (user.role === 'TEACHER' ? "Faculty Dars" : "General Studies"),
             date: today,
             checkInTime: timeStr,
             checkOutTime: null,
@@ -382,7 +382,7 @@ const AttendanceModule = {
                         <i class="fas fa-calendar-check" style="color: var(--gold-400);"></i>
                         My Attendance Record & History
                     </h1>
-                    <p>Talib-e-Ilm: <strong>${Lms.esc(user.name)}</strong> • Roll No: <strong>${Lms.esc(user.rollNo || 'ASH-2024-001')}</strong></p>
+                    <p>Talib-e-Ilm: <strong>${Lms.esc(user.name)}</strong> • Roll No: <strong>${Lms.esc(user.rollNo || '—')}</strong></p>
                 </div>
             </div>
 

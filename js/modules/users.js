@@ -473,7 +473,7 @@ const UsersModule = {
             status: status,
             password: password,
             avatar: avatar,
-            branchId: 'b1',
+            branchId: Lms.defaultBranchId() || null,
             createdAt: new Date().toISOString()
         };
 

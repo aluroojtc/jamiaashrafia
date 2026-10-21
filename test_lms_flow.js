@@ -77,6 +77,12 @@ async function runTests() {
     }, { identifier: adminId, password: adminPassword });
     const adminCookie = String([].concat(adminLogin.headers['set-cookie'] || [])[0] || '').split(';')[0];
 
+    // Applications are made for a programme and campus that exist (Institution Setup)
+    const [[firstProgram]] = await db.query('SELECT id FROM academic_programs ORDER BY code LIMIT 1');
+    const [[firstBranch]] = await db.query('SELECT id FROM branches ORDER BY code LIMIT 1');
+    const programId = firstProgram ? firstProgram.id : null;
+    const branchId = firstBranch ? firstBranch.id : null;
+
     try {
         // Test 8: Existing admissions remain intact before we start
         const [existingBefore] = await db.query('SELECT count(*) as cnt FROM student_admissions');
@@ -96,8 +102,8 @@ async function runTests() {
             cnic: localCnic,
             phone: '+92 300 1234567',
             email: `ahmad_${testTimestamp}@example.com`,
-            programId: 'DARS-NIZAMI',
-            branchId: 'MAIN',
+            programId,
+            branchId,
             hostelRequired: true,
             hafizStatus: true
         });
@@ -123,8 +129,8 @@ async function runTests() {
             country: 'United Kingdom',
             phone: '+44 7700 900077',
             email: `john_${testTimestamp}@example.co.uk`,
-            programId: 'HIFZ',
-            branchId: 'MODEL-TOWN',
+            programId,
+            branchId,
             hostelRequired: false,
             hafizStatus: false
         });
@@ -148,12 +154,14 @@ async function runTests() {
             fatherName: 'Muhammad Raza',
             cnic: localCnic,
             phone: '+92 300 0000000',
-            email: 'dup@example.com'
+            email: 'dup@example.com',
+            programId,
+            branchId
         });
 
         assert('Test 11: Duplicate pending application protection works',
             dupReg.statusCode === 409 && dupReg.body.success === false,
-            `(Returned 409: ${dupReg.body.error})`
+            `(Returned ${dupReg.statusCode}: ${dupReg.body.error})`
         );
 
         // Test 3: Admin sees the new application via GET /api/admissions
@@ -331,7 +339,7 @@ async function runTests() {
             method: 'GET'
         });
         assert('Phase 1.1: GET /api/branches returns all institutional branches from MySQL',
-            branchReq.statusCode === 200 && branchReq.body.branches && branchReq.body.branches.length === 12,
+            branchReq.statusCode === 200 && branchReq.body.branches && branchReq.body.branches.length >= 1,
             `(Retrieved ${branchReq.body?.branches?.length} branches, sample: ${branchReq.body?.branches?.[0]?.name})`
         );
 
@@ -343,7 +351,7 @@ async function runTests() {
             method: 'GET'
         });
         assert('Phase 1.2: GET /api/departments returns academic departments from MySQL',
-            deptReq.statusCode === 200 && deptReq.body.departments && deptReq.body.departments.length === 5,
+            deptReq.statusCode === 200 && deptReq.body.departments && deptReq.body.departments.length >= 1,
             `(Retrieved ${deptReq.body?.departments?.length} departments, sample: ${deptReq.body?.departments?.[0]?.name})`
         );
 
@@ -354,10 +362,10 @@ async function runTests() {
             path: '/api/programs',
             method: 'GET'
         });
-        const darsProg = progReq.body?.programs?.find(p => p.id === 'p1');
+        const darsProg = progReq.body?.programs?.[0];
         assert('Phase 1.3: GET /api/programs returns programs joined with department names from MySQL',
-            progReq.statusCode === 200 && progReq.body.programs && progReq.body.programs.length === 5 && darsProg && darsProg.departmentName,
-            `(Retrieved ${progReq.body?.programs?.length} programs, Dars-e-Nizami Dept: ${darsProg?.departmentName})`
+            progReq.statusCode === 200 && progReq.body.programs && progReq.body.programs.length >= 1 && darsProg && darsProg.departmentName,
+            `(Retrieved ${progReq.body?.programs?.length} programs, first programme's department: ${darsProg?.departmentName})`
         );
 
         // Test Phase 1.4: Sessions API
@@ -369,25 +377,30 @@ async function runTests() {
         });
         const currentSess = sessReq.body?.sessions?.find(s => s.isCurrent === true);
         assert('Phase 1.4: GET /api/sessions returns academic sessions with current session active',
-            sessReq.statusCode === 200 && sessReq.body.sessions && sessReq.body.sessions.length === 3 && currentSess,
+            sessReq.statusCode === 200 && sessReq.body.sessions && sessReq.body.sessions.length >= 1 && currentSess,
             `(Retrieved ${sessReq.body?.sessions?.length} sessions, Active: ${currentSess?.name})`
         );
 
         // Test Phase 1.5: Foreign Key integrity check between academic_programs and departments
         const [fkCheck] = await db.query(
-            `SELECT p.id, p.name AS progName, d.name AS deptName 
-             FROM academic_programs p 
-             JOIN departments d ON p.department_id = d.id`
+            `SELECT COUNT(*) AS orphans FROM academic_programs p LEFT JOIN departments d ON p.department_id = d.id WHERE d.id IS NULL`
         );
         assert('Phase 1.5: Foreign key relationship between academic_programs and departments verified',
-            fkCheck.length === 5,
-            `(All 5 programs properly link to valid department parent records)`
+            Number(fkCheck[0].orphans) === 0,
+            `(Every programme links to an existing department)`
         );
 
     } catch (err) {
         console.error('Test Suite encountered unhandled error:', err);
         failed++;
     } finally {
+        // Applications, their notices and any student account made by this run
+        const testNames = [`Ahmad Raza Test ${testTimestamp}`, `John Doe Test ${testTimestamp}`];
+        const [apps] = await db.query(`SELECT application_no AS no FROM student_admissions WHERE candidate_name IN (?, ?)`, testNames).catch(() => [[]]);
+        for (const a of apps) {
+            await db.query(`DELETE FROM notifications WHERE category = 'ADMISSION' AND message LIKE ?`, [`%(${a.no})%`]).catch(() => {});
+        }
+        await db.query(`DELETE FROM student_admissions WHERE candidate_name IN (?, ?)`, testNames).catch(() => {});
         await db.query(`DELETE FROM lms_records WHERE collection = 'users' AND id = ?`, [adminId]).catch(() => {});
         await db.query(`DELETE FROM user_credentials WHERE user_id = ?`, [adminId]).catch(() => {});
         await db.query(`DELETE FROM auth_sessions WHERE user_id = ?`, [adminId]).catch(() => {});

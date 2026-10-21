@@ -26,7 +26,11 @@ const FeesDonationsModule = {
         GENERAL_FUND: 'General Fund (Construction & Library)'
     },
 
-    BANK: { name: 'Meezan Bank / HBL', title: 'Jamia Ashrafia Lahore', account: '0142-7901452203' },
+    // Bank account for fee and donation payments (Institution Setup -> Institution Profile)
+    get BANK() {
+        const inst = window.LmsData.institution || {};
+        return { name: inst.bankName || '', title: inst.bankAccountTitle || inst.name || '', account: inst.bankAccountNumber || '' };
+    },
 
     // Issue and edit challans
     canManage() {
@@ -764,7 +768,7 @@ const FeesDonationsModule = {
                 id: Lms.uid('don'), receiptNo: `REC-${prefix}-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`,
                 donorName: name, donorUserId: canManage ? null : Lms.me().id, phone: Lms.val('don-phone'), amount, currency: 'PKR',
                 donationType: type, purpose: Lms.val('don-purpose') || `Contribution towards ${(this.DONATION_TYPES[type] || type).split(' (')[0]}`,
-                branchId: 'b1', paymentChannel: Lms.val('don-channel'), reference: ref, proof: proof || null,
+                branchId: Lms.defaultBranchId() || null, paymentChannel: Lms.val('don-channel'), reference: ref, proof: proof || null,
                 receivedAt: Lms.today(), isAnonymous: document.getElementById('don-anon').checked,
                 status: canManage ? 'RECEIVED' : 'PENDING_CONFIRMATION', recordedBy: Lms.me().id
             };

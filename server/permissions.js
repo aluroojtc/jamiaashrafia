@@ -20,7 +20,7 @@ const SCOPES = {
 const MODULES = [
     ['users', 'Users', 'System user accounts (office staff)'],
     ['roles', 'Roles & Permissions', 'Who may do what'],
-    ['settings', 'Settings & Master Data', 'Admission window, live classes, recordings, branches and sessions'],
+    ['settings', 'Settings & Master Data', 'Admission window, live classes, recordings, branches, programmes and sessions'],
     ['audit', 'Audit Log', 'Record of security-relevant changes'],
     ['admissions', 'Admissions', 'Online applications, interviews and enrolment'],
     ['students', 'Students', 'Student records and accounts'],
@@ -59,6 +59,7 @@ const P = [
     ['settings.meetings', 'Live class service', 'Choose the online meeting service.'],
     ['settings.recordings', 'Recording retention', 'Set how long recordings are kept and run clean-up.', { dangerous: true }],
     ['settings.architecture', 'System architecture page', 'Open the technical architecture page.'],
+    ['settings.master_data', 'Institution setup', 'Add, change and remove branches, programmes, departments and academic sessions, and edit the institution profile.', { dangerous: true }],
 
     ['audit.view', 'View audit log', 'See who changed roles, passwords, results and payments.'],
 
@@ -68,6 +69,7 @@ const P = [
     ['admissions.decide', 'Approve or reject', 'Approve or reject applications.', { implies: ['admissions.view'] }],
     ['admissions.enroll', 'Enrol applicants', 'Turn an approved application into a student account.', { implies: ['admissions.view', 'students.create'] }],
     ['admissions.export', 'Export applications', 'Download applications.', { implies: ['admissions.view'] }],
+    ['admissions.delete', 'Delete applications', 'Remove admission applications (e.g. duplicates or test entries).', { dangerous: true, implies: ['admissions.view'] }],
 
     ['students.view', 'View students', 'See student records (within the role\'s data scope).'],
     ['students.view_sensitive', 'View identity documents', 'See CNIC / B-Form, passport and other personal details.', { dangerous: true, implies: ['students.view'] }],
@@ -217,8 +219,8 @@ const SYSTEM_ROLES = {
 // Defaults reproduce what each role could do before the permission catalog existed
 // The institution works with three roles (Admin, Teacher, Student) under the Super Admin, so Admin runs the
 // office, academic and finance work. Kept for the Super Admin alone: staff accounts (other Admins) beyond
-// viewing them, changing what roles may do, the audit log, recording purges, deleting students or teachers
-// and the identity of anonymous donors. Student self-service (submitting work, sitting exams, uploading
+// viewing them, changing what roles may do, the audit log, recording purges, deleting students, teachers or
+// applications, institution setup (branches, programmes, sessions) and the identity of anonymous donors. Student self-service (submitting work, sitting exams, uploading
 // payment proof) is not part of an office role.
 const DEFAULT_PERMISSIONS = {
     ACADEMIC_ADMIN: [

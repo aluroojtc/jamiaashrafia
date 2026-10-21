@@ -350,9 +350,9 @@ function legacyHandler(req, res) {
                     const name = (data.name || '').trim();
                     const fatherName = (data.fatherName || '').trim();
                     const phone = (data.phone || '').trim();
-                    const email = (data.email || 'applicant@jamiaashrafia.org').trim();
-                    const branchId = data.branchId || 'b1';
-                    const programId = data.programId || 'p1';
+                    const email = String(data.email || '').trim() || null;
+                    const branchId = String(data.branchId || '').trim();
+                    const programId = String(data.programId || '').trim();
                     const hostel = !!data.hostelRequired;
                     const prevMadrasa = (data.previousMadrasa || 'None').trim();
                     const hafiz = !!data.hafizStatus;
@@ -360,6 +360,15 @@ function legacyHandler(req, res) {
                     if (!name || !fatherName || !phone) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ success: false, status: 'error', error: 'Candidate name, father name, and phone number are required.' }));
+                        return;
+                    }
+
+                    // Branch and programme must be ones set up in Institution Setup
+                    const [[branchRow]] = await db.query(`SELECT id FROM branches WHERE id = ?`, [branchId]);
+                    const [[programRow]] = await db.query(`SELECT id FROM academic_programs WHERE id = ?`, [programId]);
+                    if (!branchRow || !programRow) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, status: 'error', error: 'Please choose the programme and the campus you are applying to.' }));
                         return;
                     }
 
@@ -442,10 +451,14 @@ function legacyHandler(req, res) {
                         }
                     }
 
-                    // 2. Generate unique application number and record ID
-                    const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM student_admissions`);
-                    const nextSeq = (countRows && countRows[0] ? countRows[0].total : 0) + 96;
-                    const appNo = `ASH-ADM-2024-${String(nextSeq).padStart(3, '0')}`;
+                    // 2. Next application number of this year (ASH-ADM-<year>-<n>), never reusing one after deletions
+                    const appYear = new Date().getFullYear();
+                    const prefix = `ASH-ADM-${appYear}-`;
+                    const [[seqRow]] = await db.query(
+                        `SELECT MAX(CAST(SUBSTRING(application_no, ?) AS UNSIGNED)) AS maxSeq FROM student_admissions WHERE application_no LIKE ?`,
+                        [prefix.length + 1, `${prefix}%`]
+                    );
+                    const appNo = `${prefix}${String((Number(seqRow && seqRow.maxSeq) || 0) + 1).padStart(3, '0')}`;
                     const newId = `adm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
                     // 3. Execute Database Transaction (Admission Insert + Admin Notification Insert)
@@ -679,190 +692,6 @@ function legacyHandler(req, res) {
     }
 
     // =========================================================================
-    // API: VIRTUAL CLASSROOM & WEBRTC SUITE (BACKEND RBAC SECURITY)
-    // =========================================================================
-
-    let backendVirtualClassRecordings = [
-        {
-            id: "rec_201",
-            sessionId: "vc_101",
-            title: "Sahih al-Bukhari - Kitab al-Iman & Bab Halat al-Qalb (Lecture 14)",
-            urduTitle: "صحیح البخاری شریف - کتاب الایمان (لیکچر ۱۴)",
-            classId: "cls_dawra_a",
-            className: "Dawra-e-Hadith (Section A)",
-            courseName: "Sahih al-Bukhari",
-            teacherName: "Qari Arshad Ubaid",
-            teacherId: "u_teacher_1",
-            recordedDate: "2026-09-27",
-            recordedTime: "11:00 AM",
-            durationMinutes: 72,
-            durationFormatted: "1h 12m",
-            fileSizeBytes: 713031680,
-            fileSizeFormatted: "680 MB",
-            format: "MP4 (1080p H.264)",
-            storageKey: "s3://ashrafia-lms-vault/recordings/2026/09/bukhari_lec14.mp4",
-            retentionExpiryDate: "2026-12-26",
-            daysRemaining: 89,
-            viewsCount: 54,
-            downloadsCount: 18,
-            autoDeleteProtected: false,
-            status: "ACTIVE"
-        },
-        {
-            id: "rec_202",
-            sessionId: "vc_102",
-            title: "Contemporary Islamic Banking: Murabaha & Diminishing Musharakah Structuring",
-            urduTitle: "اسلامی بینکاری: مرابحہ اور مشارکہ متناقصہ کی فقہی شرائط",
-            classId: "cls_ifta",
-            className: "Takhassus fil-Ifta (1st Year)",
-            courseName: "Islamic Banking & Modern Jurisprudence",
-            teacherName: "Mufti Ahmadur Rahman",
-            teacherId: "u_teacher_2",
-            recordedDate: "2026-09-25",
-            recordedTime: "03:15 PM",
-            durationMinutes: 85,
-            durationFormatted: "1h 25m",
-            fileSizeBytes: 849346560,
-            fileSizeFormatted: "810 MB",
-            format: "MP4 (1080p H.264)",
-            storageKey: "s3://ashrafia-lms-vault/recordings/2026/09/banking_murabaha.mp4",
-            retentionExpiryDate: "2026-12-24",
-            daysRemaining: 87,
-            viewsCount: 29,
-            downloadsCount: 12,
-            autoDeleteProtected: true,
-            status: "ACTIVE"
-        },
-        {
-            id: "rec_203",
-            sessionId: "vc_103",
-            title: "Al-Hidayah fi al-Fiqh: Kitab al-Buyu & Shuf'ah (Lec 28)",
-            urduTitle: "ہدایہ فقہ حنفی: کتاب البیوع و شفعہ کی تشریح",
-            classId: "cls_aaliyah",
-            className: "Aaliyah (7th Year)",
-            courseName: "Al-Hidayah fi al-Fiqh",
-            teacherName: "Mufti Ahmadur Rahman",
-            teacherId: "u_teacher_2",
-            recordedDate: "2026-09-24",
-            recordedTime: "10:30 AM",
-            durationMinutes: 58,
-            durationFormatted: "58m",
-            fileSizeBytes: 566231040,
-            fileSizeFormatted: "540 MB",
-            format: "MP4 (1080p H.264)",
-            storageKey: "s3://ashrafia-lms-vault/recordings/2026/09/hidayah_buyu.mp4",
-            retentionExpiryDate: "2026-12-23",
-            daysRemaining: 86,
-            viewsCount: 46,
-            downloadsCount: 14,
-            autoDeleteProtected: false,
-            status: "ACTIVE"
-        },
-        {
-            id: "rec_204",
-            sessionId: "vc_105",
-            title: "Tajweed & Sifat al-Huroof: Al-Muqaddimah al-Jazariyyah (Session 09)",
-            urduTitle: "تجوید و صفات الحروف: شرح المقدمة الجزریة",
-            classId: "cls_hifz_3",
-            className: "Hifz-ul-Quran (Daur-e-Kamil)",
-            courseName: "Al-Muqaddimah al-Jazariyyah",
-            teacherName: "Qari Arshad Ubaid",
-            teacherId: "u_teacher_1",
-            recordedDate: "2026-09-22",
-            recordedTime: "07:00 AM",
-            durationMinutes: 45,
-            durationFormatted: "45m",
-            fileSizeBytes: 450887680,
-            fileSizeFormatted: "430 MB",
-            format: "MP4 (1080p H.264)",
-            storageKey: "s3://ashrafia-lms-vault/recordings/2026/09/tajweed_makharij.mp4",
-            retentionExpiryDate: "2026-12-21",
-            daysRemaining: 84,
-            viewsCount: 38,
-            downloadsCount: 9,
-            autoDeleteProtected: false,
-            status: "ACTIVE"
-        }
-    ];
-
-    let backendRetentionSettings = {
-        retentionDays: 90,
-        autoRecord: true,
-        allowStudentDownload: false,
-        storageQuotaGB: 50,
-        usedStorageGB: 2.46,
-        cloudProvider: "Jamia Ashrafia Secure AWS S3 Vault (AES-256)",
-        autoCleanupEnabled: true,
-        lastCleanupDate: "2026-09-28"
-    };
-
-    // POST /api/virtual-class/retention (Super Admin Retention Configuration & Cleanup)
-    if (pathname === '/api/virtual-class/retention' && req.method === 'POST') {
-        if (!can(req, 'settings.recordings')) {
-            forbidden(res, 'You are not allowed to change recording retention.');
-            return;
-        }
-
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                if (data.retentionDays !== undefined) {
-                    backendRetentionSettings.retentionDays = Number(data.retentionDays);
-                }
-                if (data.triggerCleanup) {
-                    backendRetentionSettings.lastCleanupDate = new Date().toISOString().split('T')[0];
-                }
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'success',
-                    message: 'Recording retention policy updated and storage audit finalized.',
-                    settings: backendRetentionSettings
-                }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid retention payload' }));
-            }
-        });
-        return;
-    }
-
-    // POST /api/virtual-class/cleanup (Automated Expired Recording Purge)
-    if (pathname === '/api/virtual-class/cleanup' && req.method === 'POST') {
-        if (!can(req, 'settings.recordings')) {
-            forbidden(res, 'You are not allowed to run recording clean-up.');
-            return;
-        }
-
-        const retentionDays = backendRetentionSettings.retentionDays;
-        const now = new Date();
-        const initialCount = backendVirtualClassRecordings.length;
-
-        // Purge recordings whose daysRemaining <= 0 and not autoDeleteProtected
-        backendVirtualClassRecordings = backendVirtualClassRecordings.filter(rec => {
-            if (rec.autoDeleteProtected) return true;
-            return rec.daysRemaining > 0;
-        });
-
-        const purgedCount = initialCount - backendVirtualClassRecordings.length;
-        // Recalculate storage used
-        const totalBytes = backendVirtualClassRecordings.reduce((sum, r) => sum + (r.fileSizeBytes || 0), 0);
-        backendRetentionSettings.usedStorageGB = parseFloat((totalBytes / (1024 * 1024 * 1024)).toFixed(2));
-        backendRetentionSettings.lastCleanupDate = new Date().toISOString().split('T')[0];
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'success',
-            message: `Storage retention audit executed. ${purgedCount} expired recordings removed from cloud storage.`,
-            purgedCount,
-            activeCount: backendVirtualClassRecordings.length,
-            settings: backendRetentionSettings
-        }));
-        return;
-    }
-
-    // =========================================================================
     // ROUTING & STATIC FILE SERVING
     // =========================================================================
 
@@ -938,6 +767,7 @@ const PUBLIC_API = new Set([
     'POST /api/admissions',
     'GET /api/admissions/status',
     'GET /api/settings/admissions',
+    'GET /api/settings/institution',
     'GET /api/branches',
     'GET /api/departments',
     'GET /api/programs',
@@ -1063,5 +893,9 @@ server.listen(PORT, () => {
             .then(() => console.log('[DB] LMS shared record store and roles ready'))
             .catch(err => console.warn('[DB] LMS schema setup failed:', err.message));
     });
+    // Daily jobs (recording retention clean-up, when the Super Admin has turned it on)
+    const daily = () => lmsApi.runDailyJobs().catch(err => console.warn('[Jobs] Daily jobs failed:', err.message));
+    setTimeout(daily, 60 * 1000).unref();
+    setInterval(daily, 6 * 60 * 60 * 1000).unref();
 });
 

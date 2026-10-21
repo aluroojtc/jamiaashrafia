@@ -213,6 +213,15 @@ const Lms = {
         return (window.LmsData.classes || []).find(c => c.id === id) || null;
     },
 
+    // Attendance % from the student's real records (late counts as 75%), or null when nothing is recorded yet
+    attendancePct(userId) {
+        const recs = (window.LmsData.attendance || []).filter(r => r.userId === userId);
+        if (!recs.length) return null;
+        const present = recs.filter(r => r.status === 'PRESENT').length;
+        const late = recs.filter(r => r.status === 'LATE').length;
+        return Math.round(((present + late * 0.75) / recs.length) * 100);
+    },
+
     className(id) {
         if (id === 'all') return 'All Classes';
         const c = this.getClass(id);
@@ -295,6 +304,49 @@ const Lms = {
     // ---------------------------------------------------------------------
     save() {
         window.DataStore.save(window.LmsData);
+    },
+
+    // JSON call to the portal API; resolves to the response body, throws with the server's message on failure
+    async api(method, url, body) {
+        const res = await fetch(url, {
+            method,
+            headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+            body: body === undefined ? undefined : JSON.stringify(body),
+            cache: 'no-store'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.error || data.message || `Request failed (${res.status})`);
+        return data;
+    },
+
+    // Campuses set up in Institution Setup (loaded from the server at start-up)
+    branches() {
+        return ((window.LmsData.institution || {}).branches || []);
+    },
+
+    branchName(id) {
+        const b = this.branches().find(x => x.id === id);
+        return b ? b.name : '';
+    },
+
+    // "Address, City" without repeating a city the address already names
+    branchLocation(b) {
+        const address = String((b && b.address) || '').trim();
+        const city = String((b && b.city) || '').trim();
+        return city && !address.toLowerCase().includes(city.toLowerCase()) ? [address, city].filter(Boolean).join(', ') : address || city;
+    },
+
+    // The campus new records start with: the main campus chosen in Institution Setup, else the first one listed
+    defaultBranchId() {
+        const list = this.branches();
+        const main = (window.LmsData.institution || {}).mainBranchId;
+        if (main && list.some(b => b.id === main)) return main;
+        return list.length ? list[0].id : '';
+    },
+
+    branchOptions(selectedId, includeNone) {
+        return (includeNone ? `<option value="">— Not set —</option>` : '') + this.branches()
+            .map(b => `<option value="${this.esc(b.id)}" ${b.id === selectedId ? 'selected' : ''}>${this.esc(b.name)}</option>`).join('');
     },
 
     // ---------------------------------------------------------------------

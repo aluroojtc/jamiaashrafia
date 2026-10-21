@@ -133,6 +133,23 @@ const AdmissionsModule = {
         });
     },
 
+    // Removes an application from the registry (duplicates, test entries); an enrolled student's account stays
+    async deleteApplication(appId) {
+        const item = (window.LmsData.admissions || []).find(a => a.id === appId);
+        if (!item || !Lms.can('admissions.delete')) return;
+        if (!confirm(I18n.t('Delete application {no} of {name}? This cannot be undone.', { no: item.applicationNo, name: item.name }))) return;
+        try {
+            await Lms.api('DELETE', `/api/admissions/${encodeURIComponent(item.id)}`);
+            window.LmsData.admissions = window.LmsData.admissions.filter(a => a.id !== appId);
+            this.liveAdmissions = (this.liveAdmissions || []).filter(a => a.id !== appId);
+            Lms.save();
+            App.showToast(`Application ${item.applicationNo} deleted`, 'success');
+            this.fetchLiveAdmissions();
+        } catch (e) {
+            App.showToast(e.message, 'danger');
+        }
+    },
+
     async fetchLiveAdmissions() {
         if (this.isLoading) return;
         this.isLoading = true;
@@ -427,8 +444,8 @@ const AdmissionsModule = {
         const canApprove = Lms.can('admissions.decide');
 
         return list.map(item => {
-            const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: 'Dars-e-Nizami' };
-            const branch = (window.LmsData.institution?.branches || []).find(b => b.id === item.branchId) || { name: 'Main Campus' };
+            const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: item.programId || '—' };
+            const branch = (window.LmsData.institution?.branches || []).find(b => b.id === item.branchId) || { name: item.branchId || '—' };
 
             let statusPill = '';
             if (item.status === 'ENROLLED') {
@@ -511,6 +528,9 @@ const AdmissionsModule = {
                             ${Lms.can('admissions.update') ? `<button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.openEditApplicationModal('${Lms.esc(item.id)}')" title="Edit Application">
                                 <i class="fas fa-edit"></i> Edit
                             </button>` : ''}
+                            ${Lms.can('admissions.delete') ? `<button class="btn btn-secondary btn-sm" onclick="AdmissionsModule.deleteApplication('${Lms.esc(item.id)}')" title="Delete Application">
+                                <i class="fas fa-trash" style="color: var(--danger);"></i>
+                            </button>` : ''}
 
                             <!-- STAGE SPECIFIC ACTIONS -->
                             ${item.status === 'APPLIED' && Lms.can('admissions.schedule_interview') ? `
@@ -573,8 +593,8 @@ const AdmissionsModule = {
         const item = (window.LmsData.admissions || []).find(a => a.id === appId);
         if (!item) return;
 
-        const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: 'Dars-e-Nizami' };
-        const branch = (window.LmsData.institution?.branches || []).find(b => b.id === item.branchId) || { name: 'Main Campus' };
+        const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: item.programId || '—' };
+        const branch = (window.LmsData.institution?.branches || []).find(b => b.id === item.branchId) || { name: item.branchId || '—' };
         const isIntl = (item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport));
 
         const titleEl = document.getElementById('modal-title-text');
@@ -765,11 +785,9 @@ const AdmissionsModule = {
                 <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                     Campus Venue
                 </label>
-                <select id="interview-venue" class="form-control">
-                    <option value="Main Campus - Darul Ifta Seminar Hall">Main Campus - Darul Ifta Seminar Hall</option>
-                    <option value="Main Campus - Hall Imam Bukhari">Main Campus - Hall Imam Bukhari</option>
-                    <option value="Model Town Branch - Committee Room">Model Town Branch - Committee Room</option>
-                </select>
+                <input type="text" id="interview-venue" class="form-control" list="interview-venue-list" placeholder="Campus and room"
+                       value="${Lms.esc(Lms.branchName(item && item.branchId) || Lms.branchName(Lms.defaultBranchId()))}">
+                <datalist id="interview-venue-list">${Lms.branches().map(b => `<option value="${Lms.esc(b.name)}"></option>`).join('')}</datalist>
             </div>
         `;
 
@@ -826,7 +844,7 @@ const AdmissionsModule = {
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Overall Evaluation Score (0 - 100) *
                         </label>
-                        <input type="number" id="eval-score" class="form-control" min="0" max="100" value="${Lms.esc(item.interviewScore || 88)}" required>
+                        <input type="number" id="eval-score" class="form-control" min="0" max="100" value="${Lms.esc(item.interviewScore === null || item.interviewScore === undefined ? '' : item.interviewScore)}" required>
                     </div>
 
                     <div>
@@ -958,7 +976,7 @@ const AdmissionsModule = {
                         <div>
                             <strong style="color: var(--primary-950); font-size: 1rem;">${Lms.esc(item.name)}</strong>
                             <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; S/O ${Lms.esc(item.fatherName)}</span>
-                            <div style="font-size: 0.78rem; color: var(--gold-700);">CNIC: ${Lms.esc(item.cnic)} &bull; Score: ${Lms.esc(item.interviewScore || 90)}%</div>
+                            <div style="font-size: 0.78rem; color: var(--gold-700);">CNIC: ${Lms.esc(item.cnic)} &bull; Score: ${item.interviewScore === null || item.interviewScore === undefined ? '—' : Lms.esc(item.interviewScore) + '%'}</div>
                         </div>
                         <span class="status-pill success"><i class="fas fa-check"></i> Interview Cleared</span>
                     </div>
@@ -977,14 +995,22 @@ const AdmissionsModule = {
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Academic Class & Section Assignment *
                         </label>
-                        <select id="enroll-class" class="form-control" required>
-                            ${(() => {
-                                const all = window.LmsData.classes || [];
-                                const forProgram = all.filter(c => c.programId === item.programId);
-                                const list = forProgram.length ? forProgram.concat(all.filter(c => c.programId !== item.programId)) : all;
-                                return list.map(c => `<option value="${Lms.esc(c.id)}">${Lms.esc(c.name)} — ${Lms.esc(c.section || '')}${c.programId === item.programId ? '' : ' (other program)'}</option>`).join('');
-                            })()}
-                        </select>
+                        ${(() => {
+                            const all = window.LmsData.classes || [];
+                            // No classes set up yet: enrol now and let the Academic Office assign the class later
+                            if (!all.length) return `
+                                <select id="enroll-class" class="form-control" style="width: 100%;">
+                                    <option value="">Assign later (no classes set up yet)</option>
+                                </select>
+                                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">Create classes in Classes &amp; Courses, then assign this student from there.</div>`;
+                            const forProgram = all.filter(c => c.programId === item.programId);
+                            const list = forProgram.concat(all.filter(c => c.programId !== item.programId));
+                            return `
+                                <select id="enroll-class" class="form-control" style="width: 100%;" required>
+                                    <option value="" disabled ${forProgram.length ? '' : 'selected'}>Select a class…</option>
+                                    ${list.map((c, i) => `<option value="${Lms.esc(c.id)}" ${forProgram.length && i === 0 ? 'selected' : ''}>${Lms.esc(c.name)}${c.section ? ' — ' + Lms.esc(c.section) : ''}${c.programId === item.programId ? '' : ' (other program)'}</option>`).join('')}
+                                </select>`;
+                        })()}
                     </div>
                 </div>
 
@@ -1094,7 +1120,7 @@ const AdmissionsModule = {
         const newStudentUserId = `u_student_${Date.now()}`;
         item.enrolledStudentId = newStudentUserId;
 
-        const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: 'Dars-e-Nizami' };
+        const prog = (window.LmsData.programs || []).find(p => p.id === item.programId) || { name: item.programId || '—' };
 
         const isIntlStudent = item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport);
         const newStudentUser = {
@@ -1105,9 +1131,9 @@ const AdmissionsModule = {
             studentType: isIntlStudent ? "INTERNATIONAL" : "LOCAL",
             country: item.country || (isIntlStudent ? "International" : "Pakistan"),
             rollNo: rollNo,
-            classId: classId,
+            classId: classId || null,
             program: prog.name,
-            branchId: item.branchId || "b1",
+            branchId: item.branchId || Lms.defaultBranchId() || null,
             email: email,
             password: password,
             phone: item.phone,
@@ -1117,8 +1143,6 @@ const AdmissionsModule = {
             hostel: hostel,
             status: "ACTIVE",
             avatar: item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
-            attendancePct: 100,
-            gpa: "Fresh Scholar (Enrolled)",
             enrollmentDate: new Date().toISOString().split('T')[0]
         };
 
@@ -1180,7 +1204,7 @@ const AdmissionsModule = {
                 <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 16px; max-width: 480px; margin: 0 auto; text-align: start; line-height: 1.9; font-size: 0.85rem;">
                     <div><strong>Scholar Name:</strong> ${Lms.esc(studentUser.name)}</div>
                     <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-700); font-weight: 700; font-size: 0.95rem;">${Lms.esc(studentUser.rollNo)}</code></div>
-                    <div><strong>Class & Section:</strong> ${Lms.esc(studentUser.classId)}</div>
+                    <div><strong>Class & Section:</strong> ${studentUser.classId ? Lms.esc(Lms.className(studentUser.classId)) : 'Not assigned yet'}</div>
                     <div><strong>Portal Login Email:</strong> <code style="color: var(--primary-700);">${Lms.esc(studentUser.email)}</code></div>
                     <div><strong>Initial Password:</strong> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(studentUser.password)}</code> <span style="font-size: 0.75rem; color: var(--text-muted);">(temporary, must be changed at first sign-in)</span></div>
                     <div><strong>Account Status:</strong> <span class="status-pill success"><i class="fas fa-check"></i> Active</span></div>

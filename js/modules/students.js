@@ -46,7 +46,7 @@ const StudentsModule = {
 
         // Program filter
         if (this.filterProgram !== 'ALL') {
-            filtered = filtered.filter(s => s.program && s.program.includes(this.filterProgram));
+            filtered = filtered.filter(s => (s.classId || '') === (this.filterProgram === 'NONE' ? '' : this.filterProgram));
         }
 
         // Status filter
@@ -71,8 +71,8 @@ const StudentsModule = {
         const activeCount = students.filter(s => (s.status || 'ACTIVE') === 'ACTIVE').length;
         const hostelResidents = students.filter(s => s.hostel && s.hostel.toLowerCase().includes('hostel')).length;
         const suspendedCount = students.filter(s => s.status === 'SUSPENDED' || s.status === 'INACTIVE').length;
-        const avgAttendance = Math.round(students.reduce((acc, s) => acc + (s.attendancePct || 90), 0) / (totalStudents || 1));
-        const mumtazCount = students.filter(s => s.gpa && (s.gpa.includes('Mumtaz') || s.gpa.includes('8') || s.gpa.includes('9'))).length;
+        const attendancePcts = students.map(s => Lms.attendancePct(s.id)).filter(p => p !== null);
+        const avgAttendance = attendancePcts.length ? Math.round(attendancePcts.reduce((a, p) => a + p, 0) / attendancePcts.length) : null;
 
         return `
             <!-- HEADER -->
@@ -116,16 +116,8 @@ const StudentsModule = {
                     <div class="metric-icon-box" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;"><i class="fas fa-calendar-check"></i></div>
                     <div class="metric-content">
                         <span class="metric-label">Avg Attendance</span>
-                        <span class="metric-value">${avgAttendance}%</span>
-                        <span class="metric-hint">Wifaq Punctuality</span>
-                    </div>
-                </div>
-                <div class="metric-card info">
-                    <div class="metric-icon-box" style="background: rgba(245, 158, 11, 0.2); color: var(--warning);"><i class="fas fa-award"></i></div>
-                    <div class="metric-content">
-                        <span class="metric-label">Mumtaz Standing</span>
-                        <span class="metric-value">${mumtazCount} Scholars</span>
-                        <span class="metric-hint">&gt;= 80% Grade Average</span>
+                        <span class="metric-value">${avgAttendance === null ? '—' : avgAttendance + '%'}</span>
+                        <span class="metric-hint">${attendancePcts.length ? I18n.t('From {n} students with records', { n: attendancePcts.length }) : 'No attendance recorded yet'}</span>
                     </div>
                 </div>
             </div>
@@ -162,13 +154,9 @@ const StudentsModule = {
 
                     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <select class="form-control" onchange="StudentsModule.setProgram(this.value)" style="padding: 8px 12px; font-size: 0.85rem;">
-                            <option value="ALL" ${this.filterProgram === 'ALL' ? 'selected' : ''}>All Academic Programs</option>
-                            <option value="Dawra-e-Hadith" ${this.filterProgram === 'Dawra-e-Hadith' ? 'selected' : ''}>Dawra-e-Hadith (Alimiyyah)</option>
-                            <option value="Aaliyah" ${this.filterProgram === 'Aaliyah' ? 'selected' : ''}>Aaliyah (Alimiyyah 7th)</option>
-                            <option value="Takhassus" ${this.filterProgram === 'Takhassus' ? 'selected' : ''}>Takhassus fil-Ifta</option>
-                            <option value="Hifz" ${this.filterProgram === 'Hifz' ? 'selected' : ''}>Hifz-ul-Quran & Tajweed</option>
-                            <option value="Qira'at" ${this.filterProgram === "Qira'at" ? 'selected' : ''}>Qira'at Sab'ah</option>
-                            <option value="Bannat" ${this.filterProgram === 'Bannat' ? 'selected' : ''}>Alimiyyah Lil Bannat</option>
+                            <option value="ALL" ${this.filterProgram === 'ALL' ? 'selected' : ''}>All Classes</option>
+                            ${(window.LmsData.classes || []).map(c => `<option value="${Lms.esc(c.id)}" ${this.filterProgram === c.id ? 'selected' : ''}>${Lms.esc(Lms.className(c.id))}</option>`).join('')}
+                            <option value="NONE" ${this.filterProgram === 'NONE' ? 'selected' : ''}>Not assigned to a class</option>
                         </select>
 
                         <select class="form-control" onchange="StudentsModule.setStatus(this.value)" style="padding: 8px 12px; font-size: 0.85rem;">
@@ -191,7 +179,6 @@ const StudentsModule = {
                                 <th>Program & Class</th>
                                 <th>Residence</th>
                                 <th>Attendance %</th>
-                                <th>Academic Standing</th>
                                 <th>Account Status</th>
                                 <th style="text-align: end; width: 220px;">Administrative Actions</th>
                             </tr>
@@ -225,8 +212,8 @@ const StudentsModule = {
                                             </span>
                                         </td>
                                         <td style="color: var(--text-secondary); font-size: 0.85rem;">
-                                            <div style="font-weight: 600; color: var(--primary-950);">${Lms.esc(s.program || 'Dars-e-Nizami')}</div>
-                                            <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(s.classId || 'cls_dawra_a')}</span>
+                                            <div style="font-weight: 600; color: var(--primary-950);">${this.classLabel(s)}</div>
+                                            ${this.programLabel(s) ? `<span style="font-size: 0.72rem; color: var(--text-muted);">${this.programLabel(s)}</span>` : ''}
                                         </td>
                                         <td style="font-size: 0.82rem;">
                                             ${s.hostel && s.hostel.toLowerCase().includes('hostel') ? `
@@ -237,13 +224,12 @@ const StudentsModule = {
                                         </td>
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 6px;">
-                                                <strong style="color: ${s.attendancePct >= 85 ? 'var(--primary-300)' : (s.attendancePct >= 75 ? 'var(--gold-300)' : 'var(--danger)')};">
-                                                    ${Lms.esc(s.attendancePct || 92)}%
-                                                </strong>
+                                                ${(() => {
+                                                    const pct = Lms.attendancePct(s.id);
+                                                    return pct === null ? '<span style="color: var(--text-muted);">—</span>'
+                                                        : `<strong style="color: ${pct >= 85 ? 'var(--primary-600)' : (pct >= 75 ? 'var(--gold-600)' : 'var(--danger)')};">${pct}%</strong>`;
+                                                })()}
                                             </div>
-                                        </td>
-                                        <td>
-                                            <span class="status-pill gold" style="font-size: 0.75rem;">${Lms.esc(s.gpa || 'Mumtaz')}</span>
                                         </td>
                                         <td>
                                             <span class="status-pill ${badgeClass}">
@@ -277,6 +263,11 @@ const StudentsModule = {
                                                 <!-- MORE ACTIONS -->
                                                 ${Lms.can('students.update') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.openMoreActionsModal('${Lms.esc(s.id)}')" title="Additional Student Operations">
                                                     <i class="fas fa-ellipsis-v"></i>
+                                                </button>` : ''}
+
+                                                <!-- DELETE -->
+                                                ${Lms.can('students.delete') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.deleteStudent('${Lms.esc(s.id)}')" title="Delete Student">
+                                                    <i class="fas fa-trash" style="color: var(--danger);"></i>
                                                 </button>` : ''}
                                             </div>
                                         </td>
@@ -369,6 +360,38 @@ const StudentsModule = {
         if (bodyEl) bodyEl.innerHTML = this.renderProfileContent(student);
     },
 
+    // Readable class name for display (escaped); students can be enrolled before a class is assigned,
+    // and a deleted class counts as unassigned
+    classLabel(student) {
+        return Lms.getClass(student.classId) ? Lms.esc(Lms.className(student.classId)) : 'Not assigned';
+    },
+
+    // A student's program is the program of their class (escaped), '' when there is none
+    programLabel(student) {
+        const cls = Lms.getClass(student.classId);
+        const prog = cls && Lms.program(cls.programId);
+        return prog ? Lms.esc(prog.name) : '';
+    },
+
+    // Class dropdown options built from the classes that actually exist
+    classOptions(selectedId) {
+        const classes = window.LmsData.classes || [];
+        const known = classes.some(c => c.id === selectedId);
+        return `<option value="" ${known ? '' : 'selected'}>${classes.length ? 'Not assigned yet' : 'Not assigned (no classes set up yet)'}</option>`
+            + classes.map(c => `<option value="${Lms.esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${Lms.esc(Lms.className(c.id))}</option>`).join('');
+    },
+
+    // Program name stored on the student record, taken from the chosen class
+    programForClass(classId) {
+        const cls = Lms.getClass(classId);
+        return ((cls && Lms.program(cls.programId)) || {}).name || '';
+    },
+
+    attendanceLabel(student) {
+        const pct = Lms.attendancePct(student.id);
+        return pct === null ? '—' : `${pct}%`;
+    },
+
     renderProfileContent(student) {
         const studentAttendance = (window.LmsData.attendance || []).filter(r => r.userId === student.id);
         const presentCount = studentAttendance.filter(r => r.status === 'PRESENT').length;
@@ -379,7 +402,7 @@ const StudentsModule = {
 
         return `
             <!-- SCHOLAR PROFILE HEADER CARD -->
-            <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.35) 0%, rgba(17, 24, 39, 0.8) 100%); border: 1px solid var(--border-prominent); border-radius: var(--radius-md); padding: 18px; margin-bottom: 20px;">
+            <div style="background: linear-gradient(135deg, var(--primary-50) 0%, var(--gold-50) 100%); border: 1px solid var(--border-prominent); border-inline-start: 4px solid ${currentStatus === 'ACTIVE' ? 'var(--gold-400)' : 'var(--danger)'}; border-radius: var(--radius-md); padding: 18px; margin-bottom: 20px;">
                 <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap;">
                     <div class="user-avatar" style="width: 70px; height: 70px; font-size: 1.6rem; background: var(--primary-700); border: 3px solid ${currentStatus === 'ACTIVE' ? 'var(--gold-400)' : 'var(--danger)'};">
                         ${Lms.esc(student.avatar || 'ST')}
@@ -391,10 +414,10 @@ const StudentsModule = {
                                 <i class="fas ${currentStatus === 'ACTIVE' ? 'fa-check-circle' : 'fa-ban'}"></i> ${currentStatus}
                             </span>
                         </div>
-                        <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 0.82rem; color: var(--text-secondary); flex-wrap: wrap;">
-                            <span><strong>Roll No:</strong> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(student.rollNo || 'N/A')}</code></span>
-                            <span><strong>Program:</strong> ${Lms.esc(student.program || 'Dars-e-Nizami')}</span>
-                            <span><strong>Class:</strong> ${Lms.esc(student.classId || 'Dawra-e-Hadith')}</span>
+                        <div style="display: flex; gap: 6px 16px; margin-top: 8px; font-size: 0.85rem; color: var(--text-primary); flex-wrap: wrap;">
+                            <span><span style="color: var(--text-secondary);">Roll No:</span> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(student.rollNo || 'N/A')}</code></span>
+                            ${this.programLabel(student) ? `<span><span style="color: var(--text-secondary);">Program:</span> <strong>${this.programLabel(student)}</strong></span>` : ''}
+                            <span><span style="color: var(--text-secondary);">Class:</span> <strong>${this.classLabel(student)}</strong></span>
                         </div>
                     </div>
 
@@ -538,14 +561,13 @@ const StudentsModule = {
                         <h4 style="color: var(--gold-600); margin-bottom: 10px;"><i class="fas fa-university"></i> Academic Enrollment Details</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem;">
                             <div>
-                                <div><strong>Enrolled Program:</strong> ${Lms.esc(student.program || 'Dars-e-Nizami')}</div>
-                                <div><strong>Assigned Class:</strong> ${Lms.esc(student.classId || 'Dawra-e-Hadith Final')}</div>
+                                ${this.programLabel(student) ? `<div><strong>Program:</strong> ${this.programLabel(student)}</div>` : ''}
+                                <div><strong>Assigned Class:</strong> ${this.classLabel(student)}</div>
                                 <div><strong>Campus / Branch:</strong> Main Campus (Ferozepur Road, Lahore)</div>
                             </div>
                             <div>
-                                <div><strong>Wifaq Registration No:</strong> <code style="color: var(--gold-700); font-weight: 700;">${Lms.esc(student.wifaqReg || 'W-1445-98210')}</code></div>
+                                <div><strong>Wifaq Registration No:</strong> <code style="color: var(--gold-700); font-weight: 700;">${Lms.esc(student.wifaqReg || '—')}</code></div>
                                 <div><strong>Session:</strong> 1446-1447 AH / 2026</div>
-                                <div><strong>Academic Standing:</strong> <span class="status-pill gold">${Lms.esc(student.gpa || 'Mumtaz (88%)')}</span></div>
                             </div>
                         </div>
                     </div>
@@ -553,27 +575,17 @@ const StudentsModule = {
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
                         <h4 style="color: var(--primary-950); margin-bottom: 12px;"><i class="fas fa-book-open" style="color: var(--gold-600);"></i> Enrolled Kitabs & Faculty (Session 1446-1447)</h4>
                         <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem;">
-                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Sahih al-Bukhari (HAD-801)</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Sheikh-ul-Hadith Qari Arshad Ubaid</div>
-                                </div>
-                                <span class="status-pill success">Mumtaz (88%)</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Sunan al-Tirmidhi (HAD-802)</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Sheikh-ul-Hadith Qari Arshad Ubaid</div>
-                                </div>
-                                <span class="status-pill success">Mumtaz (85%)</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
-                                <div>
-                                    <div style="font-weight: 700; color: var(--primary-950);">Al-Hidayah Fiqh (FIQ-701)</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Chief Mufti Ahmadur Rahman</div>
-                                </div>
-                                <span class="status-pill gold">Jayyid Jiddan (78%)</span>
-                            </div>
+                            ${(() => {
+                                const allocations = ((Lms.getClass(student.classId) || {}).courseTeachers || [])
+                                    .map(ct => ({ course: Lms.getCourse(ct.courseId), teacherId: ct.teacherId }))
+                                    .filter(a => a.course);
+                                if (!allocations.length) return `<div style="color: var(--text-muted); padding: 8px 0;">${Lms.getClass(student.classId) ? 'No kitabs are allocated to this class yet.' : 'Assign a class to see its kitabs.'}</div>`;
+                                return allocations.map(a => `
+                                    <div style="padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
+                                        <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(a.course.title || a.course.name || '')}${a.course.code ? ` (${Lms.esc(a.course.code)})` : ''}</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-muted);">${a.teacherId ? Lms.esc(Lms.userName(a.teacherId)) : 'No teacher assigned'}</div>
+                                    </div>`).join('');
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -587,26 +599,25 @@ const StudentsModule = {
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-card"></i> Candidate Identity</h4>
                         <div><strong>Full Name:</strong> ${Lms.esc(student.name)}</div>
-                        <div><strong>Father's Name:</strong> ${Lms.esc(student.guardianName || student.fatherName || 'Maulana Muhammad')}</div>
+                        <div><strong>Father's Name:</strong> ${Lms.esc(student.guardianName || student.fatherName || '—')}</div>
                         <div><strong>Student Category:</strong> <span class="status-pill ${isIntl ? 'gold' : 'success'}">${isIntl ? '<i class="fas fa-globe-americas"></i> International Student' : '<i class="fas fa-flag"></i> Local Student'}</span></div>
                         ${isIntl ? `
                             <div><strong>Passport Number:</strong> <code style="color: var(--gold-300); font-weight: 700;">${Lms.esc(student.passport || 'N/A')}</code></div>
                             <div><strong>Country of Residence:</strong> <strong>${Lms.esc(student.country || 'International')}</strong></div>
                         ` : `
-                            <div><strong>CNIC / B-Form:</strong> <code>${Lms.esc(student.cnic || '35201-8934521-3')}</code></div>
+                            <div><strong>CNIC / B-Form:</strong> <code>${Lms.esc(student.cnic || '—')}</code></div>
                             <div><strong>Nationality:</strong> Pakistan</div>
                         `}
-                        <div><strong>Date of Birth:</strong> ${Lms.esc(student.dob || '2004-05-12')}</div>
-                        <div><strong>Hafiz-ul-Quran:</strong> <span class="status-pill success" style="font-size: 0.72rem;">Hafiz Verified</span></div>
+                        <div><strong>Date of Birth:</strong> ${Lms.esc(student.dob || '—')}</div>
                     </div>
 
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-phone-alt"></i> Contact & Residence</h4>
-                        <div><strong>WhatsApp / Phone:</strong> ${Lms.esc(student.phone || '+92 300 4589211')}</div>
+                        <div><strong>WhatsApp / Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
                         <div><strong>Email Address:</strong> ${Lms.esc(student.email || 'N/A')}</div>
                         <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
-                        <div><strong>Emergency Contact:</strong> ${Lms.esc(student.emergencyPhone || student.phone || '+92 321 0000000')}</div>
-                        <div><strong>Previous Madrasa:</strong> ${Lms.esc(student.previousMadrasa || 'Jamia Farooqia')}</div>
+                        <div><strong>Emergency Contact:</strong> ${Lms.esc(student.emergencyPhone || student.phone || '—')}</div>
+                        <div><strong>Previous Madrasa:</strong> ${Lms.esc(student.previousMadrasa || '—')}</div>
                     </div>
                 </div>
             `;
@@ -617,7 +628,7 @@ const StudentsModule = {
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
                         <h4 style="color: var(--primary-950); margin: 0;"><i class="fas fa-calendar-check" style="color: var(--primary-600);"></i> Attendance Timestamp Records</h4>
-                        <span style="font-size: 0.82rem; color: var(--gold-300);">Overall Attendance: <strong>${Lms.esc(student.attendancePct || 92)}%</strong></span>
+                        <span style="font-size: 0.82rem; color: var(--gold-300);">Overall Attendance: <strong>${this.attendanceLabel(student)}</strong></span>
                     </div>
 
                     <div class="table-responsive">
@@ -666,19 +677,18 @@ const StudentsModule = {
                 <!-- ACADEMIC INFO -->
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
                     <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-university"></i> Academic Status</h4>
-                    <div><strong>Program:</strong> ${Lms.esc(student.program || 'Dars-e-Nizami')}</div>
-                    <div><strong>Current Class:</strong> ${Lms.esc(student.classId || 'Dawra-e-Hadith')}</div>
-                    <div><strong>Enrollment Date:</strong> ${Lms.esc(student.enrollmentDate || '2024-08-15')}</div>
+                    ${this.programLabel(student) ? `<div><strong>Program:</strong> ${this.programLabel(student)}</div>` : ''}
+                    <div><strong>Current Class:</strong> ${this.classLabel(student)}</div>
+                    <div><strong>Enrollment Date:</strong> ${Lms.esc(student.enrollmentDate || '—')}</div>
                     <div><strong>Campus:</strong> Main Campus (Ferozepur Rd)</div>
-                    <div><strong>Wifaq Sanad Standing:</strong> <span class="status-pill gold">${Lms.esc(student.gpa || 'Mumtaz (88%)')}</span></div>
                 </div>
 
                 <!-- CONTACT & RESIDENCE -->
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
                     <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-badge"></i> Personal & Residence</h4>
-                    <div><strong>Guardian:</strong> ${Lms.esc(student.guardianName || student.fatherName || 'Maulana Muhammad')}</div>
+                    <div><strong>Guardian:</strong> ${Lms.esc(student.guardianName || student.fatherName || '—')}</div>
                     <div><strong>Email:</strong> ${Lms.esc(student.email || 'N/A')}</div>
-                    <div><strong>Phone:</strong> ${Lms.esc(student.phone || '+92 300 4589211')}</div>
+                    <div><strong>Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
                     <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
                     <div><strong>Account Status:</strong> <span class="status-pill ${student.status === 'ACTIVE' || !student.status ? 'success' : 'danger'}">${Lms.esc(student.status || 'ACTIVE')}</span></div>
                 </div>
@@ -688,7 +698,7 @@ const StudentsModule = {
             <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 18px;">
                 <h4 style="color: var(--primary-950); margin-bottom: 10px; display: flex; justify-content: space-between;">
                     <span><i class="fas fa-calendar-check" style="color: var(--primary-400);"></i> Attendance Overview</span>
-                    <span style="color: var(--gold-300); font-weight: 700;">${Lms.esc(student.attendancePct || 92)}% Overall</span>
+                    <span style="color: var(--gold-600); font-weight: 700;">${studentAttendance.length ? `<span>Overall Attendance:</span> ${this.attendanceLabel(student)}` : 'No records yet'}</span>
                 </h4>
                 <div style="display: flex; gap: 20px; font-size: 0.85rem; color: var(--text-secondary); flex-wrap: wrap;">
                     <span><i class="fas fa-check-circle" style="color: var(--primary-400);"></i> On-Time: <strong>${presentCount}</strong></span>
@@ -736,6 +746,20 @@ const StudentsModule = {
         if (viewport && App.currentRoute === 'students') {
             viewport.innerHTML = this.render();
         }
+    },
+
+    // Removes the student's account. Attendance, results, fee and library records stay (they carry the
+    // student's name) so reports and the finance ledger remain complete.
+    async deleteStudent(studentId) {
+        const student = (window.LmsData.users || []).find(u => u.id === studentId && u.role === 'STUDENT');
+        if (!student || !Lms.can('students.delete')) return;
+        if (!confirm(I18n.t('Delete the student {name} ({roll})? They will no longer be able to sign in. Their attendance, results and fee records are kept. To keep the account, suspend it instead.', { name: student.name, roll: student.rollNo || student.id }))) return;
+        window.LmsData.users = window.LmsData.users.filter(u => u.id !== studentId);
+        Lms.save();
+        await window.DataStore.syncNow();
+        if ((window.LmsData.users || []).some(u => u.id === studentId)) return; // refused by the server (message shown)
+        App.showToast(`Student ${student.name} deleted`, 'success');
+        if (App.currentRoute === 'students') App.navigate('students');
     },
 
     toggleStudentStatus(studentId, newStatus) {
@@ -913,33 +937,18 @@ const StudentsModule = {
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Academic Program *</label>
-                            <select id="edit-st-program" class="form-control">
-                                <option value="Dawra-e-Hadith (Alimiyyah)" ${student.program?.includes('Dawra') ? 'selected' : ''}>Dawra-e-Hadith (Alimiyyah)</option>
-                                <option value="Aaliyah (Alimiyyah 7th)" ${student.program?.includes('Aaliyah') ? 'selected' : ''}>Aaliyah (Alimiyyah 7th)</option>
-                                <option value="Takhassus fil-Ifta" ${student.program?.includes('Takhassus') ? 'selected' : ''}>Takhassus fil-Ifta</option>
-                                <option value="Hifz-ul-Quran & Tajweed" ${student.program?.includes('Hifz') ? 'selected' : ''}>Hifz-ul-Quran & Tajweed</option>
-                                <option value="Qira'at Sab'ah" ${student.program?.includes('Qira') ? 'selected' : ''}>Qira'at Sab'ah</option>
-                                <option value="Alimiyyah Lil Bannat" ${student.program?.includes('Bannat') ? 'selected' : ''}>Alimiyyah Lil Bannat</option>
-                            </select>
-                        </div>
-                        <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Class Assignment</label>
-                            <select id="edit-st-class" class="form-control">
-                                <option value="cls_dawra_a" ${student.classId === 'cls_dawra_a' ? 'selected' : ''}>Dawra-e-Hadith Section A</option>
-                                <option value="cls_dawra_b" ${student.classId === 'cls_dawra_b' ? 'selected' : ''}>Dawra-e-Hadith Section B</option>
-                                <option value="cls_aaliyah" ${student.classId === 'cls_aaliyah' ? 'selected' : ''}>Aaliyah (7th Year)</option>
-                                <option value="cls_ifta" ${student.classId === 'cls_ifta' ? 'selected' : ''}>Takhassus fil-Ifta</option>
-                                <option value="cls_hifz_3" ${student.classId === 'cls_hifz_3' ? 'selected' : ''}>Hifz-ul-Quran</option>
+                            <select id="edit-st-class" class="form-control" style="width: 100%;">
+                                ${this.classOptions(student.classId)}
                             </select>
                         </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Contact Phone / WhatsApp</label>
                             <input type="text" id="edit-st-phone" class="form-control" value="${Lms.esc(student.phone || '')}">
                         </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Residence / Hostel</label>
                             <select id="edit-st-hostel" class="form-control">
@@ -1019,8 +1028,7 @@ const StudentsModule = {
         const urduName = document.getElementById('edit-st-urdu').value.trim();
         const guardianName = document.getElementById('edit-st-guardian').value.trim();
         const rollNo = document.getElementById('edit-st-roll').value.trim();
-        const program = document.getElementById('edit-st-program').value;
-        const classId = document.getElementById('edit-st-class').value;
+        const classId = document.getElementById('edit-st-class').value || null;
         const phone = document.getElementById('edit-st-phone').value.trim();
         const hostel = document.getElementById('edit-st-hostel').value;
 
@@ -1064,7 +1072,7 @@ const StudentsModule = {
         student.cnic = cnic;
         student.passport = passport;
         student.country = country;
-        student.program = program;
+        student.program = this.programForClass(classId);
         student.classId = classId;
         student.phone = phone;
         student.hostel = hostel;
@@ -1166,23 +1174,14 @@ const StudentsModule = {
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Academic Program *</label>
-                            <select id="direct-st-program" class="form-control">
-                                <option value="Dawra-e-Hadith (Alimiyyah)">Dawra-e-Hadith (Alimiyyah)</option>
-                                <option value="Aaliyah (Alimiyyah 7th)">Aaliyah (Alimiyyah 7th)</option>
-                                <option value="Takhassus fil-Ifta">Takhassus fil-Ifta</option>
-                                <option value="Hifz-ul-Quran & Tajweed">Hifz-ul-Quran & Tajweed</option>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Class Assignment</label>
+                            <select id="direct-st-class" class="form-control" style="width: 100%;">
+                                ${this.classOptions('')}
                             </select>
                         </div>
                         <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Class Assignment *</label>
-                            <select id="direct-st-class" class="form-control">
-                                <option value="cls_dawra_a">Dawra-e-Hadith Section A</option>
-                                <option value="cls_dawra_b">Dawra-e-Hadith Section B</option>
-                                <option value="cls_aaliyah">Aaliyah (7th Year)</option>
-                                <option value="cls_ifta">Takhassus fil-Ifta</option>
-                                <option value="cls_hifz_3">Hifz-ul-Quran</option>
-                            </select>
+                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Contact Phone / WhatsApp</label>
+                            <input type="text" id="direct-st-phone" class="form-control" placeholder="+92 300 1234567">
                         </div>
                     </div>
 
@@ -1271,8 +1270,8 @@ const StudentsModule = {
         const name = document.getElementById('direct-st-name').value.trim();
         const father = document.getElementById('direct-st-father').value.trim();
         const rollNo = document.getElementById('direct-st-roll').value.trim();
-        const program = document.getElementById('direct-st-program').value;
-        const classId = document.getElementById('direct-st-class').value;
+        const classId = document.getElementById('direct-st-class').value || null;
+        const phone = document.getElementById('direct-st-phone').value.trim();
         const email = document.getElementById('direct-st-email').value.trim();
         const pwd = document.getElementById('direct-st-pwd').value.trim();
         const hostel = document.getElementById('direct-st-hostel').value;
@@ -1322,19 +1321,17 @@ const StudentsModule = {
             country: country,
             rollNo: rollNo,
             classId: classId,
-            program: program,
-            branchId: "b1",
+            program: this.programForClass(classId),
+            branchId: (Lms.getClass(classId) || {}).branchId || Lms.defaultBranchId() || null,
             email: email,
             password: pwd,
-            phone: studentType === 'LOCAL' ? "+92 300 0000000" : "+1 555 0000",
+            phone: phone,
             cnic: cnic,
             passport: passport,
             guardianName: father,
             hostel: hostel,
             status: "ACTIVE",
             avatar: name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
-            attendancePct: 100,
-            gpa: "Fresh Scholar",
             enrollmentDate: new Date().toISOString().split('T')[0]
         };
 
@@ -1460,8 +1457,8 @@ const StudentsModule = {
                             <div style="flex: 1; font-size: 0.84rem; line-height: 1.65; color: var(--text-primary);">
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${Lms.esc(student.name)}</strong></div>
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${Lms.esc(student.rollNo || 'N/A')}</span></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Program:</span> <span style="font-weight: 600;">${Lms.esc(student.program || 'Dars-e-Nizami')}</span></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Class:</span> <span style="font-weight: 600;">${Lms.esc(student.classId || 'Dawra-e-Hadith')}</span></div>
+                                ${this.programLabel(student) ? `<div><span style="color: var(--text-muted); font-size: 0.78rem;">Program:</span> <span style="font-weight: 600;">${this.programLabel(student)}</span></div>` : ''}
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Class:</span> <span style="font-weight: 600;">${this.classLabel(student)}</span></div>
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Residence:</span> <span style="font-weight: 600;">${Lms.esc(student.hostel || 'Day Scholar')}</span></div>
                             </div>
                         </div>
@@ -1497,9 +1494,11 @@ const StudentsModule = {
     // Export Students list to CSV
     exportStudentsCSV() {
         const students = (window.LmsData.users || []).filter(u => u.role === 'STUDENT');
-        let csv = "Roll No,Name,Urdu Name,Program,Class,Email,Phone,Guardian,Residence,Attendance %,Standing,Status\n";
+        let csv = "Roll No,Name,Urdu Name,Program,Class,Email,Phone,Guardian,Residence,Attendance %,Status\n";
         students.forEach(s => {
-            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${s.program || ''}","${s.classId || ''}","${s.email || ''}","${s.phone || ''}","${s.guardianName || s.fatherName || ''}","${s.hostel || ''}","${s.attendancePct || 90}%","${s.gpa || ''}","${s.status || 'ACTIVE'}"\n`;
+            const cls = Lms.getClass(s.classId);
+            const pct = Lms.attendancePct(s.id);
+            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${s.guardianName || s.fatherName || ''}","${s.hostel || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

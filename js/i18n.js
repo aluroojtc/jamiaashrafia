@@ -29,7 +29,7 @@
         ur: { name: 'اردو', dir: 'rtl', locale: 'ur-PK' },
         ar: { name: 'العربية', dir: 'rtl', locale: 'ar-u-ca-gregory-nu-latn' }
     };
-    const CATALOG_VERSION = '1.1';
+    const CATALOG_VERSION = '1.3';
 
     function readStored() {
         try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }

@@ -193,11 +193,10 @@ const ReportsModule = {
                         <tr>
                             <th>Roll Number</th>
                             <th>Scholar Name</th>
-                            <th>Academic Program</th>
+                            <th>Class</th>
                             <th>Hostel / Boarding</th>
                             <th>Enrollment Date</th>
                             <th>Attendance Pct</th>
-                            <th>Academic Standing</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -208,11 +207,10 @@ const ReportsModule = {
                                 <td>
                                     <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(s.name, s.urduName))}</div>
                                 </td>
-                                <td>${Lms.esc(s.program || 'Dars-e-Nizami')}</td>
+                                <td>${Lms.getClass(s.classId) ? Lms.esc(Lms.className(s.classId)) : 'Not assigned'}</td>
                                 <td style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(s.hostel || 'Day Scholar')}</td>
-                                <td>${Lms.esc(s.enrollmentDate || '2024-08-15')}</td>
-                                <td><strong style="color: var(--primary-300);">${Lms.esc(s.attendancePct || 92)}%</strong></td>
-                                <td><span class="status-pill gold">${Lms.esc(s.gpa || 'Jayyid')}</span></td>
+                                <td>${Lms.esc(s.enrollmentDate || '—')}</td>
+                                <td>${(() => { const pct = Lms.attendancePct(s.id); return pct === null ? '<span style="color: var(--text-muted);">—</span>' : `<strong style="color: var(--primary-600);">${pct}%</strong>`; })()}</td>
                                 <td><span class="status-pill success">${Lms.esc(s.status || 'ACTIVE')}</span></td>
                             </tr>
                         `).join('')}
@@ -513,11 +511,11 @@ const ReportsModule = {
                     <tbody>
                         ${live.map(v => `
                             <tr>
-                                <td style="font-weight: 700; color: var(--primary-950);">${v.title}</td>
-                                <td>${v.hostTeacher}</td>
-                                <td>${v.scheduledStart || 'Daily Fajr 06:30 AM'}</td>
-                                <td><code>${v.passcode}</code></td>
-                                <td><strong style="color: var(--primary-300);">${v.activeParticipants} Online</strong></td>
+                                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(v.title)}</td>
+                                <td>${Lms.esc(v.hostTeacher)}</td>
+                                <td>${Lms.esc(v.scheduledStart || '—')}</td>
+                                <td><code>${Lms.esc(v.passcode || '—')}</code></td>
+                                <td><strong style="color: var(--primary-600);">${I18n.t('{n} joined', { n: window.VirtualClassModule ? window.VirtualClassModule.attendeeCount(v) : 0 })}</strong></td>
                                 <td><span class="status-pill urgent"><i class="fas fa-circle"></i> Live Video Active</span></td>
                             </tr>
                         `).join('')}
@@ -535,9 +533,11 @@ const ReportsModule = {
 
         if (cat === 'STUDENTS') {
             const students = (window.LmsData.users || []).filter(u => u.role === 'STUDENT');
-            csv = "Roll No,Name,Urdu Name,Program,Hostel,Enrollment Date,Attendance %,Standing,Status\n";
+            csv = "Roll No,Name,Urdu Name,Class,Hostel,Enrollment Date,Attendance %,Status\n";
             students.forEach(s => {
-                csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${s.program || ''}","${s.hostel || ''}","${s.enrollmentDate || ''}","${s.attendancePct || 90}%","${s.gpa || ''}","${s.status || 'ACTIVE'}"\n`;
+                const cls = Lms.getClass(s.classId);
+                const pct = Lms.attendancePct(s.id);
+                csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${cls ? Lms.className(cls.id) : ''}","${s.hostel || ''}","${s.enrollmentDate || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
             });
         } else if (cat === 'ATTENDANCE') {
             const records = window.LmsData.attendance || [];

@@ -20,6 +20,7 @@ const APP_NAV = [
                     { route: 'roles', icon: 'fas fa-id-badge', iconColor: 'var(--gold-300)', label: 'Roles & Permissions' }
                 ]
             },
+            { route: 'setup', icon: 'fas fa-sliders-h', iconColor: 'var(--gold-300)', label: 'Institution Setup' },
             { route: 'heritage', icon: 'fas fa-landmark', label: 'Institutional Heritage' }
         ]
     },
@@ -198,7 +199,8 @@ const App = {
         this.updateNotificationBadge();
         // Poll so admins see new admission notifications without reloading the page
         setInterval(() => this.updateNotificationBadge(), 30000);
-        this.syncMasterData();
+        // Campuses, programmes and sessions are needed by most pages (wait briefly, never block on a slow server)
+        await Promise.race([this.syncMasterData(), new Promise(r => setTimeout(r, 4000))]);
         if (window.PrayerTimesService) {
             window.PrayerTimesService.calculateAndRefresh();
         }
@@ -466,6 +468,10 @@ const App = {
             case 'security':
                 viewport.innerHTML = this.renderSecurityDocs();
                 break;
+            case 'setup':
+                viewport.innerHTML = window.InstitutionSetupModule ? window.InstitutionSetupModule.render() : '';
+                if (window.InstitutionSetupModule) window.InstitutionSetupModule.load();
+                break;
             default:
                 viewport.innerHTML = this.renderDashboard();
         }
@@ -541,7 +547,7 @@ const App = {
         const user = window.AuthRBAC.currentUser;
         const role = window.AuthRBAC.getRole();
         const roleDef = window.AuthRBAC.roleInfo(role);
-        const inst = window.LmsData.institution;
+        const inst = window.LmsData.institution || {};
         const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.isLive || vc.status === 'LIVE')
             || (window.LmsData.virtualClasses || []).find(vc => vc.status === 'UPCOMING');
         const totalDonations = (window.LmsData.donations || []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
@@ -570,7 +576,7 @@ const App = {
                         <i class="fas fa-sliders-h"></i> Roles & Permissions
                     </button>` : ''}
                     ${can('admissions') ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('admissions')">
-                        <i class="fas fa-user-plus"></i> Admissions Queue (${window.LmsData.admissions.length})
+                        <i class="fas fa-user-plus"></i> Admissions Queue (${(window.LmsData.admissions || []).length})
                     </button>` : ''}
                     ${seesFees ? `<button class="btn btn-primary btn-sm" onclick="App.navigate('fees')">
                         <i class="fas fa-file-invoice-dollar"></i> Fees (${verifyQueue} to verify)
@@ -582,30 +588,31 @@ const App = {
             <div class="ashrafia-hero-card">
                 <div class="ashrafia-hero-content">
                     <div class="ashrafia-hero-badge">
-                        <i class="fas fa-landmark"></i> Central Headquarters • Ferozepur Road • Est. 1947
+                        <i class="fas fa-landmark"></i> ${Lms.esc([inst.mainCampus, inst.established ? `Est. ${inst.established}` : ''].filter(Boolean).join(' • '))}
                     </div>
-                    <h2 class="ashrafia-hero-title">Jamia Ashrafia Lahore — Knowledge & Piety</h2>
-                    <p class="ashrafia-hero-desc">
-                        Founded by Hazrat Maulana Mufti Muhammad Hassan Amritsari (RA) on 14 September 1947. 
-                        Encompassing 12 regional campuses with over 2,000 resident scholars under Wifaq-ul-Madaris Al-Arabia.
-                    </p>
+                    <h2 class="ashrafia-hero-title">${Lms.esc(Lms.localName(inst.name, inst.urduName))}${inst.motto ? ` — ${Lms.esc(inst.motto)}` : ''}</h2>
+                    ${(inst.leadership || []).length ? `<p class="ashrafia-hero-desc">${inst.leadership.map(l => `${Lms.esc(l.office)}${l.office ? ': ' : ''}<strong>${Lms.esc(l.name)}</strong>`).join(' • ')}</p>` : ''}
                     <div class="ashrafia-hero-stats">
                         <div class="hero-stat-item">
-                            <span class="hero-stat-value">${inst.branches.length}</span>
-                            <span class="hero-stat-label">Regional Branches</span>
+                            <span class="hero-stat-value">${(inst.branches || []).length}</span>
+                            <span class="hero-stat-label">Campuses & Branches</span>
                         </div>
                         <div class="hero-stat-item">
-                            <span class="hero-stat-value">2,000+</span>
-                            <span class="hero-stat-label">Resident Scholars</span>
+                            <span class="hero-stat-value">${Lms.students().filter(s => (s.status || 'ACTIVE') === 'ACTIVE').length}</span>
+                            <span class="hero-stat-label">Active Students</span>
                         </div>
                         <div class="hero-stat-item">
-                            <span class="hero-stat-value">Wifaq al-Arabia</span>
-                            <span class="hero-stat-label">Accreditation</span>
+                            <span class="hero-stat-value">${Lms.teachers().filter(t => t.status !== 'INACTIVE').length}</span>
+                            <span class="hero-stat-label">Active Teachers</span>
                         </div>
                         <div class="hero-stat-item">
-                            <span class="hero-stat-value">100% Free</span>
-                            <span class="hero-stat-label">Welfare Scholarships</span>
+                            <span class="hero-stat-value">${(window.LmsData.classes || []).length}</span>
+                            <span class="hero-stat-label">Classes</span>
                         </div>
+                        ${inst.affiliation ? `<div class="hero-stat-item">
+                            <span class="hero-stat-value" style="font-size: 1rem;">${Lms.esc(inst.affiliation)}</span>
+                            <span class="hero-stat-label">Affiliation</span>
+                        </div>` : ''}
                     </div>
                 </div>
             </div>
@@ -1075,41 +1082,24 @@ const App = {
                             <tr>
                                 <th>Role</th>
                                 <th>Office</th>
-                                <th>Designation / Office</th>
+                                <th>Held by</th>
                                 <th>Core Capabilities & Guardrails</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td><span class="status-pill gold">SUPER_ADMIN</span></td>
-                                <td>Mohtamim / Majlis-e-Shura</td>
-                                <td>Principal Maulana Fazl-ur-Raheem Ashrafi</td>
-                                <td>Full administrative control, financial audits, branch creation, policy decrees, audit log access.</td>
-                            </tr>
-                            <tr>
-                                <td><span class="status-pill info">ACADEMIC_ADMIN</span></td>
-                                <td>Nazim-e-Taleemat</td>
-                                <td>Maulana Hafiz Ajwad Ubaid</td>
-                                <td>Student admissions approval, roll number issuance, teacher assignments, timetables, Wifaq exam results.</td>
-                            </tr>
-                            <tr>
-                                <td><span class="status-pill success">TEACHER</span></td>
-                                <td>Ustadh / Sheikh-ul-Hadith</td>
-                                <td>Qari Arshad Ubaid / Asatizah</td>
-                                <td>Host Zoom-like live classrooms, daily attendance marking, homework creation, subjective grading & feedback.</td>
-                            </tr>
-                            <tr>
-                                <td><span class="status-pill warning">STUDENT</span></td>
-                                <td>Talib-e-Ilm</td>
-                                <td>Dars-e-Nizami Scholars</td>
-                                <td>Join live classes, upload assignments, attempt timed online exam papers, view fee challans, search library.</td>
-                            </tr>
-                            <tr>
-                                <td><span class="status-pill info">ACCOUNTANT</span></td>
-                                <td>Nazim-e-Maliyat</td>
-                                <td>Haji Abdul Ghaffar</td>
-                                <td>3-part fee challan generation, Zakat & Sadaqah verification, Kafalat-e-Talib-e-Ilm disbursement receipts.</td>
-                            </tr>
+                            ${(window.LmsData.roles || []).map(r => {
+                                const holders = (window.LmsData.users || []).filter(u => u.role === r.id && u.status !== 'INACTIVE');
+                                const who = !holders.length ? '—'
+                                    : holders.length <= 3 ? holders.map(u => Lms.esc(u.name)).join(', ')
+                                        : I18n.t('{n} accounts', { n: holders.length });
+                                return `
+                                <tr>
+                                    <td><span class="status-pill ${Lms.esc(r.badgeClass || 'info')}">${Lms.esc(r.id)}</span></td>
+                                    <td>${Lms.esc(r.name || r.id)}${r.urduTitle ? `<div style="font-size: 0.75rem; color: var(--text-muted);" dir="rtl">${Lms.esc(r.urduTitle)}</div>` : ''}</td>
+                                    <td>${who}</td>
+                                    <td>${Lms.esc(r.description || '')}</td>
+                                </tr>`;
+                            }).join('') || `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading roles...</td></tr>`}
                         </tbody>
                     </table>
                 </div>
@@ -1343,47 +1333,22 @@ const App = {
         }
     },
 
+    // Campuses, programmes, sessions, departments and the institution profile (managed in Institution Setup)
     async syncMasterData() {
+        const get = url => fetch(url, { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null);
         try {
-            const [bRes, pRes, sRes, dRes] = await Promise.all([
-                fetch('/api/branches').catch(() => null),
-                fetch('/api/programs').catch(() => null),
-                fetch('/api/sessions').catch(() => null),
-                fetch('/api/departments').catch(() => null)
+            const [bData, pData, sData, dData, iData] = await Promise.all([
+                get('/api/branches'), get('/api/programs'), get('/api/sessions'), get('/api/departments'), get('/api/settings/institution')
             ]);
-
-            if (bRes && bRes.ok) {
-                const bData = await bRes.json();
-                if (bData && bData.branches && window.LmsData) {
-                    if (!window.LmsData.institution) window.LmsData.institution = {};
-                    window.LmsData.institution.branches = bData.branches;
-                }
-            }
-
-            if (pRes && pRes.ok) {
-                const pData = await pRes.json();
-                if (pData && pData.programs && window.LmsData) {
-                    window.LmsData.programs = pData.programs;
-                }
-            }
-
-            if (sRes && sRes.ok) {
-                const sData = await sRes.json();
-                if (sData && sData.sessions && window.LmsData) {
-                    window.LmsData.sessions = sData.sessions;
-                }
-            }
-
-            if (dRes && dRes.ok) {
-                const dData = await dRes.json();
-                if (dData && dData.departments && window.LmsData) {
-                    window.LmsData.departments = dData.departments;
-                }
-            }
-
-            if (window.DataStore && window.LmsData) {
-                window.DataStore.save(window.LmsData);
-            }
+            const data = window.LmsData;
+            if (!data) return;
+            if (!data.institution) data.institution = {};
+            if (iData && iData.institution) Object.assign(data.institution, iData.institution);
+            if (bData && Array.isArray(bData.branches)) data.institution.branches = bData.branches;
+            if (pData && Array.isArray(pData.programs)) data.programs = pData.programs;
+            if (sData && Array.isArray(sData.sessions)) data.sessions = sData.sessions;
+            if (dData && Array.isArray(dData.departments)) data.departments = dData.departments;
+            if (window.DataStore) window.DataStore.save(data);
         } catch (err) {
             console.warn('[LMS] Could not sync academic master data from server:', err);
         }

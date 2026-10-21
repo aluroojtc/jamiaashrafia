@@ -21,6 +21,8 @@ const auth = require('./auth');
 const policy = require('./access-policy');
 const roles = require('./roles');
 const audit = require('./audit');
+const masterData = require('./master-data');
+const sampleData = require('./sample-data');
 
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -477,6 +479,7 @@ async function handleStoreSync(req, res) {
                 if (collection === 'users') {
                     revoke.add(id);
                     await roles.removeUserRoles(conn, id);
+                    await conn.execute(`DELETE FROM user_credentials WHERE user_id = ?`, [id]);
                     await audit.log({ req, action: 'user.delete', entityType: 'users', entityId: id, summary: `Deleted account ${existing.name || id} (${existing.role})`, before: { role: existing.role, name: existing.name } });
                 }
                 (result.accepted[collection] = result.accepted[collection] || []).push(id);
@@ -1078,6 +1081,7 @@ async function route(req, res) {
         next.registrationFee = Math.max(0, Number(next.registrationFee) || 0);
         next.admissionFee = Math.max(0, Number(next.admissionFee) || 0);
         next.isOpen = !!next.isOpen;
+        ['session', 'message', 'closedMessage'].forEach(k => { next[k] = String(next[k] || '').slice(0, 2000); });
         await saveSetting('admissions', next);
         await audit.log({ req, action: 'settings.admissions', entityType: 'settings', entityId: 'admissions', summary: `Admissions ${next.isOpen ? 'open' : 'closed'} (deadline ${next.deadline || '—'})`, before: current, after: next });
         sendJson(res, 200, { success: true, settings: await getAdmissionSettings() });
@@ -1118,9 +1122,56 @@ async function route(req, res) {
         return false;
     }
 
+    if (p.startsWith('/api/admissions/') && m === 'DELETE') { await handleAdmissionDelete(req, res, url); return true; }
+
     if (p === '/api/virtual-class/verify-access' && m === 'POST') { await handleVirtualVerify(req, res); return true; }
 
+    // Institution setup (branches, programmes, sessions, profile), recording retention, sample data clean-up
+    if (await masterData.route(req, res, url, DEPS)) return true;
+    if (await sampleData.route(req, res, url, DEPS)) return true;
+
     return false;
+}
+
+// Helpers handed to server/master-data.js and server/sample-data.js
+const DEPS = { sendJson, readJson, can, loadCollection, getSetting, saveSetting, deleteAdmissionNotices };
+
+// DELETE /api/admissions/:id  removes an application (duplicates, test entries); an enrolled student's account stays
+async function handleAdmissionDelete(req, res, url) {
+    if (!can(req, 'admissions.delete')) {
+        sendJson(res, 403, { success: false, error: 'You are not allowed to delete admission applications.' });
+        return;
+    }
+    const appId = decodeURIComponent(url.pathname.replace('/api/admissions/', '')).trim();
+    const [rows] = await db.query(`SELECT * FROM student_admissions WHERE id = ? OR application_no = ? LIMIT 1`, [appId, appId]);
+    const existing = rows[0];
+    if (!existing) {
+        sendJson(res, 404, { success: false, error: 'Admission application not found.' });
+        return;
+    }
+    await db.query(`DELETE FROM student_admissions WHERE id = ?`, [existing.id]);
+    await deleteAdmissionNotices(db, existing.application_no);
+    await audit.log({
+        req, action: 'admission.delete', entityType: 'admission', entityId: existing.application_no,
+        summary: `Deleted application ${existing.application_no} (${existing.candidate_name}, ${existing.status})`,
+        before: { ...existing, cnic_bform: existing.cnic_bform ? '[kept private]' : null, passport_number: existing.passport_number ? '[kept private]' : null }
+    });
+    sendJson(res, 200, { success: true });
+}
+
+// The "New Student Admission" notices name the application number in brackets
+async function deleteAdmissionNotices(conn, applicationNo) {
+    const [notes] = await conn.query(`SELECT id FROM notifications WHERE category = 'ADMISSION' AND message LIKE ?`, [`%(${applicationNo})%`]);
+    for (const n of notes) {
+        await conn.query(`DELETE FROM notification_reads WHERE notification_id = ?`, [n.id]);
+        await conn.query(`DELETE FROM notifications WHERE id = ?`, [n.id]);
+    }
+}
+
+/** Daily jobs (started by server.js): recording clean-up when the Super Admin has turned it on */
+async function runDailyJobs() {
+    await ensureSchema();
+    await masterData.nightlyCleanup(DEPS);
 }
 
 async function handle(req, res) {
@@ -1141,4 +1192,4 @@ async function handle(req, res) {
     }
 }
 
-module.exports = { handle, getSetting, saveSetting, ensureSchema, SYNC_COLLECTIONS };
+module.exports = { handle, getSetting, saveSetting, ensureSchema, runDailyJobs, deleteAdmissionNotices, SYNC_COLLECTIONS };
