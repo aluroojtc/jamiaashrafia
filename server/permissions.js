@@ -9,6 +9,13 @@
  *   ALL      - the whole institution (office staff)
  *   TEACHING - classes the person teaches (class teacher or teaching a kitab there), and their own records
  *   SELF     - only the person's own records and their own class's material
+ *
+ * Roles belong to one of three separate domains (see DOMAINS below):
+ *   SYSTEM  - roles of office staff (Admin, Finance Officer, custom roles), managed on the Roles page
+ *   STUDENT - student types / permission groups, managed in Student Management
+ *   TEACHER - teacher types / permission groups, managed in Teacher Management
+ * A student or teacher group can never hold more than its domain's ceiling, so a student or teacher
+ * permission can never open office work.
  */
 
 const SCOPES = {
@@ -79,6 +86,7 @@ const P = [
     ['students.delete', 'Delete students', 'Remove student accounts.', { dangerous: true, implies: ['students.view'] }],
     ['students.reset_password', 'Reset student passwords', 'Give a student a temporary password.', { implies: ['students.view'] }],
     ['students.export', 'Export students', 'Download student lists with contact details.', { dangerous: true, implies: ['students.view'] }],
+    ['students.assign_group', 'Choose student type', 'Choose or change the student type (permission group) of a student. Defining the types stays with the Super Admin.', { dangerous: true, implies: ['students.view'] }],
 
     ['teachers.view', 'View faculty', 'See the faculty directory.'],
     ['teachers.create', 'Register teachers', 'Create teacher accounts.', { implies: ['teachers.view'] }],
@@ -86,6 +94,7 @@ const P = [
     ['teachers.deactivate', 'Deactivate teachers', 'Switch teacher accounts between active and inactive.', { implies: ['teachers.view'] }],
     ['teachers.delete', 'Delete teachers', 'Remove teacher accounts.', { dangerous: true, implies: ['teachers.view'] }],
     ['teachers.reset_password', 'Reset teacher passwords', 'Give a teacher a temporary password.', { implies: ['teachers.view'] }],
+    ['teachers.assign_group', 'Choose teacher type', 'Choose or change the teacher type (permission group) of a teacher. Defining the types stays with the Super Admin.', { dangerous: true, implies: ['teachers.view'] }],
 
     ['classes.view', 'View classes & kitabs', 'See classes and the kitabs taught in them.'],
     ['classes.manage', 'Manage classes', 'Create, edit and delete classes.', { implies: ['classes.view'] }],
@@ -293,6 +302,16 @@ const ROLE_CEILING = {
     ]))
 };
 
+// The three authorization domains. Student and Teacher accounts keep role STUDENT / TEACHER on their record
+// (the account type); which group of that domain they belong to is stored in user_roles. The built-in Student
+// and Teacher roles are the default group of their domain.
+const DOMAINS = {
+    SYSTEM: { label: 'System user roles', accountRole: null, defaultGroup: null, scope: null },
+    STUDENT: { label: 'Student types', accountRole: 'STUDENT', defaultGroup: 'STUDENT', scope: 'SELF' },
+    TEACHER: { label: 'Teacher types', accountRole: 'TEACHER', defaultGroup: 'TEACHER', scope: 'TEACHING' }
+};
+const DOMAIN_CEILING = { STUDENT: ROLE_CEILING.STUDENT, TEACHER: ROLE_CEILING.TEACHER };
+
 // Module switches from the old Roles screen -> read permissions (used once, when importing custom roles)
 const LEGACY_MODULE_PERMISSIONS = {
     students: ['students.view'],
@@ -384,6 +403,8 @@ module.exports = {
     SYSTEM_ROLES,
     DEFAULT_PERMISSIONS,
     ROLE_CEILING,
+    DOMAINS,
+    DOMAIN_CEILING,
     LEGACY_MODULE_PERMISSIONS,
     LEGACY_ALIASES
 };

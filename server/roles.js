@@ -13,6 +13,13 @@
  * Super Admin holds every permission with whole-institution scope, in code. Who is Super Admin is recorded in
  * the super_admins table, changed only through grantSuperAdmin / revokeSuperAdmin (password re-entry, audited,
  * and there is always at least one).
+ *
+ * Every role belongs to one domain (roles.domain): SYSTEM roles for office staff, STUDENT groups (student types)
+ * and TEACHER groups (teacher types). A student or teacher account keeps role STUDENT / TEACHER on its record (the
+ * account type) and belongs to exactly one group of that domain: its primary user_roles row, or the domain's
+ * default group (the built-in Student / Teacher role) when it has none. Group permissions, plus the person's
+ * individual overrides (user_permission_overrides), are always cut down to the domain's ceiling. Only the Super
+ * Admin defines groups and overrides; choosing a person's group needs students.assign_group / teachers.assign_group.
  */
 
 const db = require('../database/db');
@@ -22,6 +29,7 @@ const auth = require('./auth');
 
 const SUPER_ADMIN = 'SUPER_ADMIN';
 const CORE_ROLE_IDS = Object.keys(catalog.SYSTEM_ROLES);
+const GROUP_DOMAINS = ['STUDENT', 'TEACHER'];
 const ROLE_ID_PATTERN = /^[A-Z][A-Z0-9_]{1,59}$/;
 const BADGES = ['gold', 'primary', 'success', 'info', 'warning'];
 
@@ -45,6 +53,8 @@ const ALWAYS_KEPT = new Set(['donations.give', 'attendance.self_checkin', 'notif
 
 let cache = null; // Map id -> role
 let assignments = new Map(); // user id -> [role ids] (main role first)
+let primaries = new Map(); // user id -> role id of the primary user_roles row
+let overrides = new Map(); // user id -> { allow: Set, deny: Set }
 let superAdmins = new Set(); // user ids
 
 // ---------------------------------------------------------------------------
@@ -100,6 +110,7 @@ async function ensureRolesSchema() {
         granted_by VARCHAR(120) NULL,
         granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    await ensureDomainSchema();
 
     const [[{ n }]] = await db.query(`SELECT COUNT(*) AS n FROM roles`);
     if (!Number(n)) await importLegacyRoles();
@@ -112,6 +123,30 @@ async function ensureRolesSchema() {
     if (reloadTimer.unref) reloadTimer.unref();
 }
 let reloadTimer = null;
+
+// Separates system roles from student and teacher groups (database/migration_2026_10_21_permission_groups.sql).
+// Additive only: existing roles stay SYSTEM, the built-in Student and Teacher roles become the default groups,
+// so every account keeps exactly the access it had.
+async function ensureDomainSchema() {
+    const [col] = await db.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'roles' AND column_name = 'domain'`
+    );
+    if (!col.length) {
+        await db.query(`ALTER TABLE roles ADD COLUMN domain VARCHAR(16) NOT NULL DEFAULT 'SYSTEM' AFTER scope`);
+        await db.query(`ALTER TABLE roles ADD INDEX idx_roles_domain (domain)`);
+        console.log('[Roles] Added roles.domain (system roles, student types and teacher types are now separate)');
+    }
+    await db.query(`UPDATE roles SET domain = 'STUDENT' WHERE id = 'STUDENT' AND domain <> 'STUDENT'`);
+    await db.query(`UPDATE roles SET domain = 'TEACHER' WHERE id = 'TEACHER' AND domain <> 'TEACHER'`);
+    await db.query(`CREATE TABLE IF NOT EXISTS user_permission_overrides (
+        user_id VARCHAR(120) NOT NULL,
+        permission VARCHAR(80) NOT NULL,
+        effect VARCHAR(8) NOT NULL,
+        granted_by VARCHAR(120) NULL,
+        granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, permission)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+}
 
 async function getSettingJson(key) {
     const [rows] = await db.query(`SELECT setting_value FROM system_settings WHERE setting_key = ?`, [key]);
@@ -242,10 +277,12 @@ async function backfillAssignments() {
 }
 
 async function insertRole(role, permissions, by) {
+    // The built-in Student and Teacher roles are the default groups of their domains; everything else is SYSTEM
+    const domain = role.domain || (GROUP_DOMAINS.includes(role.id) ? role.id : 'SYSTEM');
     await db.query(
-        `INSERT INTO roles (id, name, urdu_title, badge_class, description, scope, is_system, status, version, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?)`,
-        [role.id, role.name, role.urduTitle || '', role.badgeClass || 'info', role.description || '', role.scope || 'ALL', role.isSystem ? 1 : 0, by]
+        `INSERT INTO roles (id, name, urdu_title, badge_class, description, scope, domain, is_system, status, version, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?)`,
+        [role.id, role.name, role.urduTitle || '', role.badgeClass || 'info', role.description || '', role.scope || 'ALL', domain, role.isSystem ? 1 : 0, by]
     );
     for (const p of new Set(permissions)) {
         await db.query(`INSERT IGNORE INTO role_permissions (role_id, permission) VALUES (?, ?)`, [role.id, p]);
@@ -260,31 +297,48 @@ async function load() {
     const [rows] = await db.query(`SELECT * FROM roles`);
     const [perms] = await db.query(`SELECT role_id, permission FROM role_permissions`);
     const next = new Map();
-    rows.forEach(r => next.set(r.id, {
-        id: r.id,
-        name: r.name,
-        urduTitle: r.urdu_title || '',
-        badgeClass: r.badge_class,
-        description: r.description || '',
-        scope: catalog.SCOPES[r.scope] ? r.scope : 'SELF',
-        isSystem: !!r.is_system,
-        status: r.status,
-        version: r.version,
-        updatedAt: r.updated_at,
-        granted: new Set()
-    }));
+    rows.forEach(r => {
+        const domain = catalog.DOMAINS[r.domain] ? r.domain : 'SYSTEM';
+        next.set(r.id, {
+            id: r.id,
+            name: r.name,
+            urduTitle: r.urdu_title || '',
+            badgeClass: r.badge_class,
+            description: r.description || '',
+            // A group's data scope is fixed by its domain (students: own records, teachers: classes they teach)
+            scope: domain !== 'SYSTEM' ? catalog.DOMAINS[domain].scope : (catalog.SCOPES[r.scope] ? r.scope : 'SELF'),
+            domain,
+            isSystem: !!r.is_system,
+            status: r.status,
+            version: r.version,
+            updatedAt: r.updated_at,
+            granted: new Set()
+        });
+    });
     perms.forEach(p => { const r = next.get(p.role_id); if (r && catalog.isKnown(p.permission)) r.granted.add(p.permission); });
-    next.forEach(r => { r.permissions = catalog.expand(Array.from(r.granted)); });
+    next.forEach(r => { r.permissions = withinDomain(r.domain, catalog.expand(Array.from(r.granted))); });
     cache = next;
 
     const [ur] = await db.query(`SELECT user_id, role_id, is_primary FROM user_roles ORDER BY is_primary DESC, granted_at ASC`);
     const nextAssignments = new Map();
+    const nextPrimaries = new Map();
     ur.forEach(row => {
         const list = nextAssignments.get(row.user_id) || [];
         if (!list.includes(row.role_id)) list.push(row.role_id);
         nextAssignments.set(row.user_id, list);
+        if (row.is_primary && !nextPrimaries.has(row.user_id)) nextPrimaries.set(row.user_id, row.role_id);
     });
     assignments = nextAssignments;
+    primaries = nextPrimaries;
+    const [ov] = await db.query(`SELECT user_id, permission, effect FROM user_permission_overrides`);
+    const nextOverrides = new Map();
+    ov.forEach(row => {
+        if (!catalog.isKnown(row.permission)) return;
+        const o = nextOverrides.get(row.user_id) || { allow: new Set(), deny: new Set() };
+        (row.effect === 'DENY' ? o.deny : o.allow).add(row.permission);
+        nextOverrides.set(row.user_id, o);
+    });
+    overrides = nextOverrides;
     const [sa] = await db.query(`SELECT user_id FROM super_admins`);
     superAdmins = new Set(sa.map(r => r.user_id));
     return cache;
@@ -292,6 +346,76 @@ async function load() {
 
 function getRole(id) {
     return cache ? cache.get(id) || null : null;
+}
+
+// ---------------------------------------------------------------------------
+// Domains: system roles, student groups, teacher groups
+// ---------------------------------------------------------------------------
+
+// Permissions cut down to what the domain may ever hold (system roles have no ceiling)
+function withinDomain(domain, keys) {
+    const ceiling = catalog.DOMAIN_CEILING[domain];
+    const set = keys instanceof Set ? keys : new Set(keys || []);
+    return ceiling ? new Set(Array.from(set).filter(k => ceiling.has(k))) : set;
+}
+
+function domainOf(roleId) {
+    const r = getRole(roleId);
+    return r ? r.domain : null;
+}
+
+// Which domain an account belongs to, from the role on its record
+function accountDomain(role) {
+    const r = String(role || '').toUpperCase();
+    if (r === 'STUDENT' || r === 'TEACHER') return r;
+    return r ? 'SYSTEM' : null;
+}
+
+function isGroupOf(roleId, domain) {
+    const r = getRole(String(roleId || '').toUpperCase());
+    return !!r && GROUP_DOMAINS.includes(domain) && r.domain === domain;
+}
+
+// What may stand as `role` on an account record: Super Admin, the Student / Teacher account types, or a system role
+function isAccountRole(roleId) {
+    const id = String(roleId || '').toUpperCase();
+    if (id === SUPER_ADMIN || id === 'STUDENT' || id === 'TEACHER') return true;
+    return domainOf(id) === 'SYSTEM';
+}
+
+function isSystemRole(roleId) {
+    return domainOf(String(roleId || '').toUpperCase()) === 'SYSTEM';
+}
+
+// The student / teacher group an account belongs to (its primary assignment, else the domain's default group)
+function groupOf(user) {
+    const domain = accountDomain(user && user.role);
+    if (!GROUP_DOMAINS.includes(domain)) return null;
+    const primary = primaries.get(user.id);
+    return primary && isGroupOf(primary, domain) ? primary : catalog.DOMAINS[domain].defaultGroup;
+}
+
+function defaultGroup(domain) {
+    return catalog.DOMAINS[domain] ? catalog.DOMAINS[domain].defaultGroup : null;
+}
+
+function overridesOf(userId) {
+    const o = overrides.get(userId);
+    return { allow: o ? Array.from(o.allow).sort() : [], deny: o ? Array.from(o.deny).sort() : [] };
+}
+
+// A student's or teacher's permissions: the group's, plus individual allows, minus individual denies, within the ceiling
+function groupPermissionsFor(user, groupId, withOverrides = true) {
+    const group = getRole(groupId);
+    if (!group || group.status !== 'ACTIVE') return new Set();
+    const o = withOverrides && user ? overrides.get(user.id) : null;
+    let keys = new Set(group.permissions);
+    if (o) {
+        keys = catalog.expand(Array.from(keys).concat(Array.from(o.allow)));
+        // A denied permission also takes away everything that depends on it (no exams.mark without exams.view)
+        keys = new Set(Array.from(keys).filter(k => !Array.from(catalog.expand([k])).some(d => o.deny.has(d))));
+    }
+    return withinDomain(group.domain, keys);
 }
 
 const ALL_PERMISSIONS = new Set(catalog.CATALOG.map(p => p.key));
@@ -302,12 +426,18 @@ function isSuperAdminUser(user) {
     return !!user && String(user.role || '').toUpperCase() === SUPER_ADMIN && superAdmins.has(user.id);
 }
 
-// Roles a person holds: the main role on their record first, then additional roles from user_roles
+// Roles a person holds: the main role first (a student's or teacher's group, or a staff member's role on their
+// record), then additional roles from user_roles. Additional roles are always system roles, and students hold none.
 function rolesOfUser(user) {
     if (!user) return [];
     const main = String(user.role || '').toUpperCase();
-    const extra = (assignments.get(user.id) || []).filter(id => id !== main && id !== SUPER_ADMIN);
-    return (main && main !== SUPER_ADMIN ? [main] : []).concat(extra);
+    const held = assignments.get(user.id) || [];
+    // A Super Admin's earlier roles are kept so that taking Super Admin away later restores them
+    if (main === SUPER_ADMIN) return held.filter(id => id !== SUPER_ADMIN);
+    const domain = accountDomain(main);
+    const first = GROUP_DOMAINS.includes(domain) ? groupOf(user) : main;
+    const extra = domain === 'STUDENT' ? [] : held.filter(id => id !== first && id !== SUPER_ADMIN && isSystemRole(id));
+    return (first ? [first] : []).concat(extra);
 }
 
 function additionalRolesOf(user) {
@@ -323,20 +453,28 @@ function effectiveFor(user, opts = {}) {
     if (!opts.onlyRole && isSuperAdminUser(user)) {
         return { roleId: SUPER_ADMIN, roleIds: [SUPER_ADMIN], scope: 'ALL', scopes: ALL_SCOPES, permissions: ALL_PERMISSIONS, isSuperAdmin: true };
     }
+    const domain = accountDomain(main);
     const roleIds = opts.onlyRole ? [opts.onlyRole] : rolesOfUser(user);
+    const mainId = opts.onlyRole || (GROUP_DOMAINS.includes(domain) ? roleIds[0] : main);
     const scopes = new Map();
-    roleIds.forEach(id => {
+    const grant = (keys, scope) => keys.forEach(p => {
+        const current = scopes.get(p);
+        if (!current || catalog.SCOPE_RANK[scope] > catalog.SCOPE_RANK[current]) scopes.set(p, scope);
+    });
+    roleIds.forEach((id, i) => {
         const role = getRole(id);
         // Unknown or switched-off roles give nothing
         if (!role || role.status !== 'ACTIVE') return;
-        role.permissions.forEach(p => {
-            const current = scopes.get(p);
-            if (!current || catalog.SCOPE_RANK[role.scope] > catalog.SCOPE_RANK[current]) scopes.set(p, role.scope);
-        });
+        // A previewed role shows exactly what that role holds
+        if (opts.onlyRole) return grant(role.permissions, role.scope);
+        // A student's or teacher's own group, with their individual overrides, inside the domain's ceiling
+        if (i === 0 && GROUP_DOMAINS.includes(domain)) return grant(groupPermissionsFor(user, id), role.scope);
+        // Everything else must be a system role (a group never reaches anyone through another door)
+        if (role.domain === 'SYSTEM') grant(role.permissions, role.scope);
     });
-    const mainRole = getRole(opts.onlyRole || main);
+    const mainRole = getRole(mainId);
     return {
-        roleId: opts.onlyRole || main,
+        roleId: mainId,
         roleIds,
         // The main role decides which portal the person uses
         scope: mainRole && mainRole.status === 'ACTIVE' ? mainRole.scope : 'SELF',
@@ -395,17 +533,14 @@ function canAssignRole(actorEff, roleId) {
     return !!role && !missingAuthority(actorEff, roleAuthority(role)).length;
 }
 
-// Holders of each role: the main role on account records plus additional roles in user_roles (counted once per person)
+// Holders of each role or group: main role (a student's or teacher's group) and additional roles, once per person
 async function holderCounts() {
-    const [rows] = await db.query(
-        `SELECT role_id, COUNT(DISTINCT user_id) AS n FROM (
-            SELECT id AS user_id, JSON_UNQUOTE(JSON_EXTRACT(data, '$.role')) AS role_id FROM lms_records WHERE collection = 'users' AND deleted = 0
-            UNION
-            SELECT ur.user_id, ur.role_id FROM user_roles ur
-            JOIN lms_records r ON r.collection = 'users' AND r.id = ur.user_id AND r.deleted = 0
-         ) h GROUP BY role_id`
+    const [users] = await db.query(
+        `SELECT id, JSON_UNQUOTE(JSON_EXTRACT(data, '$.role')) AS role FROM lms_records WHERE collection = 'users' AND deleted = 0`
     );
-    return new Map(rows.map(r => [r.role_id, Number(r.n)]));
+    const counts = new Map();
+    users.forEach(u => new Set(rolesOfUser(u)).forEach(id => counts.set(id, (counts.get(id) || 0) + 1)));
+    return counts;
 }
 
 async function userCount(roleId) {
@@ -417,7 +552,8 @@ async function list(includePermissions) {
     const userCount = id => counts.get(id) || 0;
     const out = Array.from(cache.values()).map(r => ({
         id: r.id, name: r.name, urduTitle: r.urduTitle, badgeClass: r.badgeClass, description: r.description,
-        scope: r.scope, isSystem: r.isSystem, status: r.status, version: r.version, userCount: userCount(r.id),
+        scope: r.scope, domain: r.domain, isDefault: r.domain !== 'SYSTEM' && r.id === defaultGroup(r.domain),
+        isSystem: r.isSystem, status: r.status, version: r.version, userCount: userCount(r.id),
         ...(includePermissions ? { permissions: Array.from(r.granted).sort(), warnings: catalog.sodWarnings(r.permissions) } : {})
     }));
     out.sort((a, b) => (b.isSystem - a.isSystem) || a.name.localeCompare(b.name));
@@ -437,11 +573,16 @@ async function setUserRoles(conn, userId, mainRole, additional, by) {
     for (const r of extra) await q(`INSERT INTO user_roles (user_id, role_id, is_primary, granted_by) VALUES (?, ?, 0, ?)`, [userId, r, by]);
     // Keep this process's view current at once (others reload within seconds)
     assignments.set(userId, (main && main !== SUPER_ADMIN ? [main] : []).concat(extra));
+    if (main && main !== SUPER_ADMIN) primaries.set(userId, main);
+    else primaries.delete(userId);
 }
 
 async function removeUserRoles(conn, userId) {
     await (conn || db).query(`DELETE FROM user_roles WHERE user_id = ?`, [userId]);
+    await (conn || db).query(`DELETE FROM user_permission_overrides WHERE user_id = ?`, [userId]);
     assignments.delete(userId);
+    primaries.delete(userId);
+    overrides.delete(userId);
 }
 
 // ---------------------------------------------------------------------------
@@ -479,8 +620,8 @@ async function grantSuperAdmin(actorUser, targetId, password, req) {
     if (auth.INACTIVE_STATUSES.includes(target.status)) return fail(400, 'Activate the account first.');
     const before = { role: target.role, additionalRoles: additionalRolesOf(target) };
     await db.query(`INSERT INTO super_admins (user_id, granted_by) VALUES (?, ?)`, [target.id, actorUser.id]);
-    // The previous main role is kept as an additional role, so removing Super Admin later restores it
-    await setUserRoles(null, target.id, SUPER_ADMIN, [String(target.role).toUpperCase(), ...before.additionalRoles], actorUser.id);
+    // The previous main role (a teacher's group) is kept as an additional role, so removing Super Admin later restores it
+    await setUserRoles(null, target.id, SUPER_ADMIN, rolesOfUser(target), actorUser.id);
     target.role = SUPER_ADMIN;
     target.status = 'ACTIVE';
     target.additionalRoles = additionalRolesOf(target);
@@ -497,11 +638,23 @@ async function revokeSuperAdmin(actorUser, targetId, newRole, password, req) {
     if (!target || !isSuperAdminUser(target)) return fail(404, 'This person is not a Super Admin.');
     if (activeSuperAdminCount() <= 1) return fail(409, 'There must always be at least one Super Admin. Make someone else Super Admin first.');
     const role = String(newRole || '').toUpperCase();
-    if (!getRole(role) || role === SUPER_ADMIN) return fail(400, 'Choose the role this person will have instead.');
+    const held = additionalRolesOf(target);
+    // Back to a system role, or back to being a teacher (in the teacher group held before, else the default one)
+    let recordRole;
+    let main;
+    if (role === 'TEACHER' || isGroupOf(role, 'TEACHER')) {
+        recordRole = 'TEACHER';
+        main = role !== 'TEACHER' ? role : (held.find(r => isGroupOf(r, 'TEACHER')) || defaultGroup('TEACHER'));
+    } else if (isSystemRole(role)) {
+        recordRole = role;
+        main = role;
+    } else {
+        return fail(400, 'Choose the role this person will have instead (a system role, or Teacher).');
+    }
     await db.query(`DELETE FROM super_admins WHERE user_id = ?`, [target.id]);
-    const keep = additionalRolesOf(target).filter(r => r !== role);
-    await setUserRoles(null, target.id, role, keep, actorUser.id);
-    target.role = role;
+    const keep = held.filter(r => r !== main && isSystemRole(r));
+    await setUserRoles(null, target.id, main, keep, actorUser.id);
+    target.role = recordRole;
     target.additionalRoles = keep;
     await saveUserRecord(target, actorUser.id);
     await load();
@@ -527,44 +680,74 @@ function beyondEditor(eff, keys) {
     return keys.filter(k => !eff.permissions.has(k));
 }
 
-function beyondCeiling(roleId, keys) {
-    const ceiling = catalog.ROLE_CEILING[roleId];
+function beyondCeiling(domain, keys) {
+    const ceiling = catalog.DOMAIN_CEILING[domain];
     return ceiling ? keys.filter(k => !ceiling.has(k)) : [];
 }
 
-async function createRole(actorUser, body, req) {
+const DOMAIN_WORDS = {
+    SYSTEM: { thing: 'role', where: 'on the Roles page' },
+    STUDENT: { thing: 'student type', where: 'in Student Management → Student Types' },
+    TEACHER: { thing: 'teacher type', where: 'in Teacher Management → Teacher Types' }
+};
+
+// A role looked up within one domain; a role of another domain is managed elsewhere
+function roleInDomain(id, domain) {
+    const role = getRole(id);
+    if (!role) return { error: fail(404, `${DOMAIN_WORDS[domain].thing[0].toUpperCase()}${DOMAIN_WORDS[domain].thing.slice(1)} not found.`) };
+    if (role.domain !== domain) return { error: fail(400, `${role.name} is a ${DOMAIN_WORDS[role.domain].thing}; change it ${DOMAIN_WORDS[role.domain].where}.`) };
+    return { role };
+}
+
+function auditNames(domain) {
+    return domain === 'SYSTEM' ? { prefix: 'role', entityType: 'role' } : { prefix: 'group', entityType: 'permission_group' };
+}
+
+// domain SYSTEM: office roles (roles.* permissions). STUDENT / TEACHER: groups, defined by the Super Admin only.
+async function createRole(actorUser, body, req, domain = 'SYSTEM') {
     const eff = effectiveFor(actorUser);
-    if (!eff.permissions.has('roles.create')) return fail(403, 'You are not allowed to create roles.');
+    const isGroup = domain !== 'SYSTEM';
+    const words = DOMAIN_WORDS[domain];
+    if (isGroup ? !eff.isSuperAdmin : !eff.permissions.has('roles.create')) {
+        return fail(403, isGroup ? `Only the Super Admin can create a ${words.thing}.` : 'You are not allowed to create roles.');
+    }
     const id = cleanText(body.id, 60).toUpperCase();
     const name = cleanText(body.name, 120);
-    if (!ROLE_ID_PATTERN.test(id)) return fail(400, 'The role identifier must start with a letter and use only A-Z, 0-9 and _ (e.g. EXAM_OFFICER).');
+    if (!ROLE_ID_PATTERN.test(id)) return fail(400, `The identifier must start with a letter and use only A-Z, 0-9 and _ (e.g. ${isGroup ? (domain === 'STUDENT' ? 'ONLINE_STUDENT' : 'SENIOR_TEACHER') : 'EXAM_OFFICER'}).`);
     if (id === SUPER_ADMIN) return fail(400, 'SUPER_ADMIN is reserved.');
-    if (getRole(id)) return fail(409, `A role with the identifier ${id} already exists.`);
-    if (!name) return fail(400, 'Give the role a name.');
-    const scope = catalog.SCOPES[body.scope] ? body.scope : 'ALL';
-    if (scope === 'ALL' && eff.scope !== 'ALL') return fail(403, 'Only whole-institution staff can create a role with whole-institution scope.');
+    if (getRole(id)) return fail(409, `A role or type with the identifier ${id} already exists.`);
+    if (!name) return fail(400, `Give the ${words.thing} a name.`);
+    const scope = isGroup ? catalog.DOMAINS[domain].scope : (catalog.SCOPES[body.scope] ? body.scope : 'ALL');
+    if (!isGroup && scope === 'ALL' && eff.scope !== 'ALL') return fail(403, 'Only whole-institution staff can create a role with whole-institution scope.');
     const permissions = Array.from(new Set((body.permissions || []).filter(catalog.isKnown)));
     const denied = beyondEditor(eff, permissions);
     if (denied.length) return fail(403, `You can only give permissions you hold yourself: ${denied.join(', ')}`);
+    const overCeiling = beyondCeiling(domain, permissions);
+    if (overCeiling.length) return fail(400, `A ${words.thing} cannot hold: ${overCeiling.join(', ')}`);
 
     const role = {
-        id, name, scope, isSystem: false,
+        id, name, scope, domain, isSystem: false,
         urduTitle: cleanText(body.urduTitle, 120),
         badgeClass: BADGES.includes(body.badgeClass) ? body.badgeClass : 'info',
         description: cleanText(body.description, 1000)
     };
     await insertRole(role, permissions, actorUser.id);
     await load();
-    await audit.log({ req, action: 'role.create', entityType: 'role', entityId: id, summary: `Created role ${name}`, after: { ...role, permissions } });
+    const a = auditNames(domain);
+    await audit.log({ req, action: `${a.prefix}.create`, entityType: a.entityType, entityId: id, summary: `Created ${words.thing} ${name}`, after: { ...role, permissions } });
     return { ok: true, role: (await list(true)).roles.find(r => r.id === id) };
 }
 
-async function updateRole(actorUser, id, body, req) {
+async function updateRole(actorUser, id, body, req, domain = 'SYSTEM') {
     const eff = effectiveFor(actorUser);
-    if (!eff.permissions.has('roles.update')) return fail(403, 'You are not allowed to change roles.');
-    const role = getRole(id);
+    const isGroup = domain !== 'SYSTEM';
     if (id === SUPER_ADMIN) return fail(400, 'Super Admin always has full access and cannot be changed.');
-    if (!role) return fail(404, 'Role not found.');
+    if (isGroup ? !eff.isSuperAdmin : !eff.permissions.has('roles.update')) {
+        return fail(403, isGroup ? `Only the Super Admin can change a ${DOMAIN_WORDS[domain].thing}.` : 'You are not allowed to change roles.');
+    }
+    const found = roleInDomain(id, domain);
+    if (found.error) return found.error;
+    const role = found.role;
     if (!eff.isSuperAdmin && rolesOfUser(actorUser).includes(id)) return fail(403, 'Only the Super Admin can change a role you hold yourself.');
     // A role that can do more than the editor is out of their reach (e.g. a custom role cannot reshape Admin)
     const above = missingAuthority(eff, roleAuthority(role));
@@ -577,11 +760,12 @@ async function updateRole(actorUser, id, body, req) {
     const remove = Array.from(new Set((body.remove || []).filter(k => role.granted.has(k))));
     const denied = beyondEditor(eff, add.concat(remove));
     if (denied.length) return fail(403, `You can only change permissions you hold yourself: ${denied.join(', ')}`);
-    const overCeiling = beyondCeiling(id, add);
-    if (overCeiling.length) return fail(400, `The ${role.name} role cannot hold: ${overCeiling.join(', ')}`);
+    const overCeiling = beyondCeiling(role.domain, add);
+    if (overCeiling.length) return fail(400, `${role.name} cannot hold: ${overCeiling.join(', ')}`);
 
     let scope = role.scope;
     if (body.scope && body.scope !== role.scope) {
+        if (isGroup) return fail(400, 'The data scope of a student or teacher type is fixed.');
         if (role.isSystem) return fail(400, 'The data scope of Admin, Teacher and Student is fixed.');
         if (!catalog.SCOPES[body.scope]) return fail(400, 'Unknown data scope.');
         if (body.scope === 'ALL' && eff.scope !== 'ALL') return fail(403, 'Only whole-institution staff can give a role whole-institution scope.');
@@ -592,7 +776,8 @@ async function updateRole(actorUser, id, body, req) {
         urduTitle: body.urduTitle !== undefined ? cleanText(body.urduTitle, 120) : role.urduTitle,
         badgeClass: BADGES.includes(body.badgeClass) ? body.badgeClass : role.badgeClass,
         description: body.description !== undefined ? cleanText(body.description, 1000) : role.description,
-        status: role.isSystem ? 'ACTIVE' : (body.status === 'INACTIVE' ? 'INACTIVE' : (body.status === 'ACTIVE' ? 'ACTIVE' : role.status))
+        // Groups are never switched off: their members would be left with nothing (delete an empty group instead)
+        status: role.isSystem || isGroup ? 'ACTIVE' : (body.status === 'INACTIVE' ? 'INACTIVE' : (body.status === 'ACTIVE' ? 'ACTIVE' : role.status))
     };
 
     const conn = await db.getConnection();
@@ -617,32 +802,113 @@ async function updateRole(actorUser, id, body, req) {
         conn.release();
     }
     await load();
+    const a = auditNames(role.domain);
     await audit.log({
-        req, action: 'role.update', entityType: 'role', entityId: id,
-        summary: `Changed role ${next.name}: +${add.length} / -${remove.length} permission(s)${scope !== role.scope ? `, scope ${role.scope} → ${scope}` : ''}`,
+        req, action: `${a.prefix}.update`, entityType: a.entityType, entityId: id,
+        summary: `Changed ${DOMAIN_WORDS[role.domain].thing} ${next.name}: +${add.length} / -${remove.length} permission(s)${scope !== role.scope ? `, scope ${role.scope} → ${scope}` : ''}`,
         before: { name: role.name, scope: role.scope, status: role.status, permissions: Array.from(role.granted).sort() },
         after: { name: next.name, scope, status: next.status, added: add, removed: remove }
     });
     return { ok: true, role: (await list(true)).roles.find(r => r.id === id) };
 }
 
-async function deleteRole(actorUser, id, req) {
+async function deleteRole(actorUser, id, req, domain = 'SYSTEM') {
     const eff = effectiveFor(actorUser);
-    if (!eff.permissions.has('roles.delete')) return fail(403, 'You are not allowed to delete roles.');
-    const role = getRole(id);
-    if (id === SUPER_ADMIN || CORE_ROLE_IDS.includes(id)) return fail(400, 'Super Admin, Admin, Teacher and Student cannot be deleted.');
-    if (!role) return fail(404, 'Role not found.');
+    const isGroup = domain !== 'SYSTEM';
+    const words = DOMAIN_WORDS[domain];
+    if (isGroup ? !eff.isSuperAdmin : !eff.permissions.has('roles.delete')) {
+        return fail(403, isGroup ? `Only the Super Admin can delete a ${words.thing}.` : 'You are not allowed to delete roles.');
+    }
+    if (id === SUPER_ADMIN || CORE_ROLE_IDS.includes(id)) {
+        return fail(400, isGroup ? `The default ${words.thing} cannot be deleted.` : 'Super Admin, Admin, Teacher and Student cannot be deleted.');
+    }
+    const found = roleInDomain(id, domain);
+    if (found.error) return found.error;
+    const role = found.role;
     if (!eff.isSuperAdmin && rolesOfUser(actorUser).includes(id)) return fail(403, 'You cannot delete a role you hold.');
     if (missingAuthority(eff, roleAuthority(role)).length) return fail(403, 'This role can do things you cannot, so you cannot delete it.');
     const denied = beyondEditor(eff, Array.from(role.granted));
     if (denied.length) return fail(403, 'This role holds permissions you do not have, so you cannot delete it.');
     const holders = await userCount(id);
-    if (holders) return fail(409, `${holders} user(s) still hold this role. Give them another role first.`);
+    if (holders) {
+        return fail(409, isGroup
+            ? `${holders} ${domain === 'STUDENT' ? 'student(s)' : 'teacher(s)'} still belong to this type. Move them to another type first.`
+            : `${holders} user(s) still hold this role. Give them another role first.`);
+    }
     await db.query(`DELETE FROM role_permissions WHERE role_id = ?`, [id]);
     await db.query(`DELETE FROM roles WHERE id = ?`, [id]);
     await load();
-    await audit.log({ req, action: 'role.delete', entityType: 'role', entityId: id, summary: `Deleted role ${role.name}`, before: { name: role.name, scope: role.scope, permissions: Array.from(role.granted) } });
+    const a = auditNames(domain);
+    await audit.log({ req, action: `${a.prefix}.delete`, entityType: a.entityType, entityId: id, summary: `Deleted ${words.thing} ${role.name}`, before: { name: role.name, scope: role.scope, permissions: Array.from(role.granted) } });
     return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Members of student / teacher groups: their group and individual overrides (Super Admin only)
+// ---------------------------------------------------------------------------
+
+// The groups of one domain, and (for the Super Admin) every member's individual overrides
+async function listGroups(domain, includeOverrides) {
+    const groups = (await list(true)).roles.filter(r => r.domain === domain);
+    const out = { domain, defaultGroup: defaultGroup(domain), groups };
+    if (includeOverrides) {
+        out.overrides = {};
+        overrides.forEach((o, userId) => { out.overrides[userId] = overridesOf(userId); });
+    }
+    return out;
+}
+
+// body: { group?, allow?: [permission], deny?: [permission] }; the lists replace the person's overrides
+async function setMemberPermissions(actorUser, userId, body, req) {
+    if (!isSuperAdminUser(actorUser)) return fail(403, 'Only the Super Admin can change a person\'s type or individual permissions here.');
+    const target = await loadUserRecord(userId);
+    if (!target) return fail(404, 'Account not found.');
+    const domain = accountDomain(target.role);
+    if (!GROUP_DOMAINS.includes(domain)) return fail(400, 'Types and individual permissions are only for students and teachers. Staff get theirs from their roles.');
+    const words = DOMAIN_WORDS[domain];
+    const beforeGroup = groupOf(target);
+    const group = body.group !== undefined && body.group !== null ? String(body.group).toUpperCase() : beforeGroup;
+    if (!isGroupOf(group, domain)) return fail(400, `${group} is not a ${words.thing}.`);
+    const clean = v => Array.from(new Set((Array.isArray(v) ? v : []).map(String).filter(catalog.isKnown))).sort();
+    const before = overridesOf(target.id);
+    const allow = body.allow !== undefined ? clean(body.allow) : before.allow;
+    const deny = body.deny !== undefined ? clean(body.deny) : before.deny;
+    const outside = beyondCeiling(domain, allow.concat(deny));
+    if (outside.length) return fail(400, `A ${domain === 'STUDENT' ? 'student' : 'teacher'} can never hold: ${outside.join(', ')}`);
+    if (allow.some(k => deny.includes(k))) return fail(400, 'A permission cannot be both allowed and denied.');
+
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+        if (group !== beforeGroup) await setUserRoles(conn, target.id, group, additionalRolesOf(target), actorUser.id);
+        await conn.query(`DELETE FROM user_permission_overrides WHERE user_id = ?`, [target.id]);
+        for (const k of allow) await conn.query(`INSERT INTO user_permission_overrides (user_id, permission, effect, granted_by) VALUES (?, ?, 'ALLOW', ?)`, [target.id, k, actorUser.id]);
+        for (const k of deny) await conn.query(`INSERT INTO user_permission_overrides (user_id, permission, effect, granted_by) VALUES (?, ?, 'DENY', ?)`, [target.id, k, actorUser.id]);
+        // Touch the account so every open portal picks up the new type with its next sync
+        target.permissionGroup = group;
+        await conn.query(`UPDATE lms_records SET data = ?, updated_by = ?, updated_at = NOW(3) WHERE collection = 'users' AND id = ?`, [JSON.stringify(target), actorUser.id, target.id]);
+        await conn.commit();
+    } catch (err) {
+        await conn.rollback().catch(() => {});
+        await load();
+        throw err;
+    } finally {
+        conn.release();
+    }
+    await load();
+    const changes = [];
+    if (group !== beforeGroup) changes.push(`type ${beforeGroup} → ${group}`);
+    if (JSON.stringify(before.allow) !== JSON.stringify(allow) || JSON.stringify(before.deny) !== JSON.stringify(deny)) {
+        changes.push(`individual permissions: ${allow.length} allowed, ${deny.length} denied`);
+    }
+    if (changes.length) {
+        await audit.log({
+            req, action: 'user.permissions_change', entityType: 'users', entityId: target.id,
+            summary: `${target.name || target.id}: ${changes.join('; ')}`,
+            before: { group: beforeGroup, ...before }, after: { group, allow, deny }
+        });
+    }
+    return { ok: true, member: { id: target.id, group, allow, deny, permissions: Array.from(effectiveFor(target).permissions).sort() } };
 }
 
 function catalogPayload() {
@@ -652,6 +918,8 @@ function catalogPayload() {
         permissions: catalog.CATALOG,
         defaults: catalog.DEFAULT_PERMISSIONS,
         ceilings: Object.fromEntries(Object.entries(catalog.ROLE_CEILING).map(([k, v]) => [k, Array.from(v)])),
+        domains: catalog.DOMAINS,
+        domainCeilings: Object.fromEntries(Object.entries(catalog.DOMAIN_CEILING).map(([k, v]) => [k, Array.from(v)])),
         coreRoleIds: CORE_ROLE_IDS,
         sodPairs: catalog.SOD_PAIRS.map(([a, b, message]) => ({ permissions: [a, b], message })),
         selfService: Array.from(catalog.SELF_SERVICE)
@@ -661,9 +929,19 @@ function catalogPayload() {
 module.exports = {
     SUPER_ADMIN,
     CORE_ROLE_IDS,
+    GROUP_DOMAINS,
     ensureRolesSchema,
     load,
     getRole,
+    accountDomain,
+    isAccountRole,
+    isSystemRole,
+    isGroupOf,
+    groupOf,
+    defaultGroup,
+    overridesOf,
+    listGroups,
+    setMemberPermissions,
     effectiveFor,
     effectiveForAuth,
     isSuperAdminUser,

@@ -32,6 +32,34 @@ The live permissions are defined in `server/permissions.js` and assigned per rol
 the table shows the defaults. `settings.master_data` and `admissions.delete` are held only by the Super Admin
 until given to another role.
 
+### 2.1 Three separate authorization domains
+
+| Domain | Who | Managed in | Data scope | Can hold |
+|---|---|---|---|---|
+| **System user roles** (`roles.domain = SYSTEM`) | Office staff: Admin, Finance Officer, custom roles | Users & Roles → Roles & Permissions | Chosen per role | Any permission the editor holds |
+| **Student types** (`STUDENT`) | Student accounts | Students Management → Student Types & Permissions | Own records (fixed) | Student portal permissions only (`DOMAIN_CEILING.STUDENT`) |
+| **Teacher types** (`TEACHER`) | Teacher accounts | Teachers & Portals → Teacher Types & Permissions | Classes they teach (fixed) | Teacher portal permissions only (`DOMAIN_CEILING.TEACHER`) |
+
+- A student or teacher account keeps `role: STUDENT` / `role: TEACHER` on its record: that is the **account type**.
+  Which type (permission group) of its domain it belongs to is its primary `user_roles` row; with none, the account
+  is in the domain's **default type**, the built-in Student / Teacher role. Existing accounts therefore kept exactly
+  their access when the domains were introduced (migration `database/migration_2026_10_21_permission_groups.sql`).
+- **Effective permissions** of a student or teacher = type permissions + individual *allow* − individual *deny*
+  (`user_permission_overrides`), always cut down to the domain ceiling. A deny also removes what depends on the
+  permission. A teacher may additionally hold **system** roles (e.g. Librarian) given by someone with
+  `users.assign_roles`; a student never holds additional roles.
+- **Isolation rules, enforced for everyone including the Super Admin** (`accountStructureAllowed` in
+  `server/access-policy.js`): a system user's role must be a system role; a type is never an account role or an
+  additional role; an account never moves between system user, teacher and student. Student and Teacher no longer
+  appear in the system user role lists.
+- **Who may do what:** only the Super Admin creates, edits and deletes types and sets individual overrides.
+  Choosing or changing a person's type needs the Super Admin, or `students.assign_group` / `teachers.assign_group`
+  (held by nobody else by default; the Super Admin may give them to a role). The default type cannot be deleted;
+  another type can be deleted once nobody belongs to it. Types are never switched off.
+- The portals hide what a person's type does not allow (submitting work, sitting online papers, uploading payment
+  proof, joining online classes, recordings, daily check-in), but the server refuses those actions on its own.
+- Every change is audited: `group.create|update|delete`, `user.group_change`, `user.permissions_change`.
+
 ---
 
 ## 3. Authentication & Authorization Architecture

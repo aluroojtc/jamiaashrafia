@@ -161,3 +161,20 @@ Students, Teachers, Classes & Courses, Online Classes). Every change below is ch
 
 Application numbers are `ASH-ADM-<year>-<n>`, numbered per year from the highest existing number, so a
 deleted application never causes a duplicate number. Applications must name an existing programme and campus.
+
+## 8. Roles, Student Types & Teacher Types (implemented in `server/roles.js`, `server/lms-api.js`)
+
+Three separate authorization domains (see `docs/SECURITY_RBAC.md` §2.1). The Roles API only ever touches system
+user roles; student and teacher types have their own endpoints.
+
+| Method & path | Who may call it | Notes |
+|---|---|---|
+| `GET /api/roles` | Signed in | Every role and type with its `domain` (`SYSTEM`, `STUDENT`, `TEACHER`); permission lists only for `roles.view` |
+| `GET /api/roles/catalog` | Signed in | Permission catalog, `domains`, `domainCeilings` |
+| `POST /api/roles` · `PUT /api/roles/{id}` · `DELETE /api/roles/{id}` | `roles.create` / `roles.update` / `roles.delete` | System roles only. A student or teacher type answers 400 ("change it in Student / Teacher Management"). |
+| `GET /api/permission-groups/{students\|teachers}` | Super Admin, or `students.view` / `teachers.view` | `{ groups, defaultGroup }`; the Super Admin also receives `overrides` (`userId → { allow, deny }`) |
+| `POST /api/permission-groups/{students\|teachers}` | Super Admin | `{ id, name, urduTitle, badgeClass, description, permissions }`. Permissions outside the domain ceiling: 400. Scope is fixed by the domain. |
+| `PUT /api/permission-groups/{students\|teachers}/{id}` | Super Admin | `{ name, …, add, remove, version }` (409 on a stale version) |
+| `DELETE /api/permission-groups/{students\|teachers}/{id}` | Super Admin | Not the default type (400), not while anyone belongs to it (409) |
+| `PUT /api/permission-groups/{students\|teachers}/members/{userId}` | Super Admin | `{ group?, allow?, deny? }`: the person's type and individual overrides (lists replace the old ones). Ceiling and allow/deny conflicts: 400. |
+| `POST /api/store/sync` (users) | As before, plus: | `permissionGroup` on a student or teacher record chooses the type; changing it needs `students.assign_group` / `teachers.assign_group` or the Super Admin. People never change their own type. The server sends `permissionGroup` back on every student and teacher record. |

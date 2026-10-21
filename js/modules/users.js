@@ -15,9 +15,11 @@ const UsersModule = {
         return (window.LmsData?.users || []).filter(u => u.role !== 'STUDENT' && u.role !== 'TEACHER');
     },
 
-    // Helper: Returns only assignable system roles (excludes STUDENT, TEACHER and the hard-coded Super Admin)
+    // Helper: Returns only assignable system user roles. Student and teacher types are a separate domain, managed in
+    // Student Management and Teacher Management, and the hard-coded Super Admin is given only with "Make Super Admin".
     getSystemRoles() {
-        return (window.LmsData?.roles || []).filter(r => !['STUDENT', 'TEACHER', 'SUPER_ADMIN'].includes(r.id));
+        return (window.LmsData?.roles || []).filter(r => r.id !== 'SUPER_ADMIN' && (r.domain || 'SYSTEM') === 'SYSTEM'
+            && !['STUDENT', 'TEACHER'].includes(r.id));
     },
 
     roleInfo(roleId) {
@@ -368,7 +370,7 @@ const UsersModule = {
                                 <option value="${Lms.esc(r.id)}">${Lms.esc(r.name || r.title)} (${Lms.esc(r.urduTitle || r.id)})</option>
                             `).join('')}
                         </select>
-                        <small style="color: var(--text-muted); font-size: 0.72rem;">Roles dynamically configured in Users & Roles &rarr; Roles</small>
+                        <small style="color: var(--text-muted); font-size: 0.72rem;">System roles are configured in Users & Roles &rarr; Roles. Students and teachers are registered in their own sections.</small>
                     </div>
                 </div>
 
@@ -642,11 +644,12 @@ const UsersModule = {
         App.navigate('users');
     },
 
-    // ADDITIONAL ROLES (a person may hold several roles; permissions add up, each with its role's data scope)
+    // ADDITIONAL ROLES (a person may hold several roles; permissions add up, each with its role's data scope).
+    // Only system roles can be additional roles, and students hold none.
     rolePicker(user) {
-        if (!window.AuthRBAC.can('users.assign_roles') || !user || user.id === (window.AuthRBAC.currentUser || {}).id) return '';
+        if (!window.AuthRBAC.can('users.assign_roles') || !user || user.id === (window.AuthRBAC.currentUser || {}).id || user.role === 'STUDENT') return '';
         const held = new Set(user.additionalRoles || []);
-        const options = (window.LmsData?.roles || []).filter(r => !['SUPER_ADMIN', 'STUDENT', user.role].includes(r.id));
+        const options = this.getSystemRoles().filter(r => r.id !== user.role);
         if (!options.length) return '';
         return `
             <div style="margin-top: 4px;" id="extra-roles-picker">
@@ -672,7 +675,8 @@ const UsersModule = {
     openSuperAdminModal(userId, grant) {
         const user = window.LmsData?.users?.find(u => u.id === userId);
         if (!user || !window.AuthRBAC.isSuperAdmin()) return;
-        const roles = (window.LmsData?.roles || []).filter(r => !['SUPER_ADMIN', 'STUDENT'].includes(r.id));
+        // Back to a system role, or back to being a teacher (in the teacher type they had before)
+        const roles = this.getSystemRoles().concat({ id: 'TEACHER', name: I18n.t('Teacher') });
         Lms.openModal(
             grant ? `<i class="fas fa-crown" style="color: var(--gold-400);"></i> Make Super Admin` : `<i class="fas fa-crown" style="color: var(--danger);"></i> Remove Super Admin`,
             `<p style="margin-bottom: 12px;">${grant

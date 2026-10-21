@@ -1043,6 +1043,7 @@ const AdmissionsModule = {
                             <option value="Hostel Block B (Resident Room)">Hostel Block B (Boarding Resident)</option>
                         </select>
                     </div>
+                    ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('STUDENT', 'enroll-group') : ''}
 
                     <div>
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
@@ -1145,6 +1146,9 @@ const AdmissionsModule = {
             avatar: item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
             enrollmentDate: new Date().toISOString().split('T')[0]
         };
+        // Student type (permission group); without one the server puts the student in the default type
+        const group = window.PermissionGroupsModule ? PermissionGroupsModule.readTypeSelect('enroll-group') : undefined;
+        if (group) newStudentUser.permissionGroup = group;
 
         if (!window.LmsData.users) window.LmsData.users = [];
         window.LmsData.users.push(newStudentUser);

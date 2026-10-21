@@ -74,6 +74,7 @@ const TeachersModule = {
                                 <div style="min-width: 0;">
                                     <div style="font-weight: 700; font-size: 1.02rem; color: var(--primary-950);">${Lms.esc(Lms.localName(t.name, t.urduName))}</div>
                                     <div style="font-size: 0.8rem; color: var(--primary-700); font-weight: 600;">${Lms.esc(t.designation || 'Teacher')}</div>
+                                    ${canManage && window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('TEACHER', t) : ''}
                                     ${t.status === 'INACTIVE' ? '<span class="status-pill danger" style="font-size: 0.65rem;">Inactive</span>' : ''}
                                 </div>
                             </div>
@@ -125,6 +126,7 @@ const TeachersModule = {
                     <select id="reg-t-branch" class="form-control">${Lms.branchOptions(d.branchId || Lms.defaultBranchId(), true)}</select>
                 </div>
                 <div class="form-group"><label>Login Email *</label><input type="email" id="reg-t-email" class="form-control" value="${Lms.esc(d.email || '')}" placeholder="name@jamiaashrafia.org"></div>
+                ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('TEACHER', 'reg-t-group', d.permissionGroup) : ''}
                 ${t ? '' : `<div class="form-group"><label>Initial Password *</label><input type="text" id="reg-t-pwd" class="form-control" value="${Lms.esc(this.randomPassword())}"></div>`}
             </div>
             ${t ? '' : `<div style="font-size: 0.8rem; color: var(--text-muted);">${I18n.t('The teacher signs in with this email and password. Allocate classes and kitabs in {page}.', { page: `<strong>${I18n.t('Classes & Courses')}</strong>` })}</div>`}
@@ -156,9 +158,12 @@ const TeachersModule = {
             urduName: Lms.val('reg-t-urdu') || name, sanad: Lms.val('reg-t-sanad'), specialization: Lms.val('reg-t-spec'),
             phone: Lms.val('reg-t-phone'), branchId: Lms.val('reg-t-branch') || null
         };
-        // Additional roles (e.g. Librarian), when the picker was shown
+        // Additional system roles (e.g. Librarian), when the picker was shown
         const extra = teacherId && window.UsersModule ? window.UsersModule.readRolePicker() : null;
         if (extra) fields.additionalRoles = extra;
+        // Teacher type (permission group): only sent when the editor may choose it; the server checks again
+        const group = window.PermissionGroupsModule ? PermissionGroupsModule.readTypeSelect('reg-t-group') : undefined;
+        if (group) fields.permissionGroup = group;
         if (teacherId) {
             Object.assign(Lms.user(teacherId), fields);
             Lms.save();

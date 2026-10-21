@@ -12,6 +12,12 @@
  * Account types: user records of students and teachers are governed by students.* and teachers.*;
  * every other account by users.*. Nobody may manage a person more powerful than themselves or give a role
  * stronger than their own (server/roles.js). Super Admin accounts are changed only by a Super Admin.
+ *
+ * The three authorization domains stay apart for everyone, the Super Admin included (accountStructureAllowed):
+ * a staff account holds only system roles, a student holds one student type and nothing else, a teacher holds one
+ * teacher type plus, optionally, additional system roles given by someone allowed to assign roles. An account never
+ * moves between the three kinds. Choosing a student's or teacher's type needs students.assign_group /
+ * teachers.assign_group (or the Super Admin).
  */
 
 const roles = require('./roles');
@@ -31,9 +37,9 @@ const OWN_PROTECTED = {
         'scholarshipWaiver', 'netPayable', 'paidAt', 'bankRef', 'verifiedBy', 'verifiedAt', 'studentId', 'challanNumber', 'dueDate'],
     donations: ['confirmedBy', 'confirmedAt', 'verifiedBy', 'verifiedAt']
 };
-const SELF_SCOPE_PROTECTED = ['role', 'additionalRoles', 'status', 'classId', 'rollNo', 'branchId', 'program', 'assignedCourses',
+const SELF_SCOPE_PROTECTED = ['role', 'additionalRoles', 'permissionGroup', 'status', 'classId', 'rollNo', 'branchId', 'program', 'assignedCourses',
     'designation', 'email', 'username'];
-const STAFF_SELF_PROTECTED = ['role', 'additionalRoles', 'status', 'assignedCourses', 'branchId', 'designation', 'classId', 'rollNo',
+const STAFF_SELF_PROTECTED = ['role', 'additionalRoles', 'permissionGroup', 'status', 'assignedCourses', 'branchId', 'designation', 'classId', 'rollNo',
     'email', 'username'];
 const IMMUTABLE_LINKS = ['assignmentId', 'examId', 'bookId', 'studentId', 'userId', 'donorUserId'];
 const ENROLMENT_FIELDS = ['classId', 'branchId', 'program'];
@@ -216,9 +222,13 @@ function anonymousDonation(d) {
 // Reads
 // ---------------------------------------------------------------------------
 
-// Additional roles come from user_roles, never from the stored record
+// Additional roles and a student's / teacher's type come from user_roles, never from the stored record
 function withRoles(u, out) {
-    return { ...out, additionalRoles: roles.additionalRolesOf(u) };
+    const group = roles.groupOf(u);
+    const result = { ...out, additionalRoles: roles.additionalRolesOf(u) };
+    if (group) result.permissionGroup = group;
+    else delete result.permissionGroup;
+    return result;
 }
 
 function readableUser(ctx, u) {
@@ -335,14 +345,50 @@ function oldAttendanceAllowed(ctx, ...records) {
     return !old || ctx.can('attendance.correct') || deny(ctx, `Attendance older than ${ATTENDANCE_EDIT_WINDOW_DAYS} days can only be corrected by staff with that permission.`);
 }
 
-function roleExists(roleId) {
-    return roleId === 'SUPER_ADMIN' || !!roles.getRole(roleId);
-}
-
 // A permission held with enough scope to act on this account
 function accountPermissionInScope(ctx, family, permission, target) {
     const sc = ctx.scopeFor(permission);
     return family === 'students' ? studentInScope(ctx, sc, target.id) : sc === 'ALL';
+}
+
+const DOMAIN_NOUN = { STUDENT: 'student type', TEACHER: 'teacher type' };
+
+/**
+ * What kind of account this is and which roles it may hold. Checked for everyone, the Super Admin included:
+ * these rules keep system roles, student types and teacher types from mixing.
+ */
+function accountStructureAllowed(ctx, incoming, existing) {
+    const role = String(incoming.role || (existing && existing.role) || '').toUpperCase();
+    if (!role) return deny(ctx, 'Every account needs a role.');
+    if (!roles.isAccountRole(role)) {
+        const r = roles.getRole(role);
+        return deny(ctx, r ? `${r.name} is a ${DOMAIN_NOUN[r.domain] || 'type'}, not an account role. Register the person in Student or Teacher Management and choose the type there.`
+            : `There is no role called ${role}.`);
+    }
+    if (existing && existing.role && accountFamily(String(existing.role).toUpperCase()) !== accountFamily(role)) {
+        return deny(ctx, 'An account cannot be moved between system users, teachers and students. Create a new account of the right kind instead.');
+    }
+    const domain = roles.accountDomain(role);
+    // A Super Admin keeps earlier roles for later; they are not edited through the record
+    if (role !== 'SUPER_ADMIN' && Array.isArray(incoming.additionalRoles)) {
+        const extra = incoming.additionalRoles.map(r => String(r).toUpperCase()).filter(r => r !== role);
+        if (domain === 'STUDENT' && extra.length) return deny(ctx, 'Students cannot hold additional roles.');
+        const bad = extra.find(r => r === 'SUPER_ADMIN' || !roles.isSystemRole(r));
+        if (bad) return deny(ctx, `${bad} cannot be given as an additional role. Only system roles can be.`);
+    }
+    const group = incoming.permissionGroup;
+    if (roles.GROUP_DOMAINS.includes(domain) && group !== undefined && group !== null && group !== '' && !roles.isGroupOf(group, domain)) {
+        return deny(ctx, `${group} is not a ${DOMAIN_NOUN[domain]}.`);
+    }
+    return true;
+}
+
+// The student / teacher type an account will have after this write (null for staff accounts)
+function requestedGroup(incoming, existing) {
+    const domain = roles.accountDomain(incoming.role || (existing && existing.role));
+    if (!roles.GROUP_DOMAINS.includes(domain)) return null;
+    const asked = incoming.permissionGroup ? String(incoming.permissionGroup).toUpperCase() : null;
+    return asked || (existing ? roles.groupOf(existing) : roles.defaultGroup(domain));
 }
 
 function canWriteUser(ctx, incoming, existing) {
@@ -351,10 +397,17 @@ function canWriteUser(ctx, incoming, existing) {
 
     const family = accountFamily((existing || incoming).role);
     const newFamily = accountFamily(incoming.role);
-    if (incoming.role && !roleExists(incoming.role)) return deny(ctx, `There is no role called ${incoming.role}.`);
     const extra = Array.isArray(incoming.additionalRoles) ? incoming.additionalRoles.map(r => String(r).toUpperCase()) : null;
-    const unknown = (extra || []).find(r => !roleExists(r) || r === 'SUPER_ADMIN');
-    if (unknown) return deny(ctx, `${unknown} cannot be given as an additional role.`);
+
+    // Choosing a student's or teacher's type (a new account starts in the default type unless a type is chosen)
+    const group = requestedGroup(incoming, existing);
+    const currentGroup = existing ? roles.groupOf(existing) : roles.defaultGroup(roles.accountDomain(incoming.role));
+    if (group && group !== currentGroup) {
+        if (!ctx.wide(`${newFamily}.assign_group`)) {
+            return deny(ctx, `You are not allowed to choose the ${newFamily === 'students' ? 'student' : 'teacher'} type.`);
+        }
+        if (!roles.canAssignRole(ctx.eff, group)) return deny(ctx, `You cannot give the type ${group}: it can do things you cannot.`);
+    }
 
     // Roles being given now: the main role (new account or changed) and additional roles not held before
     const before = existing ? roles.rolesOfUser(existing) : [];
@@ -375,7 +428,7 @@ function canWriteUser(ctx, incoming, existing) {
     // Nobody manages a person more powerful than themselves
     if (!roles.canManagePerson(ctx.eff, existing)) return deny(ctx, 'This person can do things you cannot, so you cannot change their account.');
 
-    const changed = changedFields(existing, incoming).filter(f => f !== 'role' && f !== 'additionalRoles');
+    const changed = changedFields(existing, incoming).filter(f => f !== 'role' && f !== 'additionalRoles' && f !== 'permissionGroup');
     if (!changed.length) return true;
     if (family === 'students' && changed.every(f => ENROLMENT_FIELDS.includes(f)) && accountPermissionInScope(ctx, family, 'classes.enroll', existing)) return true;
     if (changed.includes('status') && !accountPermissionInScope(ctx, family, `${family}.deactivate`, existing)) {
@@ -397,6 +450,7 @@ function canSetPassword(ctx, target, isNew) {
 /** Whether the caller may create (existing = null) or change this record. Sets ctx.reason when there is something to explain. */
 function canWrite(ctx, collection, incoming, existing) {
     ctx.reason = null;
+    if (collection === 'users' && !accountStructureAllowed(ctx, incoming, existing)) return false;
     if (ctx.isSuperAdmin) return true;
     const can = ctx.can;
     const s = ctx.scopeFor;
@@ -679,5 +733,6 @@ module.exports = {
     prepareWrite,
     noteWrite,
     canDelete,
-    accountFamily
+    accountFamily,
+    requestedGroup
 };

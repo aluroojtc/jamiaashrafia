@@ -18,8 +18,10 @@ const ROUTE_MODULE_MAP = {
     'heritage': 'heritage',
     'admissions': 'admissions',
     'students': 'students',
+    'student-types': 'student_types',
     'classes': 'classes',
     'teachers': 'teachers',
+    'teacher-types': 'teacher_types',
     'attendance': 'attendance',
     'assignments': 'assignments',
     'exams': 'exams',
@@ -37,6 +39,8 @@ const ROUTE_MODULE_MAP = {
 
 const MODULE_DEFINITIONS = {
     students: { title: "Students Management", urdu: "شعبہ طلبہ و اکیڈمک ریکارڈ", icon: "fas fa-user-graduate" },
+    student_types: { title: "Student Types & Permissions", urdu: "اقسامِ طلبہ و اختیارات", icon: "fas fa-user-tag" },
+    teacher_types: { title: "Teacher Types & Permissions", urdu: "اقسامِ اساتذہ و اختیارات", icon: "fas fa-user-cog" },
     users: { title: "Users Management", urdu: "نظام صارفین و اسناد", icon: "fas fa-users" },
     roles: { title: "Roles & Permissions", urdu: "نظام ادوار و مناصب", icon: "fas fa-id-badge" },
     attendance: { title: "Attendance & Check-In", urdu: "حاضری و نگرانی اوقات", icon: "fas fa-calendar-check" },
@@ -61,8 +65,11 @@ const MODULE_ACCESS = {
     heritage: ['heritage.view'],
     admissions: ['admissions.view'],
     students: ['students.view'],
+    // Types are defined by the Super Admin; those who may choose a person's type can read them
+    student_types: ['students.assign_group'],
     classes: ['classes.view'],
     teachers: ['teachers.view'],
+    teacher_types: ['teachers.assign_group'],
     attendance: ['attendance.view', 'attendance.self_checkin'],
     assignments: ['assignments.view'],
     exams: ['exams.view'],

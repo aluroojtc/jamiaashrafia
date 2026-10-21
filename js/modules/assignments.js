@@ -136,7 +136,7 @@ const AssignmentsModule = {
                             ${st.sub && st.sub.resubmitRequested && st.sub.feedback ? `<div style="font-size: 0.8rem; color: var(--danger); margin-bottom: 10px;"><strong>Teacher's note:</strong> ${Lms.multiline(st.sub.feedback)}</div>` : ''}
                             <div style="display: flex; gap: 8px;">
                                 ${st.sub ? `<button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="AssignmentsModule.viewSubmission('${st.sub.id}')"><i class="fas fa-eye"></i> My Submission</button>` : ''}
-                                ${!st.sub || (!st.sub.isGraded) ? (
+                                ${(!st.sub || (!st.sub.isGraded)) && Lms.can('assignments.submit') ? (
                                     (a.dueDate < Lms.today() && a.allowLate === false && !(st.sub && st.sub.resubmitRequested))
                                         ? `<span class="status-pill danger" style="flex: 1; justify-content: center;">Submission closed</span>`
                                         : `<button class="btn btn-primary btn-sm" style="flex: 1;" onclick="AssignmentsModule.openStudentUploadModal('${a.id}')"><i class="fas fa-upload"></i> ${st.sub ? 'Update Submission' : 'Submit Work'}</button>`
@@ -363,6 +363,11 @@ const AssignmentsModule = {
     openStudentUploadModal(asgId) {
         const asg = (window.LmsData.assignments || []).find(a => a.id === asgId);
         if (!asg) return;
+        // Student types decide whether work is handed in online (the server refuses it otherwise)
+        if (!Lms.can('assignments.submit')) {
+            window.App.showToast('Your student type does not include submitting assignments online.', 'warning');
+            return;
+        }
         const sub = this.mySubmission(asgId);
         if (sub && sub.isGraded) {
             window.App.showToast('This assignment has already been checked.', 'info');

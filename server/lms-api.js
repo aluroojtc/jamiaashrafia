@@ -330,7 +330,11 @@ function auditRecordChange(req, collection, existing, record, extra = {}) {
             if ((before.status || 'ACTIVE') !== (record.status || 'ACTIVE')) entry('user.status_change', `${record.name || record.id}: ${before.status || 'ACTIVE'} → ${record.status}`, { status: before.status }, { status: record.status });
         }
         if (extra.passwordSet && existing) entry('user.password_reset', `Temporary password set for ${label}`, null, null);
-        if (extra.rolesChange) entry('user.roles_change', `Additional roles of ${record.name || record.id}: ${extra.rolesChange.before.join(', ') || 'none'} → ${extra.rolesChange.after.join(', ') || 'none'}`, { additionalRoles: extra.rolesChange.before }, { additionalRoles: extra.rolesChange.after });
+        if (extra.rolesChange && extra.rolesChange.group) {
+            const g = extra.rolesChange.group;
+            entry('user.group_change', `Changed type of ${record.name || record.id}: ${g.before} → ${g.after}`, { group: g.before }, { group: g.after });
+        }
+        if (extra.rolesChange && extra.rolesChange.before) entry('user.roles_change', `Additional roles of ${record.name || record.id}: ${extra.rolesChange.before.join(', ') || 'none'} → ${extra.rolesChange.after.join(', ') || 'none'}`, { additionalRoles: extra.rolesChange.before }, { additionalRoles: extra.rolesChange.after });
     }
     if (collection === 'exams' && !!before.resultsPublished !== !!record.resultsPublished) {
         entry(record.resultsPublished ? 'exam.results_publish' : 'exam.results_unpublish', `${record.resultsPublished ? 'Published' : 'Withdrew'} results of ${record.title || record.id}`,
@@ -435,14 +439,22 @@ async function handleStoreSync(req, res) {
                         revoke.add(id);
                     }
                     if (auth.INACTIVE_STATUSES.includes(record.status)) revoke.add(id);
-                    // Additional roles live in user_roles; the record only carries them as a request
+                    // Additional roles and a student's / teacher's type live in user_roles; the record only carries them
+                    // as a request (checked by the access policy). People never choose their own type.
+                    const domain = roles.accountDomain(record.role);
+                    const isGroupAccount = roles.GROUP_DOMAINS.includes(domain);
+                    const groupBefore = existing && isGroupAccount ? roles.groupOf(existing) : null;
+                    const groupAfter = !isGroupAccount ? null : (id === who.id ? groupBefore : policy.requestedGroup(record, existing));
+                    if (groupAfter) record.permissionGroup = groupAfter;
+                    else delete record.permissionGroup;
                     const extraBefore = existing ? roles.additionalRolesOf(existing) : [];
-                    const extraAfter = Array.isArray(record.additionalRoles)
+                    const extraAfter = domain === 'STUDENT' ? [] : (Array.isArray(record.additionalRoles)
                         ? Array.from(new Set(record.additionalRoles.map(r => String(r).toUpperCase())))
-                        : extraBefore;
+                        : extraBefore);
                     delete record.additionalRoles;
-                    if (record.role !== 'SUPER_ADMIN' || !existing) await roles.setUserRoles(conn, id, record.role, extraAfter, who.id);
+                    if (record.role !== 'SUPER_ADMIN' || !existing) await roles.setUserRoles(conn, id, groupAfter || record.role, extraAfter, who.id);
                     rolesChange = JSON.stringify(extraBefore.slice().sort()) !== JSON.stringify(extraAfter.slice().sort()) ? { before: extraBefore, after: extraAfter } : null;
+                    if (existing && groupBefore !== groupAfter) rolesChange = { ...(rolesChange || {}), group: { before: groupBefore, after: groupAfter } };
                     allUsers = allUsers.filter(u => u.id !== id).concat(record);
                 }
 
@@ -936,17 +948,72 @@ async function handleRoles(req, res, url) {
         return;
     }
     if (p === '/api/roles' && m === 'POST') {
-        send(await roles.createRole(user, await readJson(req), req));
+        // Student and teacher types are made in their own sections (/api/permission-groups)
+        send(await roles.createRole(user, await readJson(req), req, 'SYSTEM'));
         return;
     }
     const id = decodeURIComponent(p.replace('/api/roles/', '')).toUpperCase();
     if (m === 'PUT') {
-        send(await roles.updateRole(user, id, await readJson(req), req));
+        send(await roles.updateRole(user, id, await readJson(req), req, 'SYSTEM'));
         return;
     }
     if (m === 'DELETE') {
-        send(await roles.deleteRole(user, id, req));
+        send(await roles.deleteRole(user, id, req, 'SYSTEM'));
         return;
+    }
+    sendJson(res, 405, { success: false, error: 'Method not allowed' });
+}
+
+// Student types and teacher types (permission groups). Reading needs students.view / teachers.view; defining
+// groups and individual permissions is for the Super Admin alone (checked in server/roles.js).
+//   GET    /api/permission-groups/{students|teachers}
+//   POST   /api/permission-groups/{students|teachers}                 { id, name, urduTitle, badgeClass, description, permissions }
+//   PUT    /api/permission-groups/{students|teachers}/{id}            { name, ..., add, remove, version }
+//   DELETE /api/permission-groups/{students|teachers}/{id}
+//   PUT    /api/permission-groups/{students|teachers}/members/{userId} { group, allow, deny }
+async function handlePermissionGroups(req, res, url) {
+    const parts = url.pathname.split('/').filter(Boolean).slice(2); // after /api/permission-groups
+    const family = parts[0];
+    const domain = family === 'students' ? 'STUDENT' : family === 'teachers' ? 'TEACHER' : null;
+    if (!domain) {
+        sendJson(res, 404, { success: false, error: 'Use /api/permission-groups/students or /api/permission-groups/teachers.' });
+        return;
+    }
+    const m = req.method;
+    const user = req.auth.user;
+    const send = result => sendJson(res, result.ok ? 200 : result.status, result.ok ? { success: true, ...result } : { success: false, error: result.error, currentVersion: result.currentVersion });
+    if (req.auth.preview && m !== 'GET') {
+        sendJson(res, 403, { success: false, error: 'Leave the role preview first.' });
+        return;
+    }
+
+    if (parts.length === 1 && m === 'GET') {
+        const eff = effective(req);
+        if (!eff.isSuperAdmin && !can(req, `${family}.view`)) {
+            sendJson(res, 403, { success: false, error: `You are not allowed to see ${domain === 'STUDENT' ? 'student' : 'teacher'} types.` });
+            return;
+        }
+        sendJson(res, 200, { success: true, ...(await roles.listGroups(domain, eff.isSuperAdmin)) });
+        return;
+    }
+    if (parts.length === 1 && m === 'POST') {
+        send(await roles.createRole(user, await readJson(req), req, domain));
+        return;
+    }
+    if (parts.length === 3 && parts[1] === 'members' && m === 'PUT') {
+        send(await roles.setMemberPermissions(user, decodeURIComponent(parts[2]), await readJson(req), req));
+        return;
+    }
+    if (parts.length === 2) {
+        const id = decodeURIComponent(parts[1]).toUpperCase();
+        if (m === 'PUT') {
+            send(await roles.updateRole(user, id, await readJson(req), req, domain));
+            return;
+        }
+        if (m === 'DELETE') {
+            send(await roles.deleteRole(user, id, req, domain));
+            return;
+        }
     }
     sendJson(res, 405, { success: false, error: 'Method not allowed' });
 }
@@ -1051,6 +1118,7 @@ async function route(req, res) {
     if (p === '/api/auth/change-password' && m === 'POST') { await handleChangePassword(req, res); return true; }
     if (p === '/api/auth/language' && m === 'POST') { await handleLanguage(req, res); return true; }
     if (p === '/api/roles' || p.startsWith('/api/roles/')) { await handleRoles(req, res, url); return true; }
+    if (p.startsWith('/api/permission-groups/')) { await handlePermissionGroups(req, res, url); return true; }
     if (p === '/api/audit' && m === 'GET') { await handleAudit(req, res, url); return true; }
     if (p.startsWith('/api/super-admins')) { await handleSuperAdmins(req, res, url); return true; }
     if (p === '/api/preview') { await handlePreview(req, res); return true; }

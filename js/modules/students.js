@@ -203,6 +203,7 @@ const StudentsModule = {
                                                         </a>
                                                     </div>
                                                     <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(s.email || 'No email set')}</div>
+                                                    ${window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('STUDENT', s) : ''}
                                                 </div>
                                             </div>
                                         </td>
@@ -418,6 +419,7 @@ const StudentsModule = {
                             <span><span style="color: var(--text-secondary);">Roll No:</span> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(student.rollNo || 'N/A')}</code></span>
                             ${this.programLabel(student) ? `<span><span style="color: var(--text-secondary);">Program:</span> <strong>${this.programLabel(student)}</strong></span>` : ''}
                             <span><span style="color: var(--text-secondary);">Class:</span> <strong>${this.classLabel(student)}</strong></span>
+                            ${window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('STUDENT', student) : ''}
                         </div>
                     </div>
 
@@ -957,6 +959,7 @@ const StudentsModule = {
                                 <option value="Hostel Block B" ${student.hostel?.includes('Block B') ? 'selected' : ''}>Hostel Block B (Resident)</option>
                             </select>
                         </div>
+                        <div>${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('STUDENT', 'edit-st-group', student.permissionGroup) : ''}</div>
                     </div>
                 </form>
             `;
@@ -1076,6 +1079,9 @@ const StudentsModule = {
         student.classId = classId;
         student.phone = phone;
         student.hostel = hostel;
+        // Student type (permission group): only sent when the editor may choose it; the server checks again
+        const group = window.PermissionGroupsModule ? PermissionGroupsModule.readTypeSelect('edit-st-group') : undefined;
+        if (group) student.permissionGroup = group;
 
         window.DataStore.save(window.LmsData);
         App.closeModal();
@@ -1204,6 +1210,7 @@ const StudentsModule = {
                             <option value="Hostel Block B">Hostel Block B (Resident)</option>
                         </select>
                     </div>
+                    ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('STUDENT', 'direct-st-group') : ''}
                 </form>
             `;
         }
@@ -1334,6 +1341,9 @@ const StudentsModule = {
             avatar: name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
             enrollmentDate: new Date().toISOString().split('T')[0]
         };
+        // Student type (permission group); without one the server puts the student in the default type
+        const group = window.PermissionGroupsModule ? PermissionGroupsModule.readTypeSelect('direct-st-group') : undefined;
+        if (group) newStudent.permissionGroup = group;
 
         window.LmsData.users.push(newStudent);
         window.DataStore.save(window.LmsData);

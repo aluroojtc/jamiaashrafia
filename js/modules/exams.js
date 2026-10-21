@@ -182,6 +182,10 @@ const ExamsModule = {
         if (sub && sub.status === 'SUBMITTED') {
             return `<span class="status-pill success" style="flex: 1; justify-content: center;"><i class="fas fa-check"></i> Submitted ${Lms.fmtDateTime(sub.submittedAt)} — awaiting result</span>`;
         }
+        // Student types decide whether papers are sat online (the server refuses attempts otherwise)
+        if (!Lms.can('exams.attempt')) {
+            return `<span class="status-pill info" style="flex: 1; justify-content: center;"><i class="fas fa-lock"></i> Online papers are not part of your student type</span>`;
+        }
         if (sub && sub.status === 'IN_PROGRESS') {
             return `<button class="btn btn-primary btn-sm" style="flex: 1;" onclick="ExamsModule.startAttempt('${ex.id}')"><i class="fas fa-play"></i> Resume Paper</button>`;
         }
@@ -420,6 +424,10 @@ const ExamsModule = {
         const ex = (window.LmsData.exams || []).find(e => e.id === examId);
         const me = Lms.me();
         if (!ex) return;
+        if (!Lms.can('exams.attempt')) {
+            window.App.showToast('Online papers are not part of your student type.', 'warning');
+            return;
+        }
         let sub = this.submissionOf(examId, me.id);
         if (sub && sub.status === 'SUBMITTED') {
             window.App.showToast('You have already submitted this paper.', 'info');

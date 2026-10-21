@@ -123,10 +123,10 @@ const VirtualClassModule = {
                     <i class="fas fa-video"></i> Live Studio Room
                     ${this.activeSession?.isLive ? `<span class="rec-dot" style="width: 6px; height: 6px;"></span>` : ''}
                 </button>
-                <button class="vc-tab-btn ${this.currentTab === 'recordings' ? 'active' : ''}" onclick="VirtualClassModule.switchTab('recordings')">
+                ${window.AuthRBAC.can('recordings.view') ? `<button class="vc-tab-btn ${this.currentTab === 'recordings' ? 'active' : ''}" onclick="VirtualClassModule.switchTab('recordings')">
                     <i class="fas fa-film"></i> Recordings Vault
                     <span class="badge-pill">${recordingsCount}</span>
-                </button>
+                </button>` : ''}
                 <button class="vc-tab-btn ${this.currentTab === 'attendance' ? 'active' : ''}" onclick="VirtualClassModule.switchTab('attendance')">
                     <i class="fas fa-clipboard-check"></i> Attendance & Reports
                 </button>
@@ -151,7 +151,8 @@ const VirtualClassModule = {
             case 'studio':
                 return this.renderStudio();
             case 'recordings':
-                return this.renderRecordings();
+                // Watching recordings depends on the person's role or type
+                return window.AuthRBAC.can('recordings.view') ? this.renderRecordings() : this.renderLobby();
             case 'attendance':
                 return this.renderAttendance();
             case 'retention':
@@ -386,7 +387,9 @@ const VirtualClassModule = {
                             <button class="btn btn-secondary btn-sm" title="Edit" onclick="VirtualClassModule.openScheduleModal('${Lms.esc(session.id)}')"><i class="fas fa-edit"></i></button>
                             <button class="btn btn-secondary btn-sm" title="Delete" onclick="VirtualClassModule.deleteSession('${Lms.esc(session.id)}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                         ${isLive ? (
-                            isEnrolledClass || isSessionHost ? `
+                            !isSessionHost && isEnrolledClass && !window.AuthRBAC.can('virtual_classes.join') ? `
+                                <span class="status-pill info"><i class="fas fa-lock"></i> Joining online classes is not part of your type</span>
+                            ` : isEnrolledClass || isSessionHost ? `
                                 <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.enterClassroom('${Lms.esc(session.id)}')">
                                     <i class="fas fa-sign-in-alt"></i> ${isSessionHost ? 'Open Live Room' : 'Join Live Class'}
                                 </button>
@@ -443,6 +446,11 @@ const VirtualClassModule = {
         const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
         if (!session) {
             window.App?.showToast("Classroom session not found", "danger");
+            return;
+        }
+        // The server decides again (/api/virtual-classes/.../join); this only avoids a pointless attempt
+        if (!window.AuthRBAC.canAny(['virtual_classes.join', 'virtual_classes.host', 'virtual_classes.manage'])) {
+            window.App?.showToast('Joining online classes is not part of your type.', 'warning');
             return;
         }
 

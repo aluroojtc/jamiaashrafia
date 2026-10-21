@@ -27,11 +27,25 @@ const APP_NAV = [
     {
         title: { staff: 'Students & Faculty', teacher: 'Teaching & Students', student: 'My Academics' },
         items: [
-            { route: 'students', icon: 'fas fa-user-graduate', iconColor: 'var(--primary-400)', label: { staff: 'Students Management', teacher: 'My Students Roster' } },
+            {
+                group: 'students-management', label: { staff: 'Students Management', teacher: 'My Students Roster' },
+                title: 'Students, student types and their permissions', icon: 'fas fa-user-graduate',
+                children: [
+                    { route: 'students', icon: 'fas fa-users', iconColor: 'var(--primary-400)', label: { staff: 'Students', teacher: 'My Students Roster' } },
+                    { route: 'student-types', icon: 'fas fa-user-tag', iconColor: 'var(--gold-300)', label: 'Student Types & Permissions' }
+                ]
+            },
             { route: 'admissions', icon: 'fas fa-user-plus', label: 'Student Admissions' },
             { route: 'classes', icon: { staff: 'fas fa-chalkboard-teacher', teacher: 'fas fa-book', student: 'fas fa-book-open' },
                 label: { staff: 'Classes & Curriculum', teacher: 'My Classes & Courses', student: 'My Classes & Courses' } },
-            { route: 'teachers', icon: 'fas fa-user-tie', label: { staff: 'Teachers & Portals', teacher: 'Faculty & My Profile', student: 'Faculty' } }
+            {
+                group: 'teachers-management', label: { staff: 'Teachers & Portals', teacher: 'Faculty & My Profile', student: 'Faculty' },
+                title: 'Teachers, teacher types and their permissions', icon: 'fas fa-user-tie',
+                children: [
+                    { route: 'teachers', icon: 'fas fa-user-tie', label: { staff: 'Teachers', teacher: 'Faculty & My Profile', student: 'Faculty' } },
+                    { route: 'teacher-types', icon: 'fas fa-user-cog', iconColor: 'var(--gold-300)', label: 'Teacher Types & Permissions' }
+                ]
+            }
         ]
     },
     {
@@ -60,7 +74,7 @@ const APP_NAV = [
 
 const App = {
     currentRoute: 'dashboard',
-    usersPermissionsSubmenuOpen: false,
+    openSubmenus: {}, // sidebar group id -> open
 
     toggleNavSubmenu(id) {
         const submenu = document.getElementById('submenu-' + id);
@@ -76,9 +90,7 @@ const App = {
             submenu.classList.remove('open');
             if (caret) caret.style.transform = 'rotate(0deg)';
         }
-        if (id === 'users-permissions') {
-            this.usersPermissionsSubmenuOpen = isClosed;
-        }
+        this.openSubmenus[id] = isClosed;
     },
 
     /**
@@ -322,14 +334,19 @@ const App = {
                 if (item.children) {
                     const kids = item.children.filter(c => rbac.canAccessRoute(c.route));
                     if (!kids.length) return;
-                    const open = this.usersPermissionsSubmenuOpen;
+                    // One page left (e.g. a teacher's roster): a plain link under the section's own name
+                    if (kids.length === 1) {
+                        parts.push(link({ ...kids[0], icon: item.icon, iconColor: kids[0].iconColor, label: item.label }));
+                        return;
+                    }
+                    const open = !!this.openSubmenus[item.group] || kids.some(k => k.route === this.currentRoute);
                     parts.push(`
                         <div class="nav-group-wrapper">
                             <div class="nav-item nav-parent-item ${kids.some(k => k.route === this.currentRoute) ? 'active' : ''}"
-                                 onclick="App.toggleNavSubmenu('${item.group}')" id="parent-nav-${item.group}" title="${Lms.esc(item.title || item.label)}" style="cursor: pointer;">
+                                 onclick="App.toggleNavSubmenu('${item.group}')" id="parent-nav-${item.group}" data-group-routes="${kids.map(k => k.route).join(' ')}" title="${Lms.esc(pick(item.title || item.label))}" style="cursor: pointer;">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <i class="${item.icon}" style="color: var(--gold-400);"></i>
-                                    <span>${Lms.esc(item.label)}</span>
+                                    <span>${Lms.esc(pick(item.label))}</span>
                                 </div>
                                 <i class="fas fa-chevron-down submenu-caret" id="caret-${item.group}" style="${open ? 'transform: rotate(180deg);' : 'transform: rotate(0deg);'}"></i>
                             </div>
@@ -374,23 +391,23 @@ const App = {
             }
         });
 
-        // Synchronize parent Users & Roles item
-        const parentNav = document.getElementById('parent-nav-users-permissions');
-        if (parentNav) {
-            if (['users', 'roles'].includes(route)) {
+        // Synchronize submenu parents (Users & Roles, Students Management, Teachers): open the one holding this page
+        document.querySelectorAll('.nav-parent-item[data-group-routes]').forEach(parentNav => {
+            const group = parentNav.id.replace('parent-nav-', '');
+            if (parentNav.dataset.groupRoutes.split(' ').includes(route)) {
                 parentNav.classList.add('active');
-                const submenu = document.getElementById('submenu-users-permissions');
-                const caret = document.getElementById('caret-users-permissions');
+                const submenu = document.getElementById('submenu-' + group);
+                const caret = document.getElementById('caret-' + group);
                 if (submenu) {
                     submenu.style.display = 'flex';
                     submenu.classList.add('open');
                     if (caret) caret.style.transform = 'rotate(180deg)';
-                    this.usersPermissionsSubmenuOpen = true;
+                    this.openSubmenus[group] = true;
                 }
             } else {
                 parentNav.classList.remove('active');
             }
-        }
+        });
 
         const viewport = document.getElementById('main-content-viewport');
         if (!viewport) return;
@@ -416,6 +433,12 @@ const App = {
                 break;
             case 'students':
                 viewport.innerHTML = window.StudentsModule ? window.StudentsModule.render() : '';
+                break;
+            case 'student-types':
+                viewport.innerHTML = window.PermissionGroupsModule ? window.PermissionGroupsModule.render('STUDENT') : '';
+                break;
+            case 'teacher-types':
+                viewport.innerHTML = window.PermissionGroupsModule ? window.PermissionGroupsModule.render('TEACHER') : '';
                 break;
             case 'attendance':
                 viewport.innerHTML = window.AttendanceModule ? window.AttendanceModule.render() : '';
@@ -1010,7 +1033,7 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                             ${pending.length ? pending.slice(0, 5).map(a => this.dashListItem(Lms.esc(a.title),
                                 `${Lms.esc(Lms.courseTitle(a.courseId))} • Due ${Lms.fmtDate(a.dueDate)}${a.dueDate < today ? ' <strong style="color: var(--danger);">(overdue)</strong>' : ''}`,
-                                `<button class="btn btn-primary btn-sm" onclick="AssignmentsModule.openStudentUploadModal('${a.id}')"><i class="fas fa-upload"></i> Submit</button>`,
+                                Lms.can('assignments.submit') ? `<button class="btn btn-primary btn-sm" onclick="AssignmentsModule.openStudentUploadModal('${a.id}')"><i class="fas fa-upload"></i> Submit</button>` : '',
                                 a.dueDate < today ? 'var(--danger)' : 'var(--gold-400)')).join('') : this.dashEmpty('No pending homework. Alhamdulillah!')}
                         </div>
                     </div>

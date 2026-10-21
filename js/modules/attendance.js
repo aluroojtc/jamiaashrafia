@@ -112,6 +112,8 @@ const AttendanceModule = {
 
     // RENDER: Check-In Dashboard Card for Students and Teachers
     renderDashboardCheckInWidget(user) {
+        // Daily check-in is a permission of the person's role or type
+        if (!window.AuthRBAC.can('attendance.self_checkin')) return '';
         const today = this.getTodayDate();
         const record = this.getTodayAttendance(user.id);
         const isCheckedIn = !!record;

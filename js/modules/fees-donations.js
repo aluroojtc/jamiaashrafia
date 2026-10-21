@@ -208,7 +208,7 @@ const FeesDonationsModule = {
                                     <td>
                                         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                             <button class="btn btn-secondary btn-sm" onclick="FeesDonationsModule.printChallan('${ch.id}')"><i class="fas fa-print"></i> Voucher</button>
-                                            ${isStudent && (ch.status === 'PENDING' || !ch.status) ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.payChallanModal('${ch.id}')"><i class="fas fa-upload"></i> Upload Payment Proof</button>` : ''}
+                                            ${isStudent && Lms.can('fees.challans.submit_proof') && (ch.status === 'PENDING' || !ch.status) ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.payChallanModal('${ch.id}')"><i class="fas fa-upload"></i> Upload Payment Proof</button>` : ''}
                                             ${!isStudent && Lms.can('fees.challans.verify') && ch.status === 'VERIFICATION_PENDING' ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.openVerifyModal('${ch.id}')"><i class="fas fa-user-check"></i> Verify</button>` : ''}
                                             ${!isStudent && Lms.can('fees.challans.verify') && ch.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.openVerifyModal('${ch.id}')"><i class="fas fa-cash-register"></i> Record Payment</button>` : ''}
                                             ${!isStudent && this.canManage() && ch.status !== 'PAID' ? `<button class="btn btn-secondary btn-sm" title="Edit / waiver" onclick="FeesDonationsModule.openEditChallanModal('${ch.id}')"><i class="fas fa-edit"></i></button>
@@ -425,6 +425,7 @@ const FeesDonationsModule = {
     payChallanModal(challanId) {
         const ch = this.challans().find(c => c.id === challanId);
         if (!ch) return;
+        if (!Lms.can('fees.challans.submit_proof')) return window.App.showToast('Uploading payment proof is not part of your type.', 'warning');
         Lms.openModal(
             `<i class="fas fa-upload" style="color: var(--primary-400);"></i> Payment Proof: ${Lms.esc(ch.challanNumber)}`,
             `<div style="background: var(--bg-surface-elevated); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">

@@ -23,7 +23,7 @@ process.env.PORT = TEST_PORT;
 const P = `sectest_${Date.now().toString(36)}_`;
 const R = P.toUpperCase();
 // Throw-away roles (removed afterwards)
-const roleIds = { admin: `${R}ADMIN`, finance: `${R}FINANCE`, librarian: `${R}LIBRARIAN`, roleMgr: `${R}ROLEMGR` };
+const roleIds = { admin: `${R}ADMIN`, finance: `${R}FINANCE`, librarian: `${R}LIBRARIAN`, roleMgr: `${R}ROLEMGR`, typeMgr: `${R}TYPEMGR` };
 const ids = {
     admin: `${P}admin`, superAdmin: `${P}super`, t1: `${P}t1`, t2: `${P}t2`, s1: `${P}s1`, s2: `${P}s2`,
     acct: `${P}acct`, custom: `${P}custom`, noCred: `${P}nocred`,
@@ -31,7 +31,7 @@ const ids = {
     donation: `${P}don`, vcB: `${P}vcB`,
     coord: `${P}coord`, classC: `${P}clsC`, examC: `${P}examC`, resultC: `${P}resC`,
     assignA: `${P}asgA`, subA: `${P}subA`, examAClosed: `${P}examAx`, examAOpen: `${P}examAo`, admission: `${P}adm`,
-    mgr: `${P}mgr`, clerk: `${P}clerk`, deputy: `${P}deputy`, loanS2: `${P}loanS2`, roleMgr: `${P}rolemgr`
+    mgr: `${P}mgr`, clerk: `${P}clerk`, deputy: `${P}deputy`, loanS2: `${P}loanS2`, roleMgr: `${P}rolemgr`, typeMgr: `${P}typemgr`
 };
 const passwords = {};
 
@@ -99,6 +99,7 @@ async function setupFixtures() {
     await createRole(roleIds.finance, 'Sectest finance officer', 'ALL', catalog.DEFAULT_PERMISSIONS.ACCOUNTANT);
     await createRole(roleIds.librarian, 'Sectest librarian', 'ALL', catalog.DEFAULT_PERMISSIONS.LIBRARIAN);
     await createRole(roleIds.roleMgr, 'Sectest role manager', 'ALL', ['roles.view', 'roles.create', 'roles.update', 'exams.view', 'exams.mark', 'classes.view']);
+    await createRole(roleIds.typeMgr, 'Sectest type assigner', 'ALL', ['students.view', 'students.update', 'students.assign_group']);
 
     await createUser(ids.superAdmin, { role: 'SUPER_ADMIN' });
     await createUser(ids.admin, { role: roleIds.admin });
@@ -114,6 +115,7 @@ async function setupFixtures() {
     await createUser(ids.clerk, { role: `${P.toUpperCase()}NOTHING` });
     await createUser(ids.deputy, { role: roleIds.admin });
     await createUser(ids.roleMgr, { role: roleIds.roleMgr });
+    await createUser(ids.typeMgr, { role: roleIds.typeMgr });
 
     await insertRecord('classes', { id: ids.classA, name: 'Sectest A', teacherId: ids.t1, courseTeachers: [] });
     await insertRecord('classes', { id: ids.classB, name: 'Sectest B', teacherId: ids.t2, courseTeachers: [] });
@@ -155,6 +157,7 @@ async function cleanup(settingsBackup) {
     await db.query(`DELETE FROM student_admissions WHERE id LIKE ?`, [like]);
     await db.query(`DELETE FROM super_admins WHERE user_id LIKE ?`, [like]);
     await db.query(`DELETE FROM user_roles WHERE user_id LIKE ?`, [like]);
+    await db.query(`DELETE FROM user_permission_overrides WHERE user_id LIKE ?`, [like]);
     const roleLike = `${P.toUpperCase()}%`;
     await db.query(`DELETE FROM role_permissions WHERE role_id LIKE ?`, [roleLike]);
     await db.query(`DELETE FROM roles WHERE id LIKE ?`, [roleLike]);
@@ -318,6 +321,102 @@ async function run() {
         const weak = await sync('admin', { users: [{ ...(await stored('users', ids.s2)), password: 'short' }] });
         check('Admin cannot set a password shorter than 8 characters', rejected(weak, 'users', ids.s2));
 
+        // --- Three domains: system roles, student types, teacher types --------------------
+        {
+            const call = (key, method, path, body) => request(method, path, { cookie: sess[key], body });
+            const meOf = async key => (await call(key, 'GET', '/api/auth/me')).body;
+            const online = `${R}ONLINE`;
+            const assist = `${R}ASSIST`;
+            const today = new Date().toISOString().slice(0, 10);
+            const cat = (await call('superAdmin', 'GET', '/api/roles/catalog')).body;
+            check('Catalog describes the three domains and their ceilings', !!(cat.domains && cat.domains.STUDENT && cat.domainCeilings && cat.domainCeilings.TEACHER));
+            const sysList = (await call('admin', 'GET', '/api/roles')).body.roles || [];
+            check('Every role is labelled with its domain', sysList.length && sysList.every(r => ['SYSTEM', 'STUDENT', 'TEACHER'].includes(r.domain))
+                && sysList.find(r => r.id === 'STUDENT').domain === 'STUDENT' && sysList.find(r => r.id === 'TEACHER').domain === 'TEACHER');
+
+            check('Admin cannot create a student type', (await call('admin', 'POST', '/api/permission-groups/students', { id: `${R}BYADMIN`, name: 'X', permissions: [] })).status === 403);
+            const mkS = await call('superAdmin', 'POST', '/api/permission-groups/students', { id: online, name: 'Sectest Online Student', permissions: ['classes.view', 'virtual_classes.join', 'recordings.view', 'timetable.view'] });
+            check('Super Admin creates a student type', mkS.status === 200 && mkS.body.role && mkS.body.role.domain === 'STUDENT' && mkS.body.role.scope === 'SELF', JSON.stringify(mkS.body));
+            const badS = await call('superAdmin', 'POST', '/api/permission-groups/students', { id: `${R}BADS`, name: 'Bad', permissions: ['classes.view', 'users.view'] });
+            check('A student type cannot hold office permissions, even for the Super Admin', badS.status === 400);
+            const mkT = await call('superAdmin', 'POST', '/api/permission-groups/teachers', { id: assist, name: 'Sectest Assistant Teacher', permissions: ['classes.view', 'attendance.view', 'attendance.mark'] });
+            check('Super Admin creates a teacher type', mkT.status === 200 && mkT.body.role && mkT.body.role.domain === 'TEACHER' && mkT.body.role.scope === 'TEACHING', JSON.stringify(mkT.body));
+            check('A teacher type cannot hold system user management', (await call('superAdmin', 'POST', '/api/permission-groups/teachers', { id: `${R}BADT`, name: 'Bad', permissions: ['users.update'] })).status === 400);
+            check('Student types are not changed through the system Roles API', (await call('superAdmin', 'PUT', `/api/roles/${online}`, { version: 1, add: [] })).status === 400
+                && (await call('superAdmin', 'PUT', '/api/roles/STUDENT', { version: 1, add: [] })).status === 400);
+            const sysRole = await call('superAdmin', 'POST', '/api/roles', { id: `${R}SYS`, name: 'Sectest system role', permissions: [] });
+            check('The Roles API only creates system roles', sysRole.status === 200 && sysRole.body.role.domain === 'SYSTEM');
+            const groupsForAdmin = await call('admin', 'GET', '/api/permission-groups/students');
+            check('Staff who see students can read the student types, without individual overrides', groupsForAdmin.status === 200
+                && groupsForAdmin.body.groups.some(g => g.id === online) && groupsForAdmin.body.overrides === undefined);
+            check('Students cannot read the type definitions', (await call('s1', 'GET', '/api/permission-groups/students')).status === 403);
+
+            // Account kinds never mix
+            const asStaff = `${P}asstaff`;
+            const r1 = await sync('superAdmin', { users: [{ id: asStaff, role: online, name: 'X', email: `${asStaff}@test.local` }] });
+            check('A student type cannot be used as a system user role (not even by the Super Admin)', rejected(r1, 'users', asStaff));
+            const r2 = await sync('superAdmin', { users: [{ ...(await stored('users', ids.s2)), role: 'TEACHER' }] });
+            check('A student account cannot be turned into a teacher account', rejected(r2, 'users', ids.s2) && (await stored('users', ids.s2)).role === 'STUDENT');
+            const r3 = await sync('superAdmin', { users: [{ ...(await stored('users', ids.t2)), role: roleIds.admin }] });
+            check('A teacher account cannot be turned into a system user', rejected(r3, 'users', ids.t2) && (await stored('users', ids.t2)).role === 'TEACHER');
+            const r4 = await sync('superAdmin', { users: [{ ...(await stored('users', ids.s2)), additionalRoles: [roleIds.librarian] }] });
+            check('Students cannot hold additional (system) roles', rejected(r4, 'users', ids.s2));
+            const r5 = await sync('superAdmin', { users: [{ ...(await stored('users', ids.t2)), additionalRoles: [online] }] });
+            check('A student type cannot be given as an additional role', rejected(r5, 'users', ids.t2));
+            const r6 = await sync('superAdmin', { users: [{ ...(await stored('users', ids.s2)), permissionGroup: assist }] });
+            check('A student cannot be put in a teacher type', rejected(r6, 'users', ids.s2));
+
+            // Choosing a type needs the Super Admin or students.assign_group
+            const r7 = await sync('admin', { users: [{ ...(await stored('users', ids.s2)), permissionGroup: online }] });
+            check('Admin without the assign permission cannot change a student type', rejected(r7, 'users', ids.s2) && (await meOf('s2')).roles[0].id === 'STUDENT');
+            sess.typeMgr = (await login(`${ids.typeMgr}@test.local`, passwords[ids.typeMgr])).cookie;
+            const r8 = await sync('typeMgr', { users: [{ ...(await stored('users', ids.s2)), permissionGroup: online }] });
+            check('Staff with students.assign_group can change a student type', accepted(r8, 'users', ids.s2), JSON.stringify(r8.body));
+            const meOnline = await meOf('s2');
+            check('A student receives exactly the permissions of their type', meOnline.roles[0].id === online && meOnline.scope === 'SELF'
+                && meOnline.permissions.includes('virtual_classes.join') && !meOnline.permissions.includes('exams.attempt') && !meOnline.permissions.includes('assignments.submit'),
+                JSON.stringify(meOnline.permissions));
+            const sPull2 = (await request('GET', '/api/store', { cookie: sess.s2 })).body.collections || {};
+            check('The student portal sees its own type on its record', ((sPull2.users || []).find(u => u.id === ids.s2) || {}).permissionGroup === online);
+            const ci2 = `${P}attS2`;
+            const blocked = await sync('s2', { attendance: [{ id: ci2, userId: ids.s2, date: today, status: 'PRESENT' }] });
+            check('The server refuses what the type does not allow (daily check-in)', rejected(blocked, 'attendance', ci2));
+            await sync('s2', { users: [{ ...(await stored('users', ids.s2)), permissionGroup: 'STUDENT' }] });
+            check('A student cannot change their own type', (await meOf('s2')).roles[0].id === online);
+
+            // Individual overrides (Super Admin only, within the student ceiling)
+            check('Admin cannot set individual permissions', (await call('admin', 'PUT', `/api/permission-groups/students/members/${ids.s2}`, { allow: ['attendance.self_checkin'] })).status === 403);
+            check('Individual permissions stay inside the student ceiling', (await call('superAdmin', 'PUT', `/api/permission-groups/students/members/${ids.s2}`, { allow: ['users.view'] })).status === 400);
+            const ov = await call('superAdmin', 'PUT', `/api/permission-groups/students/members/${ids.s2}`, { allow: ['attendance.self_checkin'], deny: ['recordings.view'] });
+            const meOv = await meOf('s2');
+            check('An individual allow and deny change the effective permissions', ov.status === 200 && meOv.permissions.includes('attendance.self_checkin') && !meOv.permissions.includes('recordings.view'), JSON.stringify(ov.body));
+            const nowOk = await sync('s2', { attendance: [{ id: ci2, userId: ids.s2, date: today, status: 'PRESENT' }] });
+            check('The server then allows the individually allowed action', accepted(nowOk, 'attendance', ci2));
+            const sa = await call('superAdmin', 'GET', '/api/permission-groups/students');
+            check('The Super Admin sees individual overrides', (((sa.body.overrides || {})[ids.s2] || {}).allow || []).includes('attendance.self_checkin'));
+            const [auditRows] = await db.query(`SELECT action FROM audit_log WHERE entity_id = ? AND action IN ('user.group_change', 'user.permissions_change')`, [ids.s2]);
+            check('Type changes and individual permissions are audited', auditRows.some(r => r.action === 'user.group_change') && auditRows.some(r => r.action === 'user.permissions_change'));
+
+            // Teacher types
+            const tt = await call('superAdmin', 'PUT', `/api/permission-groups/teachers/members/${ids.t2}`, { group: assist });
+            const meT2 = await meOf('t2');
+            check('A teacher receives only the permissions of their type', tt.status === 200 && meT2.roles[0].id === assist && meT2.scope === 'TEACHING'
+                && meT2.permissions.includes('attendance.mark') && !meT2.permissions.includes('exams.create') && !meT2.permissions.includes('users.view'));
+            const tExam = `${P}examByAssist`;
+            const tEx = await sync('t2', { exams: [{ id: tExam, title: 'Not allowed', classId: ids.classB, createdBy: ids.t2 }] });
+            check('The server refuses exam creation to a teacher type without it', rejected(tEx, 'exams', tExam));
+            check('A type in use cannot be deleted', (await call('superAdmin', 'DELETE', `/api/permission-groups/teachers/${assist}`)).status === 409);
+            check('The default student type cannot be deleted', (await call('superAdmin', 'DELETE', '/api/permission-groups/students/STUDENT')).status === 400);
+            const meSA2 = await meOf('superAdmin');
+            check('Super Admin still holds everything, including the new type permissions', meSA2.isSuperAdmin && meSA2.permissions.includes('students.assign_group') && meSA2.permissions.includes('teachers.assign_group'));
+
+            // Back to the default types for the checks that follow
+            await call('superAdmin', 'PUT', `/api/permission-groups/students/members/${ids.s2}`, { group: 'STUDENT', allow: [], deny: [] });
+            await call('superAdmin', 'PUT', `/api/permission-groups/teachers/members/${ids.t2}`, { group: 'TEACHER', allow: [], deny: [] });
+            check('Moving people back restores the default type', (await meOf('s2')).roles[0].id === 'STUDENT' && (await meOf('t2')).permissions.includes('exams.create'));
+            check('An empty type can be deleted', (await call('superAdmin', 'DELETE', `/api/permission-groups/teachers/${assist}`)).status === 200);
+            await db.query(`DELETE FROM lms_records WHERE collection = 'attendance' AND id = ?`, [ci2]);
+        }
         // --- Phase 2: roles, permissions, workflow rules, audit --------------------------
         const api = (key, method, path, body) => request(method, path, { cookie: sess[key], body });
         sess.roleMgr = (await login(`${ids.roleMgr}@test.local`, passwords[ids.roleMgr])).cookie;

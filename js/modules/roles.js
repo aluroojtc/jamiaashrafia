@@ -1,11 +1,13 @@
 /**
  * JAMIA ASHRAFIA LAHORE - ROLES & PERMISSIONS MODULE
  *
+ * SYSTEM USER ROLES only. Student types and teacher types are separate permission groups, managed in Student
+ * Management and Teacher Management (js/modules/permission-groups.js, which reuses the checklist below).
+ *
  * RULES (all enforced again by the server):
  * 1. Super Admin holds every permission, including future ones. It has no checklist, is never edited here
  *    (its profile is edited under Users) and can never be deleted.
- * 2. Admin, Teacher and Student are default roles: their permissions can be changed, their data scope cannot,
- *    and they cannot be deleted. Teacher and Student can only hold permissions of their portal.
+ * 2. Admin is a default role: its permissions can be changed, its data scope cannot, and it cannot be deleted.
  * 3. You can only give or take away permissions you hold yourself, and only the Super Admin can change the
  *    role they hold. A role somebody holds cannot be deleted.
  */
@@ -24,18 +26,21 @@ const RolesModule = {
 
     async loadCatalog() {
         if (this.catalog) return this.catalog;
-        const res = await fetch('/api/roles/catalog', { cache: 'no-store' });
+        // A network error only says "Failed to fetch"; the portal also renders from its offline copy, so say why
+        const res = await fetch('/api/roles/catalog', { cache: 'no-store' })
+            .catch(() => { throw new Error('The portal server cannot be reached, so roles cannot be edited right now. Please check that it is running and try again.'); });
         if (!res.ok) throw new Error(`Could not load the permission list (${res.status})`);
         this.catalog = await res.json();
         return this.catalog;
     },
 
+    // System user roles (student and teacher types belong to their own sections)
     roles() {
-        return (window.LmsData?.roles || []).filter(r => r.id !== 'SUPER_ADMIN');
+        return (window.LmsData?.roles || []).filter(r => r.id !== 'SUPER_ADMIN' && (r.domain || 'SYSTEM') === 'SYSTEM');
     },
 
     isCore(roleId) {
-        return ['ACADEMIC_ADMIN', 'TEACHER', 'STUDENT'].includes(roleId);
+        return roleId === 'ACADEMIC_ADMIN';
     },
 
     // Whether the signed-in user may edit this role (the server checks the same)
@@ -106,7 +111,11 @@ const RolesModule = {
                                         <li>${I18n.t('{role} automatically has every permission, including any added in future.', { role: `<strong>${I18n.t('Super Admin')}</strong>` })}</li>
                     <li>${I18n.t('{scope} decides whose records a role covers: the whole institution, the classes the person teaches, or only their own.', { scope: `<strong>${I18n.t('Data scope')}</strong>` })}</li>
                     <li>You can only give or take away permissions you hold yourself. Nobody but the Super Admin can change the role they hold.</li>
-                    <li>Admin, Teacher and Student cannot be deleted. A custom role can be deleted once nobody holds it.</li>
+                    <li>Admin cannot be deleted. A custom role can be deleted once nobody holds it.</li>
+                    <li>${I18n.t('These roles are for system users only. Student types and teacher types are managed in {students} and {teachers}.', {
+                        students: rbac.canAccessRoute('student-types') ? `<a href="#student-types" style="color: var(--primary-700); font-weight: 600;">${I18n.t('Student Types & Permissions')}</a>` : `<strong>${I18n.t('Students Management')}</strong>`,
+                        teachers: rbac.canAccessRoute('teacher-types') ? `<a href="#teacher-types" style="color: var(--primary-700); font-weight: 600;">${I18n.t('Teacher Types & Permissions')}</a>` : `<strong>${I18n.t('Teachers & Portals')}</strong>`
+                    })}</li>
                 </ul>
             </div>
 
@@ -220,13 +229,14 @@ const RolesModule = {
         this.updateWarnings();
     },
 
-    // Permissions grouped by module; a box is locked when the editor does not hold it (or the role may never hold it)
-    renderPermissionChecklist(role, isNew) {
+    // Permissions grouped by module; a box is locked when the editor does not hold it (or the role may never hold it).
+    // opts.ceiling (Set) / opts.defaults (array) / opts.ceilingNote: used by student and teacher types.
+    renderPermissionChecklist(role, isNew, opts = {}) {
         const rbac = window.AuthRBAC;
         const catalog = this.catalog;
         const granted = new Set(role.permissions || []);
-        const ceiling = !isNew && catalog.ceilings[role.id] ? new Set(catalog.ceilings[role.id]) : null;
-        const defaults = !isNew && catalog.defaults[role.id] ? catalog.defaults[role.id] : null;
+        const ceiling = opts.ceiling !== undefined ? opts.ceiling : (!isNew && catalog.ceilings[role.id] ? new Set(catalog.ceilings[role.id]) : null);
+        const defaults = opts.defaults !== undefined ? opts.defaults : (!isNew && catalog.defaults[role.id] ? catalog.defaults[role.id] : null);
         const groups = catalog.modules.map(m => ({ ...m, perms: catalog.permissions.filter(p => p.module === m.key && (!ceiling || ceiling.has(p.key) || granted.has(p.key))) }))
             .filter(g => g.perms.length);
         const link = (text, action) => `<a href="javascript:void(0)" onclick="${action}" style="color: var(--primary-700); font-weight: 600; text-decoration: none;">${text}</a>`;
@@ -241,7 +251,7 @@ const RolesModule = {
                     ${link('Clear all', 'RolesModule.setChecks(false)')}
                 </div>
             </div>
-            ${ceiling ? `<small style="display: block; color: var(--text-muted); font-size: 0.75rem; margin-bottom: 8px;">Only permissions of the ${Lms.esc(role.name || role.id)} portal can be given to this role.</small>` : ''}
+            ${ceiling ? `<small style="display: block; color: var(--text-muted); font-size: 0.75rem; margin-bottom: 8px;">${opts.ceilingNote || `Only permissions of the ${Lms.esc(role.name || role.id)} portal can be given to this role.`}</small>` : ''}
             <div id="role-sod-warnings" style="margin-bottom: 8px;"></div>
             <small style="display: block; color: var(--text-muted); font-size: 0.75rem; margin-bottom: 10px;">${I18n.t('{tag} marks permissions that touch accounts, money, results or private records. Some permissions bring others with them (e.g. editing brings viewing).', { tag: `<span class="status-pill danger" style="font-size: 0.62rem;">${I18n.t('Sensitive')}</span>` })}</small>
             <div id="role-perm-list" data-defaults="${Lms.esc((defaults || []).join(','))}" style="display: flex; flex-direction: column; gap: 14px; max-height: 52vh; overflow-y: auto; padding-inline-end: 4px;">
