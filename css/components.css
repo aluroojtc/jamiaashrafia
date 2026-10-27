@@ -795,3 +795,128 @@ textarea.form-control {
     cursor: pointer;
 }
 
+/* COPY TO CLIPBOARD (js/copy-button.js) */
+.copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    margin-inline-start: 4px;
+    vertical-align: middle;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.72rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.copy-btn:hover {
+    background: var(--primary-50);
+    border-color: var(--primary-300);
+    color: var(--primary-700);
+}
+
+.copy-btn:focus-visible {
+    outline: 2px solid var(--primary-400);
+    outline-offset: 1px;
+}
+
+.copy-btn-label {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.copy-btn-label:empty {
+    display: none;
+}
+
+.copy-btn.copy-btn-text {
+    height: auto;
+    padding: 5px 10px;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    border-color: var(--border-prominent);
+}
+
+.copy-btn.is-copied {
+    background: rgba(13, 148, 136, 0.12);
+    border-color: rgba(13, 148, 136, 0.35);
+    color: var(--success);
+}
+
+.copy-btn.is-failed {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.3);
+    color: var(--danger);
+}
+
+/* Input with the copy button inside its end edge (generated passwords in forms) */
+.copy-input {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.copy-input .form-control {
+    width: 100%;
+    padding-inline-end: 40px;
+}
+
+.copy-input .copy-btn {
+    position: absolute;
+    top: 50%;
+    inset-inline-end: 6px;
+    transform: translateY(-50%);
+    margin: 0;
+}
+
+/* Login details shown after an account is created or its password reset */
+.credentials-card {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-prominent);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+.credentials-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    min-height: 34px;
+}
+
+.credentials-row + .credentials-row {
+    border-top: 1px dashed var(--border-subtle);
+}
+
+.credentials-label {
+    flex: 0 0 auto;
+    min-width: 90px;
+    color: var(--text-secondary);
+}
+
+.credentials-value {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.credentials-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+

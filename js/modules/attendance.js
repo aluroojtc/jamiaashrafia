@@ -204,6 +204,13 @@ const AttendanceModule = {
             filtered = filtered.filter(r => r.status === this.filterStatus);
         }
 
+        // Apply Class Filter (student tab); older records without a classId use the student's current class
+        const classIds = Lms.myClassIds();
+        if (this.filterClass !== 'ALL' && !classIds.includes(this.filterClass)) this.filterClass = 'ALL';
+        if (this.activeTab === 'STUDENTS' && this.filterClass !== 'ALL') {
+            filtered = filtered.filter(r => (r.classId || (Lms.user(r.userId) || {}).classId) === this.filterClass);
+        }
+
         // Compute metrics
         const totalStudents = (window.LmsData.users || []).filter(u => u.role === 'STUDENT').length;
         const totalTeachers = (window.LmsData.users || []).filter(u => u.role === 'TEACHER').length;
@@ -290,6 +297,14 @@ const AttendanceModule = {
                             <input type="text" class="form-control" placeholder="Search name or ID..." value="${this.searchQuery}" oninput="AttendanceModule.setSearch(this.value)" style="padding-block: 6px; padding-inline: 36px 12px; font-size: 0.82rem;">
                         </div>
 
+                        ${this.activeTab === 'STUDENTS' ? `
+                        <div>
+                            <select class="form-control" onchange="AttendanceModule.setClass(this.value)" aria-label="Filter by class" style="padding: 6px 10px; font-size: 0.82rem; max-width: 220px;">
+                                <option value="ALL" ${this.filterClass === 'ALL' ? 'selected' : ''}>All Classes</option>
+                                ${Lms.classOptions(this.filterClass, classIds)}
+                            </select>
+                        </div>` : ''}
+
                         <div>
                             <input type="date" class="form-control" value="${this.filterDate}" onchange="AttendanceModule.setDate(this.value)" style="padding: 6px 10px; font-size: 0.82rem;">
                         </div>
@@ -331,7 +346,7 @@ const AttendanceModule = {
                                         <span style="font-size: 0.78rem; color: var(--text-muted); margin-inline-start: 4px;">${Lms.esc(r.identifier || 'N/A')}</span>
                                     </td>
                                     <td style="color: var(--text-secondary); font-size: 0.82rem;">
-                                        ${Lms.esc(r.className || 'General')}
+                                        ${Lms.esc(r.classId && Lms.getClass(r.classId) ? Lms.className(r.classId) : (r.className || 'General'))}
                                     </td>
                                     <td style="font-size: 0.82rem; color: var(--text-primary);">
                                         ${Lms.esc(r.date)}
@@ -486,6 +501,12 @@ const AttendanceModule = {
 
     setStatus(s) {
         this.filterStatus = s;
+        const viewport = document.getElementById('main-content-viewport');
+        if (viewport) viewport.innerHTML = this.render();
+    },
+
+    setClass(classId) {
+        this.filterClass = classId || 'ALL';
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) viewport.innerHTML = this.render();
     },

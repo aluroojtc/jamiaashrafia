@@ -22,7 +22,7 @@
 
     <!-- Core CSS -->
     <link rel="stylesheet" href="css/main.css?v=4.1">
-    <link rel="stylesheet" href="css/components.css?v=5.2">
+    <link rel="stylesheet" href="css/components.css?v=5.3">
     <link rel="stylesheet" href="css/i18n.css?v=1.0">
 
     <!-- Check existing session -->
@@ -599,6 +599,7 @@
     <div id="toast-container"></div>
 
     <script src="js/data.js?v=6.4"></script>
+    <script src="js/copy-button.js?v=6.6"></script>
     <script>
         // Ensure data store is loaded
         window.LmsData = window.DataStore ? window.DataStore.get() : null;
@@ -1237,7 +1238,7 @@
                         <div><strong>Candidate Name:</strong> ${record.name}</div>
                         <div><strong>Father's Name:</strong> ${record.fatherName}</div>
                         <div><strong>Student Category:</strong> ${record.studentType === 'INTERNATIONAL' ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
-                        <div><strong>Application Tracking No:</strong> <code style="color: var(--primary-800); font-weight: 700; font-size: 1.05rem; background: var(--primary-50); padding: 2px 6px; border-radius: 4px;">${record.applicationNo}</code></div>
+                        <div><strong>Application Tracking No:</strong> <code translate="no" style="color: var(--primary-800); font-weight: 700; font-size: 1.05rem; background: var(--primary-50); padding: 2px 6px; border-radius: 4px;">${escapeHtml(record.applicationNo)}</code>${CopyButton.html(record.applicationNo, 'Copy tracking number')}</div>
                         ${record.studentType === 'INTERNATIONAL' ? `
                             <div><strong>Passport Number:</strong> <code style="color: var(--primary-800); font-weight: 700;">${escapeHtml(record.passport)}</code></div>
                             <div><strong>Country of Residence:</strong> ${escapeHtml(record.country)}</div>
@@ -1319,7 +1320,7 @@
                 const [pill, text] = STATUS_TEXT[a.status] || ['info', a.status];
                 out.innerHTML = `
                     <div style="border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px; line-height: 1.9; font-size: 0.88rem;">
-                        <div><strong>${escapeHtml(a.name)}</strong> • ${escapeHtml(a.applicationNo)}</div>
+                        <div><strong>${escapeHtml(a.name)}</strong> • <span translate="no">${escapeHtml(a.applicationNo)}</span>${CopyButton.html(a.applicationNo, 'Copy tracking number')}</div>
                         <div>Applied: ${escapeHtml(a.appliedAt)}</div>
                         <div><span class="status-pill ${pill}">${escapeHtml(text)}</span></div>
                         ${a.interviewDate && a.status === 'INTERVIEW_SCHEDULED' ? `<div><i class="fas fa-calendar-alt"></i> ${(() => {
@@ -1328,7 +1329,7 @@
                                 ? I18n.t('Interview: {date} at {place}', { date: `<strong>${escapeHtml(a.interviewDate)}</strong>`, place: escapeHtml(campus) })
                                 : I18n.t('Interview: {date}', { date: `<strong>${escapeHtml(a.interviewDate)}</strong>` });
                         })()}</div>` : ''}
-                        ${a.allottedRollNo ? `<div>Allotted Roll No: <strong>${escapeHtml(a.allottedRollNo)}</strong>${a.status === 'ENROLLED' ? ` — ${I18n.t('sign in with your roll number and the password given by the Academic Office.')}` : ''}</div>` : ''}
+                        ${a.allottedRollNo ? `<div>Allotted Roll No: <strong translate="no">${escapeHtml(a.allottedRollNo)}</strong>${CopyButton.html(a.allottedRollNo, 'Copy roll number')}${a.status === 'ENROLLED' ? ` — ${I18n.t('sign in with your roll number and the password given by the Academic Office.')}` : ''}</div>` : ''}
                     </div>`;
             } catch (e) {
                 out.innerHTML = '<div style="color: var(--danger);">Could not reach the server. Please try again.</div>';

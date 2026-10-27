@@ -202,15 +202,15 @@ const StudentsModule = {
                                                             ${Lms.esc(Lms.localName(s.name, s.urduName))}
                                                         </a>
                                                     </div>
-                                                    <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(s.email || 'No email set')}</div>
+                                                    <div style="font-size: 0.72rem; color: var(--text-muted);">${s.email ? `<span translate="no">${Lms.esc(s.email)}</span>${Lms.copyBtn(s.email, 'Copy email')}` : 'No email set'}</div>
                                                     ${window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('STUDENT', s) : ''}
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="status-pill primary" style="font-family: monospace; font-size: 0.82rem; font-weight: 700;">
+                                            <span class="status-pill primary" style="font-family: monospace; font-size: 0.82rem; font-weight: 700;" translate="no">
                                                 ${Lms.esc(s.rollNo || 'N/A')}
-                                            </span>
+                                            </span>${Lms.copyBtn(s.rollNo, 'Copy roll number')}
                                         </td>
                                         <td style="color: var(--text-secondary); font-size: 0.85rem;">
                                             <div style="font-weight: 600; color: var(--primary-950);">${this.classLabel(s)}</div>
@@ -416,7 +416,7 @@ const StudentsModule = {
                             </span>
                         </div>
                         <div style="display: flex; gap: 6px 16px; margin-top: 8px; font-size: 0.85rem; color: var(--text-primary); flex-wrap: wrap;">
-                            <span><span style="color: var(--text-secondary);">Roll No:</span> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(student.rollNo || 'N/A')}</code></span>
+                            <span><span style="color: var(--text-secondary);">Roll No:</span> <code style="color: var(--primary-800); font-weight: 700;" translate="no">${Lms.esc(student.rollNo || 'N/A')}</code>${Lms.copyBtn(student.rollNo, 'Copy roll number')}</span>
                             ${this.programLabel(student) ? `<span><span style="color: var(--text-secondary);">Program:</span> <strong>${this.programLabel(student)}</strong></span>` : ''}
                             <span><span style="color: var(--text-secondary);">Class:</span> <strong>${this.classLabel(student)}</strong></span>
                             ${window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('STUDENT', student) : ''}
@@ -616,7 +616,7 @@ const StudentsModule = {
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-phone-alt"></i> Contact & Residence</h4>
                         <div><strong>WhatsApp / Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
-                        <div><strong>Email Address:</strong> ${Lms.esc(student.email || 'N/A')}</div>
+                        <div><strong>Email Address:</strong> <span translate="no">${Lms.esc(student.email || 'N/A')}</span>${Lms.copyBtn(student.email, 'Copy email')}</div>
                         <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
                         <div><strong>Emergency Contact:</strong> ${Lms.esc(student.emergencyPhone || student.phone || '—')}</div>
                         <div><strong>Previous Madrasa:</strong> ${Lms.esc(student.previousMadrasa || '—')}</div>
@@ -689,7 +689,7 @@ const StudentsModule = {
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
                     <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-badge"></i> Personal & Residence</h4>
                     <div><strong>Guardian:</strong> ${Lms.esc(student.guardianName || student.fatherName || '—')}</div>
-                    <div><strong>Email:</strong> ${Lms.esc(student.email || 'N/A')}</div>
+                    <div><strong>Email:</strong> <span translate="no">${Lms.esc(student.email || 'N/A')}</span>${Lms.copyBtn(student.email, 'Copy email')}</div>
                     <div><strong>Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
                     <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
                     <div><strong>Account Status:</strong> <span class="status-pill ${student.status === 'ACTIVE' || !student.status ? 'success' : 'danger'}">${Lms.esc(student.status || 'ACTIVE')}</span></div>
@@ -796,14 +796,14 @@ const StudentsModule = {
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             Student Login Email
                         </label>
-                        <input type="text" class="form-control" value="${Lms.esc(student.email || '')}" disabled style="opacity: 0.8;">
+                        ${CopyButton.wrapInput(`<input type="text" id="reset-student-email" class="form-control" value="${Lms.esc(student.email || '')}" disabled style="opacity: 0.8;">`, 'reset-student-email', 'Copy username')}
                     </div>
                     <div style="margin-bottom: 16px;">
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                             New Password *
                         </label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="reset-student-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                            ${CopyButton.wrapInput(`<input type="text" id="reset-student-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>`, 'reset-student-pwd', 'Copy password')}
                             <button type="button" class="btn btn-secondary" onclick="document.getElementById('reset-student-pwd').value = Lms.tempPassword();">
                                 <i class="fas fa-random"></i> Generate
                             </button>
@@ -841,8 +841,21 @@ const StudentsModule = {
 
         student.password = newPwd;
         window.DataStore.save(window.LmsData);
-        App.closeModal();
-        App.showToast(`Temporary password for ${student.name}: ${newPwd} (must be changed at next sign-in).`, "success");
+        Lms.credentialsModal(
+            `<i class="fas fa-key" style="color: var(--gold-400);"></i> Password Reset`,
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(student.name)}</strong>` }),
+            this.loginRows(student, newPwd)
+        );
+    },
+
+    // Students sign in with their roll number or their email
+    loginRows(student, password) {
+        return [
+            { label: 'Portal', value: Lms.portalUrl(), copyLabel: 'Copy portal address' },
+            { label: 'Roll No', value: student.rollNo, copyLabel: 'Copy roll number' },
+            { label: 'Username', value: student.email, copyLabel: 'Copy username' },
+            { label: 'Password', value: password, copyLabel: 'Copy password' }
+        ];
     },
 
     openEditStudentModal(studentId) {
@@ -1198,7 +1211,7 @@ const StudentsModule = {
                         </div>
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Initial Password *</label>
-                            <input type="text" id="direct-st-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                            ${CopyButton.wrapInput(`<input type="text" id="direct-st-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>`, 'direct-st-pwd', 'Copy password')}
                         </div>
                     </div>
 
@@ -1347,13 +1360,17 @@ const StudentsModule = {
 
         window.LmsData.users.push(newStudent);
         window.DataStore.save(window.LmsData);
-        App.closeModal();
         App.showToast(`Scholar ${name} enrolled with Roll No: ${rollNo}!`, "success");
 
         const viewport = document.getElementById('main-content-viewport');
         if (viewport && App.currentRoute === 'students') {
             viewport.innerHTML = this.render();
         }
+        Lms.credentialsModal(
+            `<i class="fas fa-check-circle" style="color: var(--success);"></i> Scholar Enrolled`,
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(name)}</strong>` }),
+            this.loginRows(newStudent, pwd)
+        );
     },
 
     testStudentPersona(studentId) {

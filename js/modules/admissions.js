@@ -471,7 +471,7 @@ const AdmissionsModule = {
                                 ${Lms.esc(item.name)}
                             </a>
                         </div>
-                        <div style="font-size: 0.75rem; color: var(--gold-700); font-family: monospace; font-weight: 700;">${Lms.esc(item.applicationNo)}</div>
+                        <div style="font-size: 0.75rem; color: var(--gold-700); font-family: monospace; font-weight: 700;"><span translate="no">${Lms.esc(item.applicationNo)}</span>${Lms.copyBtn(item.applicationNo, 'Copy tracking number')}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted);">S/O ${Lms.esc(item.fatherName)}</div>
                     </td>
                     <td>
@@ -608,18 +608,21 @@ const AdmissionsModule = {
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <!-- APPLICANT HEADER SUMMARY -->
-                <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, rgba(17, 24, 39, 0.8) 100%); border: 1px solid var(--border-prominent); border-radius: var(--radius-md); padding: 18px; margin-bottom: 20px;">
+                <div style="background: linear-gradient(135deg, var(--primary-50) 0%, var(--gold-50) 100%); border: 1px solid var(--primary-200); border-inline-start: 4px solid var(--primary-600); border-radius: var(--radius-md); padding: 16px 18px; margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-                        <div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <h3 style="color: var(--primary-950); margin: 0; font-size: 1.25rem;">${Lms.esc(item.name)}</h3>
-                                <span class="status-pill gold" style="font-family: monospace;">${Lms.esc(item.applicationNo)}</span>
+                        <div style="min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem; font-weight: 700;">${Lms.esc(item.name)}</h3>
+                                <span style="display: inline-flex; align-items: center;">
+                                    <span class="status-pill gold" style="font-family: monospace; font-size: 0.8rem; letter-spacing: 0.02em;" translate="no">${Lms.esc(item.applicationNo)}</span>${Lms.copyBtn(item.applicationNo, 'Copy tracking number')}
+                                </span>
                             </div>
-                            <div style="font-size: 0.85rem; color: var(--gold-700); margin-top: 4px;">
-                                Son of ${Lms.esc(item.fatherName)}
+                            <div style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 6px;">
+                                <i class="fas fa-user" style="color: var(--gold-600); width: 16px;"></i> Son of <strong style="color: var(--primary-900);">${Lms.esc(item.fatherName)}</strong>
                             </div>
-                            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
-                                Applied: ${Lms.esc(item.appliedAt || '2026-09-24')} &bull; Branch: ${Lms.esc(branch.name)}
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">
+                                <span><i class="fas fa-calendar-alt" style="color: var(--primary-600); width: 16px;"></i> Applied: <strong style="color: var(--text-primary);">${Lms.esc(item.appliedAt || '—')}</strong></span>
+                                <span><i class="fas fa-mosque" style="color: var(--primary-600); width: 16px;"></i> Branch: <strong style="color: var(--text-primary);">${Lms.esc(branch.name)}</strong></span>
                             </div>
                         </div>
 
@@ -1026,7 +1029,7 @@ const AdmissionsModule = {
                         </div>
                         <div>
                             <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Initial Password *</label>
-                            <input type="text" id="enroll-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                            ${CopyButton.wrapInput(`<input type="text" id="enroll-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>`, 'enroll-pwd', 'Copy password')}
                         </div>
                     </div>
                 </div>
@@ -1207,10 +1210,10 @@ const AdmissionsModule = {
                 <!-- CREDENTIALS CARD -->
                 <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 16px; max-width: 480px; margin: 0 auto; text-align: start; line-height: 1.9; font-size: 0.85rem;">
                     <div><strong>Scholar Name:</strong> ${Lms.esc(studentUser.name)}</div>
-                    <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-700); font-weight: 700; font-size: 0.95rem;">${Lms.esc(studentUser.rollNo)}</code></div>
+                    <div><strong>Allotted Roll Number:</strong> <code style="color: var(--gold-700); font-weight: 700; font-size: 0.95rem;" translate="no">${Lms.esc(studentUser.rollNo)}</code>${Lms.copyBtn(studentUser.rollNo, 'Copy roll number')}</div>
                     <div><strong>Class & Section:</strong> ${studentUser.classId ? Lms.esc(Lms.className(studentUser.classId)) : 'Not assigned yet'}</div>
-                    <div><strong>Portal Login Email:</strong> <code style="color: var(--primary-700);">${Lms.esc(studentUser.email)}</code></div>
-                    <div><strong>Initial Password:</strong> <code style="color: var(--primary-800); font-weight: 700;">${Lms.esc(studentUser.password)}</code> <span style="font-size: 0.75rem; color: var(--text-muted);">(temporary, must be changed at first sign-in)</span></div>
+                    <div><strong>Portal Login Email:</strong> <code style="color: var(--primary-700);" translate="no">${Lms.esc(studentUser.email)}</code>${Lms.copyBtn(studentUser.email, 'Copy username')}</div>
+                    <div><strong>Initial Password:</strong> <code style="color: var(--primary-800); font-weight: 700;" translate="no">${Lms.esc(studentUser.password)}</code>${Lms.copyBtn(studentUser.password, 'Copy password')} <span style="font-size: 0.75rem; color: var(--text-muted);">(temporary, must be changed at first sign-in)</span></div>
                     <div><strong>Account Status:</strong> <span class="status-pill success"><i class="fas fa-check"></i> Active</span></div>
                 </div>
             </div>

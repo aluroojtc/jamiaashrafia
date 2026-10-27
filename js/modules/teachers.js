@@ -81,7 +81,7 @@ const TeachersModule = {
                             <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.7;">
                                 <div><i class="fas fa-certificate" style="color: var(--gold-400); width: 18px;"></i> ${Lms.esc(t.sanad || '—')}</div>
                                 <div><i class="fas fa-star" style="color: var(--gold-400); width: 18px;"></i> ${Lms.esc(t.specialization || '—')}</div>
-                                <div><i class="fas fa-envelope" style="color: var(--gold-400); width: 18px;"></i> ${Lms.esc(t.email || '—')}</div>
+                                <div><i class="fas fa-envelope" style="color: var(--gold-400); width: 18px;"></i> <span translate="no">${Lms.esc(t.email || '—')}</span>${Lms.copyBtn(t.email, 'Copy username')}</div>
                             </div>
                             <div style="display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0;">
                                 <span class="status-pill info">${w.classIds.length} class(es)</span>
@@ -127,7 +127,7 @@ const TeachersModule = {
                 </div>
                 <div class="form-group"><label>Login Email *</label><input type="email" id="reg-t-email" class="form-control" value="${Lms.esc(d.email || '')}" placeholder="name@jamiaashrafia.org"></div>
                 ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('TEACHER', 'reg-t-group', d.permissionGroup) : ''}
-                ${t ? '' : `<div class="form-group"><label>Initial Password *</label><input type="text" id="reg-t-pwd" class="form-control" value="${Lms.esc(this.randomPassword())}"></div>`}
+                ${t ? '' : `<div class="form-group"><label>Initial Password *</label>${CopyButton.wrapInput(`<input type="text" id="reg-t-pwd" class="form-control" value="${Lms.esc(this.randomPassword())}">`, 'reg-t-pwd', 'Copy password')}</div>`}
             </div>
             ${t ? '' : `<div style="font-size: 0.8rem; color: var(--text-muted);">${I18n.t('The teacher signs in with this email and password. Allocate classes and kitabs in {page}.', { page: `<strong>${I18n.t('Classes & Courses')}</strong>` })}</div>`}
             ${t && window.UsersModule ? window.UsersModule.rolePicker(t) : ''}`,
@@ -189,13 +189,19 @@ const TeachersModule = {
         Lms.openModal(
             `<i class="fas fa-check-circle" style="color: var(--success);"></i> Teacher Registered`,
             `<p style="margin-bottom: 12px;">${I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(name)}</strong>` })}</p>
-             <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: var(--radius-sm); padding: 14px; font-family: monospace; line-height: 1.9;">
-                Portal: ${Lms.esc(location.origin)}/<br>Username: ${Lms.esc(email)}<br>Password: ${Lms.esc(password)}
-             </div>
+             ${Lms.credentialsCard(this.loginRows(email, password))}
              <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;">Next: allocate classes and kitabs in Classes & Courses.</p>`,
             `<button class="btn btn-secondary" onclick="App.closeModal(); App.navigate('teachers')">Done</button>
              <button class="btn btn-gold" onclick="App.closeModal(); App.navigate('classes')"><i class="fas fa-user-tag"></i> Allocate Classes</button>`
         );
+    },
+
+    loginRows(email, password) {
+        return [
+            { label: 'Portal', value: Lms.portalUrl(), copyLabel: 'Copy portal address' },
+            { label: 'Username', value: email, copyLabel: 'Copy username' },
+            { label: 'Password', value: password, copyLabel: 'Copy password' }
+        ];
     },
 
     resetPassword(teacherId) {
@@ -209,7 +215,11 @@ const TeachersModule = {
         }
         t.password = pwd;
         Lms.save();
-        window.App.showToast(`Temporary password set for ${t.name}`, 'success');
+        Lms.credentialsModal(
+            `<i class="fas fa-key" style="color: var(--gold-400);"></i> Password Reset`,
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(t.name)}</strong>` }),
+            this.loginRows(t.email, pwd)
+        );
     },
 
     toggleStatus(teacherId) {
@@ -257,7 +267,7 @@ const TeachersModule = {
                 <div class="avatar-circle gold" style="width: 64px; height: 64px; font-size: 1.5rem;">${Lms.esc(t.avatar || Lms.initials(t.name))}</div>
                 <div>
                     <div style="color: var(--primary-700); font-weight: 600;">${Lms.esc(t.designation || '')}</div>
-                    <div style="font-size: 0.82rem; color: var(--text-muted);">${Lms.esc(t.email || '')} ${t.phone ? '• ' + Lms.esc(t.phone) : ''}</div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted);"><span translate="no">${Lms.esc(t.email || '')}</span>${Lms.copyBtn(t.email, 'Copy username')} ${t.phone ? '• ' + Lms.esc(t.phone) : ''}</div>
                 </div>
             </div>
             <div class="form-grid" style="font-size: 0.85rem;">

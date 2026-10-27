@@ -247,15 +247,15 @@ const UsersModule = {
                                                         ${Lms.esc(Lms.localName(u.name, u.urduName))}
                                                         ${isCurrentLoggedIn ? `<span class="badge-pill gold" style="font-size: 0.65rem; padding: 1px 6px;">You</span>` : ''}
                                                     </div>
-                                                    <div style="font-size: 0.75rem; color: var(--text-muted);">ID: ${Lms.esc(u.id)}</div>
+                                                    <div style="font-size: 0.75rem; color: var(--text-muted);">ID: <span translate="no">${Lms.esc(u.id)}</span>${Lms.copyBtn(u.id, 'Copy user ID')}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
                                             <div style="font-family: monospace; font-size: 0.85rem; color: var(--text-primary); font-weight: 600;">
-                                                ${Lms.esc(u.email)}
+                                                <span translate="no">${Lms.esc(u.email)}</span>${Lms.copyBtn(u.email, 'Copy email')}
                                             </div>
-                                            ${u.username ? `<div style="font-size: 0.75rem; color: var(--text-muted);">Username: ${Lms.esc(u.username)}</div>` : ''}
+                                            ${u.username ? `<div style="font-size: 0.75rem; color: var(--text-muted);">Username: <span translate="no">${Lms.esc(u.username)}</span>${Lms.copyBtn(u.username, 'Copy username')}</div>` : ''}
                                             ${u.phone ? `<div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-phone"></i> ${Lms.esc(u.phone)}</div>` : ''}
                                         </td>
                                         <td>
@@ -411,7 +411,7 @@ const UsersModule = {
                     <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Initial Password *
                     </label>
-                    <input type="text" id="add-user-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                    ${CopyButton.wrapInput(`<input type="text" id="add-user-pwd" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>`, 'add-user-pwd', 'Copy password')}
                     <small style="color: var(--text-muted); font-size: 0.72rem;">Temporary password (at least 8 characters). Give it to the user privately; they must choose their own at first sign-in.</small>
                 </div>
             </form>
@@ -483,9 +483,24 @@ const UsersModule = {
         window.LmsData.users = allUsers;
         window.DataStore.save(window.LmsData);
 
-        App.closeModal();
-        App.showToast(`System user '${name}' created. Temporary password: ${password} (must be changed at first sign-in).`, "success");
         App.navigate('users');
+        App.showToast(`System user '${name}' created.`, "success");
+        Lms.credentialsModal(
+            `<i class="fas fa-check-circle" style="color: var(--success);"></i> User Account Created`,
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(name)}</strong>` }),
+            this.loginRows(newUser, password)
+        );
+    },
+
+    // Staff sign in with their username when they have one, else their email
+    loginRows(user, password) {
+        return [
+            { label: 'Portal', value: Lms.portalUrl(), copyLabel: 'Copy portal address' },
+            { label: 'User ID', value: user.id, copyLabel: 'Copy user ID' },
+            { label: 'Username', value: user.username || user.email, copyLabel: 'Copy username' },
+            { label: 'Email', value: user.username ? user.email : '', copyLabel: 'Copy email' },
+            { label: 'Password', value: password, copyLabel: 'Copy password' }
+        ];
     },
 
     // EDIT USER MODAL
@@ -720,7 +735,7 @@ const UsersModule = {
         modalContainer.innerHTML = `
             <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-prominent);">
                 <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(user.name)}</div>
-                <div style="font-size: 0.85rem; color: var(--gold-700);">${Lms.esc(user.email)} &bull; Role: ${Lms.esc(user.role)}</div>
+                <div style="font-size: 0.85rem; color: var(--gold-700);"><span translate="no">${Lms.esc(user.email)}</span>${Lms.copyBtn(user.email, 'Copy email')} &bull; Role: ${Lms.esc(user.role)}</div>
             </div>
 
             <form id="form-reset-password" onsubmit="UsersModule.handleResetPasswordSubmit(event, '${Lms.esc(userId)}')">
@@ -729,7 +744,7 @@ const UsersModule = {
                         New Password *
                     </label>
                     <div style="display: flex; gap: 8px;">
-                        <input type="text" id="reset-pwd-input" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>
+                        ${CopyButton.wrapInput(`<input type="text" id="reset-pwd-input" class="form-control" value="${Lms.esc(Lms.tempPassword())}" minlength="8" required>`, 'reset-pwd-input', 'Copy password')}
                         <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('reset-pwd-input').value = Lms.tempPassword()" title="Generate random password">
                             <i class="fas fa-random"></i> Generate
                         </button>
@@ -762,8 +777,11 @@ const UsersModule = {
 
         user.password = newPwd;
         window.DataStore.save(window.LmsData);
-        App.closeModal();
-        App.showToast(`Temporary password set for '${user.name}': ${newPwd} (must be changed at next sign-in).`, "success");
+        Lms.credentialsModal(
+            `<i class="fas fa-key" style="color: var(--gold-400);"></i> Password Reset`,
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(user.name)}</strong>` }),
+            this.loginRows(user, newPwd)
+        );
     },
 
     // TOGGLE STATUS

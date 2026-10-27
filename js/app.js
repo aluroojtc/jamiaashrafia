@@ -969,7 +969,7 @@ const App = {
                     <h1><i class="fas fa-user-graduate" style="color: var(--gold-400);"></i> Student Portal</h1>
                     <p>
                         Welcome, <strong>${Lms.esc(Lms.localName(user.name, user.urduName))}</strong>
-                        <span class="status-pill primary" style="margin-inline-start: 6px;">Roll No: ${Lms.esc(user.rollNo || '—')}</span>
+                        <span class="status-pill primary" style="margin-inline-start: 6px;">Roll No: <span translate="no">${Lms.esc(user.rollNo || '—')}</span></span>${Lms.copyBtn(user.rollNo, 'Copy roll number')}
                     </p>
                 </div>
                 <div class="view-actions">
@@ -1189,7 +1189,7 @@ const App = {
                 <div style="background: var(--bg-surface-elevated); border-radius: var(--radius-sm); padding: 16px; font-size: 0.85rem; line-height: 1.9;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
                         <span style="color: var(--text-muted);"><i class="fas fa-envelope"></i> Official Email:</span>
-                        <strong style="color: var(--text-primary);">${Lms.esc(user.email || 'N/A')}</strong>
+                        <span><strong style="color: var(--text-primary);" translate="no">${Lms.esc(user.email || 'N/A')}</strong>${Lms.copyBtn(user.email, 'Copy username')}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
                         <span style="color: var(--text-muted);"><i class="fas fa-mosque"></i> Campus / Branch:</span>
@@ -1198,7 +1198,7 @@ const App = {
                     ${user.rollNo ? `
                         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
                             <span style="color: var(--text-muted);"><i class="fas fa-id-card"></i> Student Roll Number:</span>
-                            <strong style="color: var(--primary-950);">${user.rollNo}</strong>
+                            <span><strong style="color: var(--primary-950);" translate="no">${Lms.esc(user.rollNo)}</strong>${Lms.copyBtn(user.rollNo, 'Copy roll number')}</span>
                         </div>
                     ` : ''}
                     ${user.designation ? `

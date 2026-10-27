@@ -42,6 +42,44 @@ const Lms = {
 
     MIN_PASSWORD_LENGTH: 8,
 
+    // Copy button (js/copy-button.js) for an ID, username or password; label is its tooltip, e.g. 'Copy password'
+    copyBtn(text, label, opts) {
+        return window.CopyButton ? window.CopyButton.html(text, label, opts) : '';
+    },
+
+    // Login details to hand over (portal address, username, password …), each line with its own copy button
+    // plus one that copies them all for pasting into a message. rows: [{ label, value, copyLabel }]
+    credentialsCard(rows) {
+        const list = rows.filter(r => r && r.value);
+        const label = l => (window.I18n && window.I18n.translateText ? window.I18n.translateText(l) : l);
+        const all = list.map(r => `${label(r.label)}: ${r.value}`).join('\n');
+        return `
+            <div class="credentials-card">
+                ${list.map(r => `
+                    <div class="credentials-row">
+                        <span class="credentials-label">${this.esc(r.label)}:</span>
+                        <span class="credentials-value" translate="no">${this.esc(r.value)}</span>
+                        ${this.copyBtn(r.value, r.copyLabel || 'Copy')}
+                    </div>`).join('')}
+            </div>
+            <div class="credentials-actions">${this.copyBtn(all, 'Copy all login details', { text: 'Copy all' })}</div>`;
+    },
+
+    // Modal shown after an account is created or its password reset
+    credentialsModal(titleHtml, introHtml, rows, footerHtml) {
+        this.openModal(
+            titleHtml,
+            `<p style="margin-bottom: 12px;">${introHtml}</p>
+             ${this.credentialsCard(rows)}
+             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;">The password is temporary: it must be changed at first sign-in.</p>`,
+            footerHtml || `<button class="btn btn-primary" onclick="App.closeModal()"><i class="fas fa-check"></i> Done</button>`
+        );
+    },
+
+    portalUrl() {
+        return `${location.origin}/`;
+    },
+
     // Changes the signed-in user's own password; resolves to null on success or an error message
     async changeOwnPassword(currentPassword, newPassword) {
         if (String(newPassword || '').length < this.MIN_PASSWORD_LENGTH) return `The new password must be at least ${this.MIN_PASSWORD_LENGTH} characters.`;
