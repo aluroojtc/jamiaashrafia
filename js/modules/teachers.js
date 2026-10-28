@@ -74,6 +74,7 @@ const TeachersModule = {
                                 <div style="min-width: 0;">
                                     <div style="font-weight: 700; font-size: 1.02rem; color: var(--primary-950);">${Lms.esc(Lms.localName(t.name, t.urduName))}</div>
                                     <div style="font-size: 0.8rem; color: var(--primary-700); font-weight: 600;">${Lms.esc(t.designation || 'Teacher')}</div>
+                                    ${Lms.genderPill(t.gender)}
                                     ${canManage && window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('TEACHER', t) : ''}
                                     ${t.status === 'INACTIVE' ? '<span class="status-pill danger" style="font-size: 0.65rem;">Inactive</span>' : ''}
                                 </div>
@@ -118,6 +119,7 @@ const TeachersModule = {
             `<div class="form-grid">
                 <div class="form-group"><label>Full Name *</label><input type="text" id="reg-t-name" class="form-control" value="${Lms.esc(d.name || '')}" placeholder="e.g. Maulana Abdul Samad"></div>
                 <div class="form-group"><label>Name in Urdu / Arabic</label><input type="text" id="reg-t-urdu" class="form-control" dir="rtl" value="${Lms.esc(d.urduName || '')}"></div>
+                <div class="form-group"><label for="reg-t-gender">Gender *</label><select id="reg-t-gender" class="form-control">${Lms.genderOptions(d.gender || '')}</select></div>
                 <div class="form-group"><label>Designation *</label><input type="text" id="reg-t-desig" class="form-control" value="${Lms.esc(d.designation || '')}" placeholder="e.g. Ustad-ul-Hadith"></div>
                 <div class="form-group"><label>Highest Sanad / Degree</label><input type="text" id="reg-t-sanad" class="form-control" value="${Lms.esc(d.sanad || d.qualification || '')}"></div>
                 <div class="form-group"><label>Specialization</label><input type="text" id="reg-t-spec" class="form-control" value="${Lms.esc(d.specialization || '')}" placeholder="Hadith, Fiqh, Tajweed..."></div>
@@ -149,12 +151,17 @@ const TeachersModule = {
             window.App.showToast('Name, designation and a valid login email are required', 'warning');
             return;
         }
+        const gender = Lms.val('reg-t-gender');
+        if (!gender) {
+            window.App.showToast("Please select the teacher's gender", 'warning');
+            return;
+        }
         if ((window.LmsData.users || []).some(u => u.id !== teacherId && (u.email || '').toLowerCase() === email)) {
             window.App.showToast(`${email} is already used by another account`, 'warning');
             return;
         }
         const fields = {
-            name, designation: desig, email,
+            name, designation: desig, email, gender,
             urduName: Lms.val('reg-t-urdu') || name, sanad: Lms.val('reg-t-sanad'), specialization: Lms.val('reg-t-spec'),
             phone: Lms.val('reg-t-phone'), branchId: Lms.val('reg-t-branch') || null
         };
@@ -266,7 +273,7 @@ const TeachersModule = {
             `<div style="display: flex; gap: 18px; align-items: center; margin-bottom: 18px;">
                 <div class="avatar-circle gold" style="width: 64px; height: 64px; font-size: 1.5rem;">${Lms.esc(t.avatar || Lms.initials(t.name))}</div>
                 <div>
-                    <div style="color: var(--primary-700); font-weight: 600;">${Lms.esc(t.designation || '')}</div>
+                    <div style="color: var(--primary-700); font-weight: 600;">${Lms.esc(t.designation || '')} ${Lms.genderPill(t.gender)}</div>
                     <div style="font-size: 0.82rem; color: var(--text-muted);"><span translate="no">${Lms.esc(t.email || '')}</span>${Lms.copyBtn(t.email, 'Copy username')} ${t.phone ? '• ' + Lms.esc(t.phone) : ''}</div>
                 </div>
             </div>

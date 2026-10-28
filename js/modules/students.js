@@ -9,6 +9,7 @@ const StudentsModule = {
     filterProgram: 'ALL',
     filterBranch: 'ALL',
     filterStatus: 'ALL',
+    filterGender: 'ALL', // 'ALL' | 'MALE' | 'FEMALE' | 'NONE' (not recorded)
     activeTab: 'ALL', // 'ALL', 'ACTIVE', 'HOSTEL', 'SUSPENDED', 'GRADUATED'
     activeProfileTab: 'overview', // 'overview', 'account', 'academic', 'personal', 'attendance'
 
@@ -52,6 +53,11 @@ const StudentsModule = {
         // Status filter
         if (this.filterStatus !== 'ALL') {
             filtered = filtered.filter(s => (s.status || 'ACTIVE') === this.filterStatus);
+        }
+
+        // Gender filter
+        if (this.filterGender !== 'ALL') {
+            filtered = filtered.filter(s => (Lms.GENDERS[s.gender] ? s.gender : 'NONE') === this.filterGender);
         }
 
         // Search query
@@ -166,6 +172,13 @@ const StudentsModule = {
                             <option value="INACTIVE" ${this.filterStatus === 'INACTIVE' ? 'selected' : ''}>Inactive</option>
                             <option value="GRADUATED" ${this.filterStatus === 'GRADUATED' ? 'selected' : ''}>Graduated</option>
                         </select>
+
+                        <select class="form-control" onchange="StudentsModule.setGender(this.value)" aria-label="Filter by gender" style="padding: 8px 12px; font-size: 0.85rem;">
+                            <option value="ALL" ${this.filterGender === 'ALL' ? 'selected' : ''}>All Genders</option>
+                            <option value="MALE" ${this.filterGender === 'MALE' ? 'selected' : ''}>Male</option>
+                            <option value="FEMALE" ${this.filterGender === 'FEMALE' ? 'selected' : ''}>Female</option>
+                            <option value="NONE" ${this.filterGender === 'NONE' ? 'selected' : ''}>Not specified</option>
+                        </select>
                     </div>
                 </div>
 
@@ -203,6 +216,7 @@ const StudentsModule = {
                                                         </a>
                                                     </div>
                                                     <div style="font-size: 0.72rem; color: var(--text-muted);">${s.email ? `<span translate="no">${Lms.esc(s.email)}</span>${Lms.copyBtn(s.email, 'Copy email')}` : 'No email set'}</div>
+                                                    ${Lms.genderPill(s.gender)}
                                                     ${window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('STUDENT', s) : ''}
                                                 </div>
                                             </div>
@@ -314,6 +328,12 @@ const StudentsModule = {
         if (viewport) viewport.innerHTML = this.render();
     },
 
+    setGender(g) {
+        this.filterGender = g || 'ALL';
+        const viewport = document.getElementById('main-content-viewport');
+        if (viewport) viewport.innerHTML = this.render();
+    },
+
     // =========================================================================
     // STUDENT ACCOUNT & PROFILE MANAGEMENT HUB
     // =========================================================================
@@ -419,6 +439,7 @@ const StudentsModule = {
                             <span><span style="color: var(--text-secondary);">Roll No:</span> <code style="color: var(--primary-800); font-weight: 700;" translate="no">${Lms.esc(student.rollNo || 'N/A')}</code>${Lms.copyBtn(student.rollNo, 'Copy roll number')}</span>
                             ${this.programLabel(student) ? `<span><span style="color: var(--text-secondary);">Program:</span> <strong>${this.programLabel(student)}</strong></span>` : ''}
                             <span><span style="color: var(--text-secondary);">Class:</span> <strong>${this.classLabel(student)}</strong></span>
+                            ${Lms.genderPill(student.gender)}
                             ${window.PermissionGroupsModule ? PermissionGroupsModule.typeBadge('STUDENT', student) : ''}
                         </div>
                     </div>
@@ -602,6 +623,7 @@ const StudentsModule = {
                         <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-card"></i> Candidate Identity</h4>
                         <div><strong>Full Name:</strong> ${Lms.esc(student.name)}</div>
                         <div><strong>Father's Name:</strong> ${Lms.esc(student.guardianName || student.fatherName || '—')}</div>
+                        <div><strong>Gender:</strong> ${student.gender ? Lms.genderPill(student.gender) : `<span style="color: var(--text-muted);">Not specified</span>`}</div>
                         <div><strong>Student Category:</strong> <span class="status-pill ${isIntl ? 'gold' : 'success'}">${isIntl ? '<i class="fas fa-globe-americas"></i> International Student' : '<i class="fas fa-flag"></i> Local Student'}</span></div>
                         ${isIntl ? `
                             <div><strong>Passport Number:</strong> <code style="color: var(--gold-300); font-weight: 700;">${Lms.esc(student.passport || 'N/A')}</code></div>
@@ -689,6 +711,7 @@ const StudentsModule = {
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
                     <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-badge"></i> Personal & Residence</h4>
                     <div><strong>Guardian:</strong> ${Lms.esc(student.guardianName || student.fatherName || '—')}</div>
+                    <div><strong>Gender:</strong> ${Lms.esc(Lms.genderLabel(student.gender))}</div>
                     <div><strong>Email:</strong> <span translate="no">${Lms.esc(student.email || 'N/A')}</span>${Lms.copyBtn(student.email, 'Copy email')}</div>
                     <div><strong>Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
                     <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
@@ -909,6 +932,11 @@ const StudentsModule = {
                         </div>
                     </div>
 
+                    <div style="margin-bottom: 14px; max-width: calc(50% - 7px);">
+                        <label for="edit-st-gender" class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Gender *</label>
+                        <select id="edit-st-gender" class="form-control" required>${Lms.genderOptions(student.gender || '')}</select>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                         <div>
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father / Guardian Name *</label>
@@ -1043,6 +1071,11 @@ const StudentsModule = {
         const name = document.getElementById('edit-st-name').value.trim();
         const urduName = document.getElementById('edit-st-urdu').value.trim();
         const guardianName = document.getElementById('edit-st-guardian').value.trim();
+        const gender = Lms.val('edit-st-gender') || null;
+        if (!gender) {
+            App.showToast("Please select the student's gender", "warning");
+            return;
+        }
         const rollNo = document.getElementById('edit-st-roll').value.trim();
         const classId = document.getElementById('edit-st-class').value || null;
         const phone = document.getElementById('edit-st-phone').value.trim();
@@ -1084,6 +1117,7 @@ const StudentsModule = {
         student.name = name;
         student.urduName = urduName;
         student.guardianName = guardianName;
+        student.gender = gender;
         student.rollNo = rollNo;
         student.cnic = cnic;
         student.passport = passport;
@@ -1153,6 +1187,11 @@ const StudentsModule = {
                             <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father's Name *</label>
                             <input type="text" id="direct-st-father" class="form-control" placeholder="e.g. Maulana Abdul Shakoor" required>
                         </div>
+                    </div>
+
+                    <div style="margin-bottom: 14px; max-width: calc(50% - 7px);">
+                        <label for="direct-st-gender" class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Gender *</label>
+                        <select id="direct-st-gender" class="form-control" required>${Lms.genderOptions('')}</select>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
@@ -1299,6 +1338,10 @@ const StudentsModule = {
             App.showToast(`The temporary password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters.`, "warning");
             return;
         }
+        if (!Lms.val('direct-st-gender')) {
+            App.showToast("Please select the student's gender", "warning");
+            return;
+        }
 
         let cnic = '';
         let passport = '';
@@ -1349,6 +1392,7 @@ const StudentsModule = {
             cnic: cnic,
             passport: passport,
             guardianName: father,
+            gender: Lms.val('direct-st-gender') || null,
             hostel: hostel,
             status: "ACTIVE",
             avatar: name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
@@ -1521,11 +1565,11 @@ const StudentsModule = {
     // Export Students list to CSV
     exportStudentsCSV() {
         const students = (window.LmsData.users || []).filter(u => u.role === 'STUDENT');
-        let csv = "Roll No,Name,Urdu Name,Program,Class,Email,Phone,Guardian,Residence,Attendance %,Status\n";
+        let csv = "Roll No,Name,Urdu Name,Gender,Program,Class,Email,Phone,Guardian,Residence,Attendance %,Status\n";
         students.forEach(s => {
             const cls = Lms.getClass(s.classId);
             const pct = Lms.attendancePct(s.id);
-            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${s.guardianName || s.fatherName || ''}","${s.hostel || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
+            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${s.gender ? Lms.genderLabel(s.gender) : ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${s.guardianName || s.fatherName || ''}","${s.hostel || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

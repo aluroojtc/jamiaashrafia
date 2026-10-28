@@ -44,6 +44,13 @@ function forbidden(res, message) {
     res.end(JSON.stringify({ error: '403 Forbidden', message }));
 }
 
+// 'MALE' | 'FEMALE', null when not given, undefined when the value is not a gender
+function normGender(value) {
+    if (value === undefined || value === null || String(value).trim() === '') return null;
+    const g = String(value).trim().toUpperCase();
+    return g === 'MALE' || g === 'FEMALE' ? g : undefined;
+}
+
 function legacyHandler(req, res) {
     // The portal and its API share one origin, so no cross-origin (CORS) access is granted
     if (req.method === 'OPTIONS') {
@@ -226,7 +233,8 @@ function legacyHandler(req, res) {
                         branch_id AS branchId, 
                         program_id AS programId, 
                         candidate_name AS name,
-                        father_name AS fatherName, 
+                        father_name AS fatherName,
+                        gender,
                         guardian_contact AS guardianContact,
                         email, 
                         phone, 
@@ -302,7 +310,7 @@ function legacyHandler(req, res) {
                     `SELECT 
                         id, application_no AS applicationNo, student_type AS studentType,
                         branch_id AS branchId, program_id AS programId, candidate_name AS name,
-                        father_name AS fatherName, guardian_contact AS guardianContact,
+                        father_name AS fatherName, gender, guardian_contact AS guardianContact,
                         email, phone, cnic_bform AS cnic, passport_number AS passport,
                         country, previous_madrasa AS previousMadrasa, 
                         hafiz_status AS hafizStatus, hostel_required AS hostelRequired, status,
@@ -356,7 +364,13 @@ function legacyHandler(req, res) {
                     const hostel = !!data.hostelRequired;
                     const prevMadrasa = (data.previousMadrasa || 'None').trim();
                     const hafiz = !!data.hafizStatus;
+                    const gender = normGender(data.gender);
 
+                    if (gender === undefined) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, status: 'error', error: 'Gender must be Male or Female.' }));
+                        return;
+                    }
                     if (!name || !fatherName || !phone) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ success: false, status: 'error', error: 'Candidate name, father name, and phone number are required.' }));
@@ -468,13 +482,13 @@ function legacyHandler(req, res) {
                     await conn.execute(
                         `INSERT INTO student_admissions (
                             id, application_no, student_type, branch_id, program_id,
-                            candidate_name, father_name, guardian_contact, email, phone,
+                            candidate_name, father_name, gender, guardian_contact, email, phone,
                             cnic_bform, passport_number, country, previous_madrasa,
                             hafiz_status, hostel_required, status, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED', NOW(), NOW())`,
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED', NOW(), NOW())`,
                         [
                             newId, appNo, studentType, branchId, programId,
-                            name, fatherName, phone, email, phone,
+                            name, fatherName, gender, phone, email, phone,
                             cnic, passport, country, prevMadrasa,
                             hafiz ? 1 : 0, hostel ? 1 : 0
                         ]
@@ -484,7 +498,7 @@ function legacyHandler(req, res) {
                     const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
                     const notifTitle = `New Student Admission: ${name}`;
                     const idDoc = studentType === 'LOCAL' ? `CNIC ${cnic}` : `Passport ${passport} (${country})`;
-                    const notifMsg = `Candidate ${name} s/o ${fatherName} (${idDoc}) submitted an admission application (${appNo}). Status: APPLIED.`;
+                    const notifMsg = `Candidate ${name} ${gender === 'FEMALE' ? 'd/o' : 's/o'} ${fatherName} (${idDoc}) submitted an admission application (${appNo}). Status: APPLIED.`;
 
                     await conn.execute(
                         `INSERT INTO notifications (
@@ -503,6 +517,7 @@ function legacyHandler(req, res) {
                         studentType: studentType,
                         name: name,
                         fatherName: fatherName,
+                        gender: gender,
                         cnic: cnic,
                         passport: passport,
                         country: country,
@@ -594,6 +609,12 @@ function legacyHandler(req, res) {
 
                     const candidateName = data.name !== undefined ? data.name.trim() : existing.candidate_name;
                     const fatherName = data.fatherName !== undefined ? data.fatherName.trim() : existing.father_name;
+                    const gender = data.gender !== undefined ? normGender(data.gender) : (existing.gender || null);
+                    if (gender === undefined) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, status: 'error', error: 'Gender must be Male or Female.' }));
+                        return;
+                    }
                     const phone = data.phone !== undefined ? data.phone.trim() : existing.phone;
                     const email = data.email !== undefined ? data.email.trim() : existing.email;
                     const programId = data.programId !== undefined ? data.programId : existing.program_id;
@@ -616,7 +637,7 @@ function legacyHandler(req, res) {
                         needed.add('admissions.schedule_interview');
                     }
                     if (statusChanged && !needed.size) needed.add('admissions.update');
-                    const details = [[candidateName, existing.candidate_name], [fatherName, existing.father_name], [phone, existing.phone],
+                    const details = [[candidateName, existing.candidate_name], [fatherName, existing.father_name], [gender, existing.gender], [phone, existing.phone],
                         [email, existing.email], [cnic, existing.cnic_bform], [passport, existing.passport_number], [country, existing.country],
                         [programId, existing.program_id], [branchId, existing.branch_id], [hostel, existing.hostel_required],
                         [hafiz, existing.hafiz_status], [prev, existing.previous_madrasa]];
@@ -634,6 +655,7 @@ function legacyHandler(req, res) {
                             student_type = ?,
                             candidate_name = ?,
                             father_name = ?,
+                            gender = ?,
                             phone = ?,
                             email = ?,
                             cnic_bform = ?,
@@ -651,7 +673,7 @@ function legacyHandler(req, res) {
                             updated_at = NOW()
                         WHERE id = ? OR application_no = ?`,
                         [
-                            studentType, candidateName, fatherName, phone, email,
+                            studentType, candidateName, fatherName, gender, phone, email,
                             cnic, passport, country, programId, branchId,
                             hostel, hafiz, prev, status,
                             interviewDate || null, interviewScore || null, allottedRollNo || null,
@@ -677,6 +699,7 @@ function legacyHandler(req, res) {
                             status: status,
                             name: candidateName,
                             fatherName: fatherName,
+                            gender: gender,
                             studentType: studentType,
                             allottedRollNo: allottedRollNo
                         }

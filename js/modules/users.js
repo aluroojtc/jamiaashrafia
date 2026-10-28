@@ -246,6 +246,7 @@ const UsersModule = {
                                                     <div style="font-weight: 700; color: var(--primary-950); display: flex; align-items: center; gap: 6px;">
                                                         ${Lms.esc(Lms.localName(u.name, u.urduName))}
                                                         ${isCurrentLoggedIn ? `<span class="badge-pill gold" style="font-size: 0.65rem; padding: 1px 6px;">You</span>` : ''}
+                                                        ${Lms.genderPill(u.gender)}
                                                     </div>
                                                     <div style="font-size: 0.75rem; color: var(--text-muted);">ID: <span translate="no">${Lms.esc(u.id)}</span>${Lms.copyBtn(u.id, 'Copy user ID')}</div>
                                                 </div>
@@ -351,6 +352,11 @@ const UsersModule = {
                         </label>
                         <input type="text" id="add-user-urdu" class="form-control" placeholder="e.g. مولانا عبد الصمد" style="font-family: 'Amiri', serif;">
                     </div>
+                </div>
+
+                <div style="margin-bottom: 16px; max-width: calc(50% - 8px);">
+                    <label for="add-user-gender" class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">Gender</label>
+                    <select id="add-user-gender" class="form-control">${Lms.genderOptions('')}</select>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
@@ -470,6 +476,7 @@ const UsersModule = {
             email: email,
             username: username,
             phone: phone,
+            gender: Lms.val('add-user-gender') || null,
             role: role,
             designation: designation || 'Institutional Staff',
             status: status,
@@ -534,6 +541,11 @@ const UsersModule = {
                         </label>
                         <input type="text" id="edit-user-urdu" class="form-control" value="${Lms.esc(user.urduName || '')}" style="font-family: 'Amiri', serif;">
                     </div>
+                </div>
+
+                <div style="margin-bottom: 16px; max-width: calc(50% - 8px);">
+                    <label for="edit-user-gender" class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">Gender</label>
+                    <select id="edit-user-gender" class="form-control">${Lms.genderOptions(user.gender || '')}</select>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
@@ -640,6 +652,7 @@ const UsersModule = {
         user.email = email;
         user.username = username;
         user.phone = phone;
+        user.gender = Lms.val('edit-user-gender') || null;
         user.role = role;
         user.designation = designation;
         user.status = status;

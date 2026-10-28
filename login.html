@@ -22,7 +22,7 @@
 
     <!-- Core CSS -->
     <link rel="stylesheet" href="css/main.css?v=4.1">
-    <link rel="stylesheet" href="css/components.css?v=5.3">
+    <link rel="stylesheet" href="css/components.css?v=5.9">
     <link rel="stylesheet" href="css/i18n.css?v=1.0">
 
     <!-- Check existing session -->
@@ -457,6 +457,14 @@
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father's Name *</label>
                                 <input type="text" id="eadm-father" class="form-control" placeholder="e.g. Maulana Abdul Rehman" required>
                             </div>
+                            <div class="form-group">
+                                <label for="eadm-gender" style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Gender *</label>
+                                <select id="eadm-gender" class="form-control" required>
+                                    <option value="">— Select gender —</option>
+                                    <option value="MALE">Male</option>
+                                    <option value="FEMALE">Female</option>
+                                </select>
+                            </div>
 
                             <!-- LOCAL: CNIC FIELD -->
                             <div class="form-group" id="eadm-cnic-group">
@@ -599,7 +607,7 @@
     <div id="toast-container"></div>
 
     <script src="js/data.js?v=6.4"></script>
-    <script src="js/copy-button.js?v=6.6"></script>
+    <script src="js/copy-button.js?v=6.9"></script>
     <script>
         // Ensure data store is loaded
         window.LmsData = window.DataStore ? window.DataStore.get() : null;
@@ -1039,6 +1047,11 @@
                     showToast("Please fill in candidate name, father name, and phone number", "warning");
                     return;
                 }
+                if (!document.getElementById('eadm-gender').value) {
+                    showToast("Please select the candidate's gender", "warning");
+                    document.getElementById('eadm-gender').focus();
+                    return;
+                }
 
                 if (studentType === 'LOCAL') {
                     const cnic = document.getElementById('eadm-cnic').value.trim();
@@ -1155,6 +1168,7 @@
                 studentType: studentType,
                 name: name,
                 fatherName: father,
+                gender: document.getElementById('eadm-gender').value,
                 cnic: cnic,
                 passport: passport,
                 country: country,
@@ -1236,7 +1250,8 @@
 
                     <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-prominent); border-radius: 8px; padding: 18px; max-width: 460px; margin: 0 auto; text-align: start; line-height: 2; font-size: 0.85rem; color: var(--text-primary);">
                         <div><strong>Candidate Name:</strong> ${record.name}</div>
-                        <div><strong>Father's Name:</strong> ${record.fatherName}</div>
+                        <div><strong>Father's Name:</strong> ${escapeHtml(record.fatherName)}</div>
+                        ${record.gender ? `<div><strong>Gender:</strong> ${record.gender === 'FEMALE' ? '<i class="fas fa-venus" style="color: var(--gold-600);"></i> Female' : '<i class="fas fa-mars" style="color: var(--primary-600);"></i> Male'}</div>` : ''}
                         <div><strong>Student Category:</strong> ${record.studentType === 'INTERNATIONAL' ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
                         <div><strong>Application Tracking No:</strong> <code translate="no" style="color: var(--primary-800); font-weight: 700; font-size: 1.05rem; background: var(--primary-50); padding: 2px 6px; border-radius: 4px;">${escapeHtml(record.applicationNo)}</code>${CopyButton.html(record.applicationNo, 'Copy tracking number')}</div>
                         ${record.studentType === 'INTERNATIONAL' ? `

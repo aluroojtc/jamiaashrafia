@@ -472,7 +472,7 @@ const AdmissionsModule = {
                             </a>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--gold-700); font-family: monospace; font-weight: 700;"><span translate="no">${Lms.esc(item.applicationNo)}</span>${Lms.copyBtn(item.applicationNo, 'Copy tracking number')}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">S/O ${Lms.esc(item.fatherName)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.parentOf(item.gender, true)} ${Lms.esc(item.fatherName)} ${Lms.genderPill(item.gender)}</div>
                     </td>
                     <td>
                         ${isIntl ? `
@@ -618,7 +618,7 @@ const AdmissionsModule = {
                                 </span>
                             </div>
                             <div style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 6px;">
-                                <i class="fas fa-user" style="color: var(--gold-600); width: 16px;"></i> Son of <strong style="color: var(--primary-900);">${Lms.esc(item.fatherName)}</strong>
+                                <i class="fas fa-user" style="color: var(--gold-600); width: 16px;"></i> ${Lms.parentOf(item.gender)} <strong style="color: var(--primary-900);">${Lms.esc(item.fatherName)}</strong> ${Lms.genderPill(item.gender)}
                             </div>
                             <div style="display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">
                                 <span><i class="fas fa-calendar-alt" style="color: var(--primary-600); width: 16px;"></i> Applied: <strong style="color: var(--text-primary);">${Lms.esc(item.appliedAt || '—')}</strong></span>
@@ -641,6 +641,7 @@ const AdmissionsModule = {
                         <h4 style="color: var(--primary-950); margin-bottom: 8px;"><i class="fas fa-id-card"></i> Personal Information</h4>
                         <div><strong>Candidate Name:</strong> ${Lms.esc(item.name)}</div>
                         <div><strong>Father's Name:</strong> ${Lms.esc(item.fatherName)}</div>
+                        <div><strong>Gender:</strong> ${item.gender ? Lms.genderPill(item.gender) : `<span style="color: var(--text-muted);">Not specified</span>`}</div>
                         <div><strong>Student Category:</strong> ${isIntl ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
                         ${isIntl ? `
                             <div><strong>Passport Number:</strong> <code style="color: var(--gold-700); font-weight: 700;">${Lms.esc(item.passport || 'N/A')}</code></div>
@@ -838,7 +839,7 @@ const AdmissionsModule = {
         modalBody.innerHTML = `
             <form id="form-interview-eval" onsubmit="AdmissionsModule.handleEvaluationSubmit(event, '${id}')">
                 <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle); margin-bottom: 16px; font-size: 0.85rem;">
-                    <div><strong>Candidate:</strong> ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)}) &bull; S/O ${Lms.esc(item.fatherName)}</div>
+                    <div><strong>Candidate:</strong> ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)}) &bull; ${Lms.parentOf(item.gender, true)} ${Lms.esc(item.fatherName)}</div>
                     <div style="color: var(--text-muted);">Interview Date: ${Lms.esc(item.interviewDate || 'Current Session')}</div>
                 </div>
 
@@ -978,7 +979,7 @@ const AdmissionsModule = {
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                         <div>
                             <strong style="color: var(--primary-950); font-size: 1rem;">${Lms.esc(item.name)}</strong>
-                            <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; S/O ${Lms.esc(item.fatherName)}</span>
+                            <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; ${Lms.parentOf(item.gender, true)} ${Lms.esc(item.fatherName)}</span>
                             <div style="font-size: 0.78rem; color: var(--gold-700);">CNIC: ${Lms.esc(item.cnic)} &bull; Score: ${item.interviewScore === null || item.interviewScore === undefined ? '—' : Lms.esc(item.interviewScore) + '%'}</div>
                         </div>
                         <span class="status-pill success"><i class="fas fa-check"></i> Interview Cleared</span>
@@ -1144,6 +1145,7 @@ const AdmissionsModule = {
             cnic: item.cnic || '',
             passport: item.passport || '',
             guardianName: item.fatherName,
+            gender: item.gender || null,
             hostel: hostel,
             status: "ACTIVE",
             avatar: item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
@@ -1408,6 +1410,10 @@ const AdmissionsModule = {
                             <label>Father's Name *</label>
                             <input type="text" id="adm-father" class="form-control" placeholder="e.g. Maulana Abdul Rehman" required>
                         </div>
+                        <div class="form-group">
+                            <label for="adm-gender">Gender *</label>
+                            <select id="adm-gender" class="form-control" required>${Lms.genderOptions('')}</select>
+                        </div>
 
                         <!-- LOCAL: CNIC FIELD -->
                         <div class="form-group" id="adm-cnic-group">
@@ -1616,6 +1622,10 @@ const AdmissionsModule = {
                 App.showToast("Please fill in candidate name, father name, and phone number", "warning");
                 return;
             }
+            if (!Lms.val('adm-gender')) {
+                App.showToast("Please select the candidate's gender", "warning");
+                return;
+            }
 
             if (studentType === 'LOCAL') {
                 const cnic = document.getElementById('adm-cnic').value.trim();
@@ -1710,6 +1720,7 @@ const AdmissionsModule = {
             studentType: studentType,
             name: name,
             fatherName: father,
+            gender: Lms.val('adm-gender') || null,
             cnic: cnic,
             passport: passport,
             country: country,
@@ -1798,6 +1809,10 @@ const AdmissionsModule = {
                     <div class="form-group">
                         <label>Father's Name *</label>
                         <input type="text" id="edit-adm-father" class="form-control" value="${Lms.esc(item.fatherName || '')}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-adm-gender">Gender *</label>
+                        <select id="edit-adm-gender" class="form-control" required>${Lms.genderOptions(item.gender || '')}</select>
                     </div>
 
                     <!-- LOCAL: CNIC FIELD -->
@@ -1964,9 +1979,14 @@ const AdmissionsModule = {
         const prev = document.getElementById('edit-adm-prev-madrasa').value.trim();
         const hafiz = document.getElementById('edit-adm-hafiz').checked;
         const hostel = document.getElementById('edit-adm-hostel').checked;
+        const gender = Lms.val('edit-adm-gender') || null;
 
         if (!name || !father || !phone) {
             App.showToast("Please fill in candidate name, father name, and phone number", "warning");
+            return;
+        }
+        if (!gender) {
+            App.showToast("Please select the candidate's gender", "warning");
             return;
         }
 
@@ -2011,6 +2031,7 @@ const AdmissionsModule = {
         item.studentType = studentType;
         item.name = name;
         item.fatherName = father;
+        item.gender = gender;
         item.cnic = cnic;
         item.passport = passport;
         item.country = country;
@@ -2112,14 +2133,14 @@ const AdmissionsModule = {
 
     exportAdmissionsCSV() {
         const rows = [
-            ["Application No", "Category", "Name", "Father Name", "Identification (CNIC/Passport)", "Country", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
+            ["Application No", "Category", "Name", "Father Name", "Gender", "Identification (CNIC/Passport)", "Country", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
         ];
         (window.LmsData.admissions || []).forEach(a => {
             const isIntl = (a.studentType === 'INTERNATIONAL' || (!a.cnic && a.passport));
             const idDoc = isIntl ? (a.passport || 'N/A') : (a.cnic || 'N/A');
             const country = isIntl ? (a.country || 'International') : 'Pakistan';
             const cat = isIntl ? 'INTERNATIONAL' : 'LOCAL';
-            rows.push([a.applicationNo, cat, a.name, a.fatherName, idDoc, country, a.phone, a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
+            rows.push([a.applicationNo, cat, a.name, a.fatherName, Lms.genderLabel(a.gender), idDoc, country, a.phone, a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
         });
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
         const encodedUri = encodeURI(csvContent);

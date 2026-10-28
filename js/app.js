@@ -1191,6 +1191,12 @@ const App = {
                         <span style="color: var(--text-muted);"><i class="fas fa-envelope"></i> Official Email:</span>
                         <span><strong style="color: var(--text-primary);" translate="no">${Lms.esc(user.email || 'N/A')}</strong>${Lms.copyBtn(user.email, 'Copy username')}</span>
                     </div>
+                    ${user.gender ? `
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
+                            <span style="color: var(--text-muted);"><i class="fas fa-venus-mars"></i> Gender:</span>
+                            <strong style="color: var(--text-primary);">${Lms.esc(Lms.genderLabel(user.gender))}</strong>
+                        </div>
+                    ` : ''}
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding: 8px 0;">
                         <span style="color: var(--text-muted);"><i class="fas fa-mosque"></i> Campus / Branch:</span>
                         <strong style="color: var(--text-primary);">Main Campus (Ferozepur Road)</strong>

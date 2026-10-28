@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS student_admissions (
     program_id VARCHAR(50) NOT NULL DEFAULT 'p1',
     candidate_name VARCHAR(255) NOT NULL,
     father_name VARCHAR(255) NOT NULL,
+    gender VARCHAR(10) NULL,                             -- 'MALE' or 'FEMALE'
     guardian_contact VARCHAR(50) NULL,
     email VARCHAR(255) NULL,
     phone VARCHAR(50) NOT NULL,

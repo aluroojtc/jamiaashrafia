@@ -168,6 +168,12 @@ function ensureSchema() {
             if (!(await columnExists('notifications', 'link_route'))) {
                 await db.query(`ALTER TABLE notifications ADD COLUMN link_route VARCHAR(100) NULL`);
             }
+            // Candidate's gender (MALE / FEMALE); NULL on applications made before it was asked
+            const [[admTable]] = await db.query(
+                `SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_admissions'`);
+            if (Number(admTable.c) && !(await columnExists('student_admissions', 'gender'))) {
+                await db.query(`ALTER TABLE student_admissions ADD COLUMN gender VARCHAR(10) NULL AFTER father_name`);
+            }
 
             await db.query(`CREATE TABLE IF NOT EXISTS notification_reads (
                 notification_id VARCHAR(50) NOT NULL,

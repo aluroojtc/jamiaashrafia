@@ -173,6 +173,32 @@ const Lms = {
         return `${(b / 1024 / 1024).toFixed(1)} MB`;
     },
 
+    // ---------------------------------------------------------------------
+    // Gender ('MALE' | 'FEMALE'; records made before it was asked have none)
+    // ---------------------------------------------------------------------
+    GENDERS: { MALE: 'Male', FEMALE: 'Female' },
+
+    genderLabel(g) {
+        return this.GENDERS[g] || 'Not specified';
+    },
+
+    genderOptions(selected, includeNone = true) {
+        return (includeNone ? `<option value="" ${!selected ? 'selected' : ''}>— Select gender —</option>` : '')
+            + Object.entries(this.GENDERS).map(([v, l]) => `<option value="${v}" ${selected === v ? 'selected' : ''}>${l}</option>`).join('');
+    },
+
+    genderPill(g) {
+        if (!this.GENDERS[g]) return '';
+        const female = g === 'FEMALE';
+        return `<span class="status-pill ${female ? 'gold' : 'info'}" style="font-size: 0.65rem; padding: 1px 8px;"><i class="fas ${female ? 'fa-venus' : 'fa-mars'}"></i> ${this.GENDERS[g]}</span>`;
+    },
+
+    // "Son of" / "Daughter of" (short: "S/O" / "D/O"); "Son of" when the gender is not recorded, as before
+    parentOf(g, short) {
+        if (g === 'FEMALE') return short ? 'D/O' : 'Daughter of';
+        return short ? 'S/O' : 'Son of';
+    },
+
     initials(name) {
         return String(name || '').split(/\s+/).filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'JA';
     },
