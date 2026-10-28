@@ -3456,7 +3456,7 @@ I18n.register('ar', {
     "{n} min free": "{n} دقيقة فراغ",
     "Start time": "وقت البدء",
     "End time": "وقت الانتهاء",
-    "Teacher, room & period name": "المعلم والقاعة واسم الحصة",
+    "Rooms and Periods": "القاعات والحصص",
     "Timetable saved for {n} day(s)": "تم حفظ الجدول لـ {n} يوم",
     "The class repeats at the same time on every day you tick.": "يتكرر الدرس في الوقت نفسه في كل يوم تختاره.",
     "An entry belongs to one day; add another entry for other days.": "الحصة ليوم واحد؛ أضف حصة أخرى للأيام الأخرى.",
@@ -3489,5 +3489,9 @@ I18n.register('ar', {
     "Free Time {n} min": "وقت فراغ {n} دقيقة",
     "{x}: Teaching {n} min": "{x}: تدريس {n} دقيقة",
     "Generated from {x} LMS": "أُعدّ من نظام {x}",
-    "{x} — Teaching Schedule": "{x} — جدول التدريس"
+    "{x} — Teaching Schedule": "{x} — جدول التدريس",
+    "Choose a class": "اختر الفصل",
+    "There are no classes to print.": "لا توجد فصول للطباعة.",
+    "Only the selected class's timetable is included.": "يُضمَّن جدول الفصل المحدد فقط.",
+    "Weekday": "اليوم"
 });

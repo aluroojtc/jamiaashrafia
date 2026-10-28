@@ -3456,7 +3456,7 @@ I18n.register('ur', {
     "{n} min free": "{n} منٹ فارغ",
     "Start time": "آغاز کا وقت",
     "End time": "اختتام کا وقت",
-    "Teacher, room & period name": "استاد، کمرہ اور پیریڈ کا نام",
+    "Rooms and Periods": "کمرے اور پیریڈ",
     "Timetable saved for {n} day(s)": "{n} دن کے لیے ٹائم ٹیبل محفوظ ہو گیا",
     "The class repeats at the same time on every day you tick.": "کلاس ہر منتخب دن اسی وقت ہوگی۔",
     "An entry belongs to one day; add another entry for other days.": "ایک اندراج ایک دن کا ہوتا ہے؛ دوسرے دنوں کے لیے نیا اندراج شامل کریں۔",
@@ -3489,5 +3489,9 @@ I18n.register('ur', {
     "Free Time {n} min": "فارغ وقت {n} منٹ",
     "{x}: Teaching {n} min": "{x}: تدریس {n} منٹ",
     "Generated from {x} LMS": "{x} ایل ایم ایس سے تیار کردہ",
-    "{x} — Teaching Schedule": "{x} — تدریسی شیڈول"
+    "{x} — Teaching Schedule": "{x} — تدریسی شیڈول",
+    "Choose a class": "کلاس منتخب کریں",
+    "There are no classes to print.": "پرنٹ کرنے کے لیے کوئی کلاس نہیں۔",
+    "Only the selected class's timetable is included.": "صرف منتخب کلاس کا ٹائم ٹیبل شامل ہوگا۔",
+    "Weekday": "دن"
 });

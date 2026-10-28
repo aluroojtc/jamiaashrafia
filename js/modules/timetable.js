@@ -25,11 +25,11 @@ const TimetableModule = {
         return 'ALL';
     },
 
-    // Slots visible under the current filter
-    filteredSlots() {
+    // Slots visible under the current filter (or the given one: a class id, 'MINE' or 'ALL')
+    filteredSlots(filter) {
         const me = Lms.me();
         const all = window.LmsData.timetables || [];
-        const f = this.classFilter;
+        const f = filter === undefined ? this.classFilter : filter;
         if (Lms.portal() === 'student') return all.filter(t => t.classId === me.classId || t.classId === 'all');
         if (f === 'MINE') return all.filter(t => t.teacherId === me.id || t.classId === 'all');
         if (f === 'ALL' || !f) return all;
@@ -59,8 +59,8 @@ const TimetableModule = {
                     <button class="btn btn-secondary btn-sm" onclick="TimetableModule.setView('${this.view === 'day' ? 'week' : 'day'}')">
                         <i class="fas ${this.view === 'day' ? 'fa-th' : 'fa-list'}"></i> ${this.view === 'day' ? 'Weekly Grid' : 'Day View'}
                     </button>
-                    <button class="btn btn-secondary btn-sm" onclick="TimetableModule.printTimetable()"><i class="fas fa-print"></i> Print Timetable</button>
-                    <button class="btn btn-secondary btn-sm" onclick="TimetableModule.downloadPdf(this)"><i class="fas fa-file-pdf" style="color: var(--danger);"></i> Download PDF</button>
+                    <button class="btn btn-secondary btn-sm" onclick="TimetableModule.openPrintPicker('print')"><i class="fas fa-print"></i> Print Timetable</button>
+                    <button class="btn btn-secondary btn-sm" onclick="TimetableModule.openPrintPicker('pdf', this)"><i class="fas fa-file-pdf" style="color: var(--danger);"></i> Download PDF</button>
                     ${canManage ? `<button class="btn btn-gold btn-sm" onclick="TimetableModule.openAddSlotModal()"><i class="fas fa-calendar-plus"></i> Add Timetable</button>` : ''}
                 </div>
             </div>
@@ -393,9 +393,8 @@ const TimetableModule = {
             </div>
 
             <details ${hasExtras ? 'open' : ''} style="margin-bottom: 10px;">
-                <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem; color: var(--primary-700); margin-bottom: 10px;">Teacher, room & period name</summary>
+                <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem; color: var(--primary-700); margin-bottom: 10px;">Rooms and Periods</summary>
                 <div class="form-grid">
-                    <div class="form-group"><label for="slot-teacher">Teacher (Ustad)</label><select id="slot-teacher" class="form-control">${Lms.teacherOptions(slot && slot.classId === 'all' ? slot.teacherId : '', true)}</select></div>
                     <div class="form-group"><label for="slot-room">Hall / Room</label><input type="text" id="slot-room" class="form-control" value="${Lms.esc(slot ? slot.room : '')}" placeholder="e.g. Hall Imam Bukhari"></div>
                     <div class="form-group"><label for="slot-name">Period Name</label><input type="text" id="slot-name" class="form-control" value="${Lms.esc(slot && slot.classId === 'all' ? slot.periodName : '')}" placeholder="Defaults to the kitab's name; e.g. Namaz-e-Zuhr for a break"></div>
                 </div>
@@ -441,8 +440,15 @@ const TimetableModule = {
         el.innerHTML = d ? `<i class="fas fa-hourglass-half"></i> Total: ${d}` : `<i class="fas fa-exclamation-circle"></i> End must be after start`;
 
         const plan = this.planCourses();
+        const classId = Lms.val('slot-class');
         document.querySelectorAll('#slot-more-courses .tt-extra-row').forEach((row, i) => {
             const p = plan.rows[i];
+            // The teacher comes from the class's course allocation and cannot be changed here
+            const teacher = row.querySelector('.tt-x-teacher');
+            const teacherId = p.courseId ? Lms.courseTeacherId(classId, p.courseId) : null;
+            teacher.style.display = p.courseId ? '' : 'none';
+            teacher.className = `tt-x-teacher status-pill ${teacherId ? 'info' : 'warning'}`;
+            teacher.innerHTML = `<i class="fas fa-user-tie"></i> ${Lms.esc(teacherId ? Lms.userName(teacherId) : I18n.t('No teacher assigned'))}`;
             const pill = row.querySelector('.tt-x-time');
             const bad = !p.minutes || (plan.classMinutes > 0 && p.end > plan.classEnd);
             pill.className = `tt-x-time status-pill ${bad ? 'danger' : 'info'}`;
@@ -486,6 +492,7 @@ const TimetableModule = {
                 <select class="form-control tt-x-course" aria-label="Course / Kitab">${this.courseChoices(classId, courseId)}</select>
                 <label class="tt-x-min-wrap"><input type="number" class="form-control tt-x-min" min="5" max="720" step="5" value="${Number(minutes) > 0 ? Number(minutes) : 60}" aria-label="Duration (min)" onwheel="this.blur()"> min</label>
                 <span class="tt-x-time status-pill info" style="font-size: 0.72rem;"></span>
+                <span class="tt-x-teacher status-pill info" style="font-size: 0.72rem; text-transform: none; display: none;"></span>
                 <button type="button" class="btn btn-secondary btn-sm" title="Remove" onclick="this.closest('.tt-extra-row').remove(); TimetableModule.showDuration()"><i class="fas fa-times" style="color: var(--danger);"></i></button>
             </div>`);
         this.showDuration();
@@ -538,7 +545,6 @@ const TimetableModule = {
         const endTime = Lms.val('slot-end');
         const room = Lms.val('slot-room');
         const periodName = Lms.val('slot-name');
-        const teacherId = Lms.val('slot-teacher') || null;
         const editIds = this._editIds || [];
         if (!days.length || !startTime || !endTime) {
             window.App.showToast('Choose at least one day and the start/end time', 'warning');
@@ -555,7 +561,9 @@ const TimetableModule = {
                 window.App.showToast('Choose a kitab or give the period a name (e.g. Namaz-e-Zuhr)', 'warning');
                 return;
             }
-            entries = [{ startTime, endTime, classId, courseId: null, teacherId, room, periodName }];
+            // Keep a teacher already on an edited all-campus period; there is no teacher field to set one
+            const prev = editIds.length ? (window.LmsData.timetables || []).find(t => t.id === editIds[0]) : null;
+            entries = [{ startTime, endTime, classId, courseId: null, teacherId: (prev && prev.teacherId) || null, room, periodName }];
         } else {
             const plan = this.planCourses();
             if (!plan.rows.length) {
@@ -577,7 +585,7 @@ const TimetableModule = {
             }
             entries = plan.rows.map(r => ({
                 startTime: this.fromMin(r.start), endTime: this.fromMin(r.end), classId, courseId: r.courseId,
-                teacherId: Lms.courseTeacherId(classId, r.courseId) || teacherId, room,
+                teacherId: Lms.courseTeacherId(classId, r.courseId) || null, room,
                 periodName: plan.rows.length === 1 && periodName ? periodName : Lms.courseTitle(r.courseId),
                 blockStart: startTime, blockEnd: endTime
             }));
@@ -649,55 +657,61 @@ const TimetableModule = {
     },
 
     // ---------------------------------------------------------------------
-    // PRINT & PDF: the timetable currently shown (class filter / teacher / student), as an official A4 sheet.
-    // Reads the saved periods and the free-time calculation above; changes nothing.
+    // PRINT & PDF: one class's timetable (picked before printing; a student's own class) as a one-page A4 landscape
+    // grid, teachers down the side and weekdays across the top. Reads the saved periods; changes nothing.
     // ---------------------------------------------------------------------
-    PDF_LIBS: [
-        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'
-    ],
+    PDF_LIB: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    HTML2CANVAS_LIB: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    // Web fonts the Urdu / Arabic sheet is drawn with (loaded by index.html)
+    PDF_FONTS: ['400 16px "Noto Nastaliq Urdu"', '700 16px "Noto Nastaliq Urdu"', '400 16px "Noto Naskh Arabic"', '700 16px "Noto Naskh Arabic"'],
     LOGO_URL: 'assets/images/logo.png',
+    // A4 landscape and its margin (mm); the sheet is scaled to fit inside
+    PAGE: { w: 297, h: 210, margin: 8 },
 
-    printModel() {
+    // filter: the class id (or the teacher's 'MINE') chosen in the print picker
+    printModel(filter) {
         const me = Lms.me();
         const inst = window.LmsData.institution || {};
         const portal = Lms.portal();
-        const slots = this.filteredSlots();
-        const classId = portal === 'student' ? me.classId : (!['ALL', 'MINE'].includes(this.classFilter) ? this.classFilter : null);
+        const slots = this.filteredSlots(filter);
+        const mine = portal === 'teacher' && filter === 'MINE';
+        const classId = portal === 'student' ? me.classId : (!['ALL', 'MINE'].includes(filter) ? filter : null);
         const cls = classId ? Lms.getClass(classId) : null;
         const multiClass = !cls;
         const session = (window.LmsData.sessions || []).find(s => s.isCurrent) || null;
         const days = this.DAYS.filter(d => slots.some(s => s.day === d));
-        const rowOf = s => {
-            const minutes = this.toMin(s.endTime) - this.toMin(s.startTime);
+        // One row per teacher (by name), then periods with no teacher, then all-campus ones (prayer, assembly)
+        const rowKey = s => s.teacherId || (s.classId === 'all' ? '~all' : '~none');
+        const labelOf = k => k === '~all' ? 'All classes' : k === '~none' ? 'Not assigned' : Lms.userName(k);
+        const rank = k => k === '~all' ? 2 : k === '~none' ? 1 : 0;
+        const keys = Array.from(new Set(slots.map(rowKey)))
+            .sort((a, b) => rank(a) - rank(b) || labelOf(a).localeCompare(labelOf(b)));
+        const codeOf = courseId => (Lms.getCourse(courseId) || {}).code || '';
+        const rows = keys.map(k => {
+            const own = slots.filter(s => rowKey(s) === k);
             return {
-                free: !!s.free, startTime: s.startTime, endTime: s.endTime, minutes,
-                time: `${Lms.fmtTime(s.startTime)} – ${Lms.fmtTime(s.endTime)}`,
-                course: s.free ? 'Free Time' : (s.courseId ? Lms.courseTitle(s.courseId) : (s.periodName || '—')),
-                code: s.free || !s.courseId ? '' : ((Lms.getCourse(s.courseId) || {}).code || ''),
-                teacher: s.free || !s.teacherId ? '—' : Lms.userName(s.teacherId),
-                room: s.free ? '' : (s.room || '—'),
-                className: s.classId === 'all' ? 'All classes' : Lms.className(s.classId)
-            };
-        };
-        const dayBlocks = days.map(day => {
-            const rows = this.sortSlots(slots.filter(s => s.day === day).concat(this.freeRowsFor(day, slots))).map(rowOf);
-            return {
-                day, rows,
-                teaching: rows.filter(r => !r.free).reduce((s, r) => s + r.minutes, 0),
-                freeMinutes: rows.filter(r => r.free).reduce((s, r) => s + r.minutes, 0)
+                teacher: labelOf(k),
+                subjects: Array.from(new Set(own.filter(s => s.courseId).map(s => codeOf(s.courseId) || Lms.courseTitle(s.courseId)))),
+                cells: days.map(day => this.sortSlots(own.filter(s => s.day === day)).map(s => ({
+                    time: `${Lms.fmtTime(s.startTime)} – ${Lms.fmtTime(s.endTime)}`,
+                    course: s.courseId ? Lms.courseTitle(s.courseId) : (s.periodName || '—'),
+                    code: s.courseId ? codeOf(s.courseId) : '',
+                    className: s.classId === 'all' ? '' : Lms.className(s.classId),
+                    room: s.room || ''
+                })))
             };
         });
+        const minutesOf = list => list.reduce((sum, s) => sum + (this.toMin(s.endTime) - this.toMin(s.startTime)), 0);
         const branch = Lms.branchName((cls && cls.branchId) || inst.mainBranchId || '');
         const classTeacher = cls && cls.teacherId ? Lms.userName(cls.teacherId) : '';
         const program = cls ? (Lms.program(cls.programId) || {}).name || '' : '';
         const subject = cls ? Lms.className(cls.id)
-            : (portal === 'teacher' && this.classFilter === 'MINE' ? `${me.name || ''} — Teaching Schedule` : 'All Classes');
+            : (mine ? `${me.name || ''} — Teaching Schedule` : 'All Classes');
         const meta = [
-            ['Class', cls ? Lms.className(cls.id) : (portal === 'teacher' && this.classFilter === 'MINE' ? 'All classes taught' : 'All classes')],
+            ['Class', cls ? Lms.className(cls.id) : (mine ? 'All classes taught' : 'All classes')],
             program ? ['Program', program] : null,
             classTeacher ? ['Class Teacher', classTeacher] : null,
-            portal === 'teacher' && this.classFilter === 'MINE' ? ['Teacher', me.name || ''] : null,
+            mine ? ['Teacher', me.name || ''] : null,
             cls && cls.room ? ['Room', cls.room] : null,
             branch ? ['Campus', branch] : null,
             session ? ['Academic Session', session.name] : null,
@@ -709,16 +723,75 @@ const TimetableModule = {
             subtitle: [inst.motto, inst.affiliation].filter(Boolean).join(' • '),
             address: [inst.mainCampus, inst.phone, inst.website].filter(Boolean).join(' • '),
             title: cls ? 'Class Timetable' : 'Timetable',
-            subject, meta, multiClass, dayBlocks,
-            totalTeaching: dayBlocks.reduce((s, b) => s + b.teaching, 0),
-            totalFree: dayBlocks.reduce((s, b) => s + b.freeMinutes, 0),
+            subject, meta, multiClass, days, rows,
+            totalTeaching: minutesOf(slots),
+            totalFree: minutesOf(days.flatMap(day => this.freeRowsFor(day, slots))),
             fileName: `Timetable-${subject}`.replace(/[^A-Za-z0-9]+/g, '-').replace(/-+$/, '') + `-${Lms.today()}.pdf`
         };
     },
 
-    // The printable sheet (HTML) for the browser's print dialog
+    // Print / Download PDF first ask which timetable: one class (or a teacher's own schedule), never all classes at once
+    openPrintPicker(action, btn) {
+        const portal = Lms.portal();
+        if (portal === 'student') {
+            if (action === 'pdf') this.downloadPdf(btn, null);
+            else this.printTimetable(null);
+            return;
+        }
+        const ids = portal === 'teacher' ? Lms.myClassIds() : null;
+        const classIds = ids || (window.LmsData.classes || []).map(c => c.id);
+        const current = this.classFilter;
+        const selected = current && !['ALL', 'MINE'].includes(current) ? current
+            : (portal === 'teacher' && current === 'MINE' ? 'MINE' : classIds[0] || '');
+        if (!classIds.length && portal !== 'teacher') {
+            window.App.showToast('There are no classes to print.', 'warning');
+            return;
+        }
+        const pdf = action === 'pdf';
+        Lms.openModal(
+            `<i class="fas ${pdf ? 'fa-file-pdf' : 'fa-print'}" style="color: var(--gold-400);"></i> ${pdf ? 'Download PDF' : 'Print Timetable'}`,
+            `<div class="form-group">
+                <label for="tt-print-class">Class *</label>
+                <select id="tt-print-class" class="form-control">
+                    ${portal === 'teacher' ? `<option value="MINE" ${selected === 'MINE' ? 'selected' : ''}>My teaching schedule</option>` : ''}
+                    ${Lms.classOptions(selected, ids)}
+                </select>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">Only the selected class's timetable is included.</div>
+            </div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-gold" onclick="TimetableModule.runPrint('${pdf ? 'pdf' : 'print'}', this)"><i class="fas ${pdf ? 'fa-file-pdf' : 'fa-print'}"></i> ${pdf ? 'Download PDF' : 'Print'}</button>`
+        );
+    },
+
+    async runPrint(action, btn) {
+        const filter = Lms.val('tt-print-class');
+        if (!filter) {
+            window.App.showToast('Choose a class', 'warning');
+            return;
+        }
+        if (action === 'pdf') {
+            if (await this.downloadPdf(btn, filter)) window.App.closeModal();
+            return;
+        }
+        if (!this.printModel(filter).rows.length) {
+            window.App.showToast('There are no periods to print for this selection.', 'warning');
+            return;
+        }
+        window.App.closeModal();
+        this.printTimetable(filter);
+    },
+
+    // The printable sheet (HTML): Print Timetable shows it in the print dialog, Download PDF draws it onto the page
     printSheetHtml(m) {
-        const cols = m.multiClass ? 7 : 6;
+        const slot = e => {
+            const where = [m.multiClass ? e.className : '', e.room].filter(Boolean);
+            return `
+                <div class="tt-grid-slot">
+                    <div class="tt-grid-time">${Lms.esc(e.time)}</div>
+                    <div class="tt-grid-course">${Lms.esc(e.course)}${e.code ? ` <span>(${Lms.esc(e.code)})</span>` : ''}</div>
+                    ${where.length ? `<div class="tt-grid-where">${where.map(w => Lms.esc(w)).join(' • ')}</div>` : ''}
+                </div>`;
+        };
         return `
             <div class="tt-sheet">
                 <header class="tt-sheet-head">
@@ -726,62 +799,100 @@ const TimetableModule = {
                     <div class="tt-sheet-inst">
                         <div class="tt-sheet-name">${Lms.esc(m.institution)}</div>
                         ${m.urduName ? `<div class="tt-sheet-urdu" dir="rtl" translate="no">${Lms.esc(m.urduName)}</div>` : ''}
-                        ${m.subtitle ? `<div class="tt-sheet-sub">${Lms.esc(m.subtitle)}</div>` : ''}
-                        ${m.address ? `<div class="tt-sheet-sub">${Lms.esc(m.address)}</div>` : ''}
+                        ${m.subtitle || m.address ? `<div class="tt-sheet-sub">${Lms.esc([m.subtitle, m.address].filter(Boolean).join(' • '))}</div>` : ''}
                     </div>
-                    <img src="${this.LOGO_URL}" alt="" class="tt-sheet-logo" style="visibility: hidden;">
+                    <div class="tt-sheet-titlebox">
+                        <div class="tt-sheet-title">${Lms.esc(m.title)}</div>
+                        <div class="tt-sheet-subject">${Lms.esc(m.subject)}</div>
+                    </div>
                 </header>
-                <div class="tt-sheet-title">${Lms.esc(m.title)}</div>
                 <div class="tt-sheet-meta">
                     ${m.meta.map(([k, v]) => `<div><span>${Lms.esc(k)}:</span> <strong>${Lms.esc(v)}</strong></div>`).join('')}
                 </div>
-                <table class="tt-sheet-table">
-                    <thead><tr>
-                        <th style="width: 11%;">Day</th><th style="width: 17%;">Time</th><th style="width: 9%;">Duration</th>
-                        <th>Course / Kitab</th>${m.multiClass ? '<th style="width: 16%;">Class</th>' : ''}<th style="width: 15%;">Teacher</th><th style="width: 16%;">Room</th>
-                    </tr></thead>
-                    ${m.dayBlocks.map(b => `
-                        <tbody class="tt-sheet-day">
-                            ${b.rows.map((r, i) => `
-                                <tr class="${r.free ? 'is-free' : ''}">
-                                    ${i === 0 ? `<td rowspan="${b.rows.length}" class="tt-sheet-dayname">${Lms.esc(b.day)}</td>` : ''}
-                                    <td class="tt-sheet-time">${Lms.esc(r.time)}</td>
-                                    <td>${r.minutes} min</td>
-                                    <td>${r.free ? '<em>Free Time</em>' : `<strong>${Lms.esc(r.course)}</strong>${r.code ? ` <span class="tt-sheet-code">${Lms.esc(r.code)}</span>` : ''}`}</td>
-                                    ${m.multiClass ? `<td>${Lms.esc(r.className)}</td>` : ''}
-                                    <td>${Lms.esc(r.teacher)}</td>
-                                    <td>${Lms.esc(r.room)}</td>
-                                </tr>`).join('')}
-                            <tr class="tt-sheet-total"><td colspan="${cols}">${b.day}: Teaching ${b.teaching} min${b.freeMinutes ? ` • Free Time ${b.freeMinutes} min` : ''}</td></tr>
-                        </tbody>`).join('')}
+                <table class="tt-grid">
+                    <colgroup><col class="tt-grid-teacher-col">${m.days.map(() => '<col>').join('')}</colgroup>
+                    <thead><tr><th>Teacher</th>${m.days.map(d => `<th>${Lms.esc(d)}</th>`).join('')}</tr></thead>
+                    <tbody>
+                        ${m.rows.map(r => `
+                            <tr>
+                                <th scope="row">
+                                    ${Lms.esc(r.teacher)}
+                                    ${r.subjects.length ? `<div class="tt-grid-subjects">${r.subjects.map(s => Lms.esc(s)).join(' • ')}</div>` : ''}
+                                </th>
+                                ${r.cells.map(c => c.length ? `<td>${c.map(slot).join('')}</td>` : '<td class="tt-grid-empty">—</td>').join('')}
+                            </tr>`).join('')}
+                    </tbody>
                 </table>
-                <div class="tt-sheet-summary">Weekly total: Teaching ${m.totalTeaching} min${m.totalFree ? ` • Free Time ${m.totalFree} min` : ''}</div>
-                <div class="tt-sheet-sign">
-                    <div><span></span>Class Teacher</div>
-                    <div><span></span>Nazim-e-Taleemat</div>
-                    <div><span></span>Mohtamim</div>
+                <div class="tt-sheet-bottom">
+                    <div class="tt-sheet-summary">Weekly total: Teaching ${m.totalTeaching} min${m.totalFree ? ` • Free Time ${m.totalFree} min` : ''}</div>
+                    <div class="tt-sheet-sign">
+                        <div><span></span>Class Teacher</div>
+                        <div><span></span>Nazim-e-Taleemat</div>
+                        <div><span></span>Mohtamim</div>
+                    </div>
                 </div>
                 <footer class="tt-sheet-foot">Generated from ${Lms.esc(m.institution)} LMS</footer>
             </div>`;
     },
 
-    printTimetable() {
-        const m = this.printModel();
-        if (!m.dayBlocks.length) {
+    // Lays the sheet out off-screen at print size (after the page translator, the logo and the Urdu / Arabic fonts)
+    // and works out the zoom that fits it on one page. A smaller zoom lays it out wider, so it wraps less, then shrinks it.
+    async stageSheet(m) {
+        const host = document.createElement('div');
+        host.className = 'tt-sheet-stage';
+        host.innerHTML = this.printSheetHtml(m);
+        document.body.appendChild(host);
+        await new Promise(r => setTimeout(r, 0));
+        await Promise.all(Array.from(host.querySelectorAll('img')).map(img => img.complete ? null
+            : new Promise(r => { img.onload = r; img.onerror = r; })));
+        if (document.fonts) {
+            await Promise.all(this.PDF_FONTS.map(f => document.fonts.load(f, 'ابپٹ').catch(() => null)));
+            await document.fonts.ready;
+        }
+        const sheet = host.firstElementChild;
+        const px = mm => mm * 96 / 25.4;
+        const pageW = px(this.PAGE.w - 2 * this.PAGE.margin);
+        // A little under the page height, so rounding never pushes the last line onto a second page
+        const pageH = px(this.PAGE.h - 2 * this.PAGE.margin) - 8;
+        const fits = z => {
+            sheet.style.width = `${pageW / z}px`;
+            return sheet.offsetHeight * z <= pageH;
+        };
+        // Shrink until it fits, then take back the spare room between the last size that fit and the one that did not
+        let zoom = 1;
+        let tooBig = null;
+        for (let i = 0; i < 6 && !fits(zoom); i++) {
+            tooBig = zoom;
+            zoom = pageH / sheet.offsetHeight;
+        }
+        for (let i = 0; tooBig && i < 5; i++) {
+            const mid = (zoom + tooBig) / 2;
+            if (fits(mid)) zoom = mid; else tooBig = mid;
+        }
+        fits(zoom);
+        return { host, sheet, zoom };
+    },
+
+    async printTimetable(filter) {
+        const m = this.printModel(filter);
+        if (!m.rows.length) {
             window.App.showToast('There are no periods to print for this selection.', 'warning');
             return;
         }
-        let sheet = document.getElementById('tt-print-sheet');
-        if (!sheet) {
-            sheet = document.createElement('div');
-            sheet.id = 'tt-print-sheet';
-            document.body.appendChild(sheet);
+        const { host, sheet, zoom } = await this.stageSheet(m);
+        let box = document.getElementById('tt-print-sheet');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'tt-print-sheet';
+            document.body.appendChild(box);
         }
-        sheet.innerHTML = this.printSheetHtml(m);
+        sheet.style.zoom = zoom;
+        box.replaceChildren(sheet);
+        host.remove();
         // A4 landscape for this print only; removed again afterwards
         const page = document.createElement('style');
         page.id = 'tt-print-page';
-        page.textContent = '@page { size: A4 landscape; margin: 10mm; }';
+        page.textContent = `@page { size: A4 landscape; margin: ${this.PAGE.margin}mm; }`;
         document.head.appendChild(page);
         document.body.classList.add('tt-printing');
         const cleanup = () => {
@@ -790,10 +901,7 @@ const TimetableModule = {
             window.removeEventListener('afterprint', cleanup);
         };
         window.addEventListener('afterprint', cleanup);
-        // Let the logo load before the print dialog takes its snapshot
-        const logo = sheet.querySelector('.tt-sheet-logo');
-        const go = () => setTimeout(() => window.print(), 50);
-        if (logo && !logo.complete) { logo.onload = go; logo.onerror = go; } else go();
+        setTimeout(() => window.print(), 50);
     },
 
     loadScript(src) {
@@ -807,128 +915,42 @@ const TimetableModule = {
         });
     },
 
-    async logoDataUrl() {
-        try {
-            const blob = await (await fetch(this.LOGO_URL)).blob();
-            return await new Promise(resolve => {
-                const r = new FileReader();
-                r.onload = () => resolve(r.result);
-                r.onerror = () => resolve(null);
-                r.readAsDataURL(blob);
-            });
-        } catch (e) {
-            return null;
-        }
-    },
-
-    async downloadPdf(btn) {
-        const m = this.printModel();
-        if (!m.dayBlocks.length) {
+    // Resolves true once the PDF is saved
+    async downloadPdf(btn, filter) {
+        const m = this.printModel(filter);
+        if (!m.rows.length) {
             window.App.showToast('There are no periods to download for this selection.', 'warning');
-            return;
+            return false;
         }
-        await Lms.busy(btn, async () => {
+        return !!await Lms.busy(btn, async () => {
             try {
-                for (const src of this.PDF_LIBS) await this.loadScript(src);
+                for (const src of [this.PDF_LIB, this.HTML2CANVAS_LIB]) await this.loadScript(src);
             } catch (e) {
                 throw new Error('The PDF tool could not be loaded (no internet connection?). Use Print Timetable and choose "Save as PDF" instead.');
             }
-            const doc = this.buildPdf(m, await this.logoDataUrl());
+            const doc = await this.buildSheetPdf(m);
             doc.save(m.fileName);
             this._lastPdf = doc;
             window.App.showToast('Timetable PDF downloaded', 'success');
+            return true;
         }, 'Preparing PDF...');
     },
 
-    // A4 landscape PDF with the same content as the printed sheet (text, not an image)
-    buildPdf(m, logo) {
+    // The printed sheet on one A4 landscape page, drawn by the browser (so Urdu / Arabic keep their fonts,
+    // joined letters and right-to-left order) at about 290 dpi
+    async buildSheetPdf(m) {
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        const W = doc.internal.pageSize.getWidth();
-        const H = doc.internal.pageSize.getHeight();
-        const M = 12;
-        const TEAL = [26, 94, 111];
-        const GOLD = [170, 134, 55];
-        // Built-in PDF fonts are Latin only: keep the English text (names, titles) and drop other scripts
-        const t = s => String(s === undefined || s === null ? '' : s).replace(/[^\u0000-ɏ–—•‘’“”]/g, '').trim();
-
-        let y = M;
-        if (logo) {
-            const p = doc.getImageProperties(logo);
-            const h = 20;
-            doc.addImage(logo, 'PNG', M, y, h * p.width / p.height, h);
+        const { host, sheet, zoom } = await this.stageSheet(m);
+        try {
+            const canvas = await window.html2canvas(sheet, { scale: 3 * zoom, backgroundColor: '#ffffff', logging: false });
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const { w, margin } = this.PAGE;
+            const width = w - 2 * margin;
+            doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin, width, width * canvas.height / canvas.width);
+            return doc;
+        } finally {
+            host.remove();
         }
-        doc.setTextColor(...TEAL).setFont('helvetica', 'bold').setFontSize(18).text(t(m.institution), W / 2, y + 7, { align: 'center' });
-        doc.setTextColor(90).setFont('helvetica', 'normal').setFontSize(9);
-        if (t(m.subtitle)) doc.text(t(m.subtitle), W / 2, y + 13, { align: 'center' });
-        if (t(m.address)) doc.text(t(m.address), W / 2, y + 18, { align: 'center' });
-        y += 24;
-        doc.setDrawColor(...GOLD).setLineWidth(0.6).line(M, y, W - M, y);
-        y += 3;
-        doc.setFillColor(...TEAL).rect(M, y, W - 2 * M, 9, 'F');
-        doc.setTextColor(255).setFont('helvetica', 'bold').setFontSize(12).text(t(m.title).toUpperCase(), W / 2, y + 6.2, { align: 'center' });
-        y += 14;
-
-        // Class information, three to a line
-        doc.setFontSize(9.5);
-        const colW = (W - 2 * M) / 3;
-        m.meta.forEach(([k, v], i) => {
-            const x = M + (i % 3) * colW;
-            const yy = y + Math.floor(i / 3) * 5.5;
-            doc.setFont('helvetica', 'normal').setTextColor(100).text(`${t(k)}:`, x, yy);
-            doc.setFont('helvetica', 'bold').setTextColor(30).text(t(v), x + doc.getTextWidth(`${t(k)}: `), yy, { maxWidth: colW - doc.getTextWidth(`${t(k)}: `) - 2 });
-        });
-        y += Math.ceil(m.meta.length / 3) * 5.5 + 2;
-
-        const head = [['Day', 'Time', 'Duration', 'Course / Kitab'].concat(m.multiClass ? ['Class'] : [], ['Teacher', 'Room'])];
-        const cols = head[0].length;
-        const body = [];
-        m.dayBlocks.forEach(b => {
-            b.rows.forEach((r, i) => {
-                const style = r.free ? { fillColor: [232, 244, 247], textColor: TEAL, fontStyle: 'italic' } : {};
-                const cell = (content, extra = {}) => ({ content: t(content), styles: { ...style, ...extra } });
-                const row = [];
-                if (i === 0) row.push({ content: t(b.day), rowSpan: b.rows.length, styles: { fontStyle: 'bold', valign: 'middle', textColor: TEAL } });
-                row.push(cell(r.time), cell(`${r.minutes} min`),
-                    cell(r.free ? 'Free Time' : `${r.course}${r.code ? `  (${r.code})` : ''}`, r.free ? {} : { fontStyle: 'bold' }));
-                if (m.multiClass) row.push(cell(r.className));
-                row.push(cell(r.teacher), cell(r.room));
-                body.push(row);
-            });
-            body.push([{
-                content: t(`${b.day}: Teaching ${b.teaching} min${b.freeMinutes ? ` • Free Time ${b.freeMinutes} min` : ''}`), colSpan: cols,
-                styles: { halign: 'right', fontSize: 8, textColor: 90, fillColor: [248, 250, 252], fontStyle: 'italic' }
-            }]);
-        });
-
-        doc.autoTable({
-            startY: y, head, body, theme: 'grid', margin: { left: M, right: M, bottom: 16 },
-            styles: { font: 'helvetica', fontSize: 9.5, cellPadding: 2.2, lineColor: [204, 216, 223], lineWidth: 0.2, textColor: 30, valign: 'middle' },
-            headStyles: { fillColor: TEAL, textColor: 255, fontStyle: 'bold', halign: 'left' },
-            columnStyles: m.multiClass
-                ? { 0: { cellWidth: 26 }, 1: { cellWidth: 40 }, 2: { cellWidth: 22 }, 4: { cellWidth: 42 }, 5: { cellWidth: 40 }, 6: { cellWidth: 30 } }
-                : { 0: { cellWidth: 28 }, 1: { cellWidth: 44 }, 2: { cellWidth: 24 }, 4: { cellWidth: 48 }, 5: { cellWidth: 36 } }
-        });
-
-        let end = doc.lastAutoTable.finalY + 6;
-        if (end > H - 40) { doc.addPage(); end = M + 6; }
-        doc.setFont('helvetica', 'bold').setFontSize(10).setTextColor(...TEAL)
-            .text(t(`Weekly total: Teaching ${m.totalTeaching} min${m.totalFree ? ` • Free Time ${m.totalFree} min` : ''}`), M, end);
-        const signY = end + 22;
-        ['Class Teacher', 'Nazim-e-Taleemat', 'Mohtamim'].forEach((label, i) => {
-            const x = M + 10 + i * ((W - 2 * M - 20) / 3);
-            doc.setDrawColor(120).setLineWidth(0.3).line(x, signY, x + 60, signY);
-            doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(80).text(label, x + 30, signY + 5, { align: 'center' });
-        });
-
-        const pages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= pages; i++) {
-            doc.setPage(i);
-            doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(130);
-            doc.text(t(`Generated from ${m.institution} LMS • ${m.meta.find(x => x[0] === 'Generated on')[1]}`), M, H - 7);
-            doc.text(`Page ${i} of ${pages}`, W - M, H - 7, { align: 'right' });
-        }
-        return doc;
     }
 };
 
