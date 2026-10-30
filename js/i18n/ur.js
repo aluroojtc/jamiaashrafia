@@ -1410,6 +1410,8 @@ I18n.register('ur', {
     "All students of a program": "کسی شعبے کے تمام طلبہ",
     "Student *": "طالب علم *",
     "Billing Period / Description *": "مدت / تفصیل *",
+    "Billing Month *": "مہینہ *",
+    "Fee structures, challan generation and payment verification": "فیس ڈھانچہ، چالان کی تیاری اور ادائیگی کی تصدیق",
     "Scholarship / Kafalat Waiver (%)": "وظیفہ / کفالت رعایت (%)",
     "Other Charge Label & Amount": "دیگر واجب کا نام و رقم",
     "Amounts come from each program's": "رقوم ہر شعبے کے اس سے لی جاتی ہیں:",

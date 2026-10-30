@@ -200,7 +200,8 @@ async function run() {
 
         // --- No session -------------------------------------------------------------------
         for (const [m, p] of [['GET', '/api/store'], ['POST', '/api/store/sync'], ['GET', '/api/permissions'], ['GET', '/api/notifications'],
-            ['GET', '/api/settings/meeting'], ['GET', '/uploads/2026-10/x.pdf'], ['GET', '/api/admissions'], ['POST', '/api/virtual-class/verify-access']]) {
+            ['GET', '/api/settings/meeting'], ['GET', '/uploads/2026-10/x.pdf'], ['GET', '/api/admissions'], ['POST', '/api/virtual-class/verify-access'],
+            ['POST', '/api/virtual-class/join-token']]) {
             const r = await request(m, p, { body: m === 'POST' ? {} : undefined });
             check(`No session: ${m} ${p} is refused`, r.status === 401, `(got ${r.status})`);
         }
@@ -767,6 +768,8 @@ async function run() {
         check('Teacher cannot open another class\'s online class', otherVc.status === 403);
         const okVc = await request('POST', '/api/virtual-class/verify-access', { cookie: sess.s2, body: { sessionId: ids.vcB } });
         check('Enrolled student can open their online class', okVc.status === 200 && okVc.body.authorized === true);
+        const otherToken = await request('POST', '/api/virtual-class/join-token', { cookie: sess.t1, body: { sessionId: ids.vcB } });
+        check('Teacher gets no meeting token for another class', otherToken.status === 403 && !otherToken.body.token);
 
         await request('POST', '/api/notifications', { cookie: relog.cookie, body: { title: 'Notice', message: 'Hi', targetRole: 'ACADEMIC_ADMIN', senderName: 'Hazrat Mohtamim' } });
         const [notes] = await db.query(`SELECT sender_name FROM notifications WHERE sender_id = ? ORDER BY created_at DESC LIMIT 1`, [ids.s1]);

@@ -895,43 +895,135 @@ async function handleAdmissionStatus(req, res, url) {
 // Virtual classroom access (uses the shared record store, not hard-coded maps)
 // ---------------------------------------------------------------------------
 
-async function handleVirtualVerify(req, res) {
-    const body = await readJson(req);
+// Whether the signed-in user may enter an online class, and as host or participant:
+// { status, isHost, session, message }
+async function decideVirtualAccess(req, sessionId) {
     const who = caller(req);
-    if (!who.id) {
-        sendJson(res, 401, { error: '401 Unauthorized', message: 'Please sign in.' });
-        return;
-    }
+    if (!who.id) return { status: 401, message: 'Please sign in.' };
 
-    const sessionRec = body.sessionId ? await loadRecord('virtualClasses', String(body.sessionId)) : null;
+    const sessionRec = sessionId ? await loadRecord('virtualClasses', String(sessionId)) : null;
     const session = sessionRec && !sessionRec.deleted ? sessionRec.data : null;
     if (!session) {
         // Fail closed: a class the server does not know cannot be authorised
-        sendJson(res, 404, { error: '404 Not Found', message: 'This online class is not available on the server yet. Please wait a few seconds and try again.' });
-        return;
+        return { status: 404, message: 'This online class is not available on the server yet. Please wait a few seconds and try again.' };
     }
 
     const eff = effective(req);
-    const allowHost = () => sendJson(res, 200, { status: 'success', authorized: true, isHost: true, session });
-    if (eff.permissions.has('virtual_classes.manage') && eff.scope === 'ALL') return allowHost();
+    const host = { status: 200, isHost: true, session };
+    if (eff.permissions.has('virtual_classes.manage') && eff.scope === 'ALL') return host;
 
     if (eff.permissions.has('virtual_classes.host') && eff.scope !== 'SELF') {
-        if (eff.scope === 'ALL' || session.hostId === who.id) return allowHost();
+        if (eff.scope === 'ALL' || session.hostId === who.id) return host;
+        // A full-day room from the timetable: each period's teacher hosts in turn
+        if (Array.isArray(session.periods) && session.periods.some(p => p && p.teacherId === who.id)) return host;
         const clsRec = session.classId ? await loadRecord('classes', session.classId) : null;
         const cls = clsRec && !clsRec.deleted ? clsRec.data : null;
         const teaches = cls && (cls.teacherId === who.id || (cls.courseTeachers || []).some(ct => ct.teacherId === who.id));
-        if (teaches) return allowHost();
+        if (teaches) return host;
     }
 
     const enrolledClass = who.user ? who.user.classId : null;
     if (eff.permissions.has('virtual_classes.join') && enrolledClass && enrolledClass === session.classId) {
-        sendJson(res, 200, { status: 'success', authorized: true, isHost: false, session });
+        return { status: 200, isHost: false, session };
+    }
+    return {
+        status: 403,
+        message: eff.permissions.has('virtual_classes.host')
+            ? 'Access Denied: You are not assigned to instruct or moderate this classroom.'
+            : 'Access Denied: You are not enrolled in this class, so this live session is restricted.'
+    };
+}
+
+async function handleVirtualVerify(req, res) {
+    const body = await readJson(req);
+    const d = await decideVirtualAccess(req, body.sessionId);
+    if (d.status === 200) {
+        sendJson(res, 200, { status: 'success', authorized: true, isHost: d.isHost, session: d.session });
         return;
     }
-    const message = eff.permissions.has('virtual_classes.host')
-        ? 'Access Denied: You are not assigned to instruct or moderate this classroom.'
-        : 'Access Denied: You are not enrolled in this class, so this live session is restricted.';
-    sendJson(res, 403, { error: '403 Forbidden', message });
+    const error = { 401: '401 Unauthorized', 404: '404 Not Found', 403: '403 Forbidden' }[d.status];
+    sendJson(res, d.status, { error, message: d.message });
+}
+
+// ---------------------------------------------------------------------------
+// Live classroom sign-in: with a self-hosted Jitsi (token auth) or 8x8 JaaS, the meeting
+// only admits people holding a token signed here, so a shared link alone does not work.
+// Secrets live in the 'meetingSecrets' setting and never leave the server.
+// ---------------------------------------------------------------------------
+
+const MEETING_AUTH_MODES = ['NONE', 'JWT', 'JAAS'];
+
+// Same room name the portal opens (js/modules/virtual-class.js roomNameFor)
+function meetingRoomName(session) {
+    return `JamiaAshrafia${String(session.meetingUuid || session.id).replace(/[^a-zA-Z0-9]/g, '')}${String(session.id).replace(/[^a-zA-Z0-9]/g, '').slice(-6)}`;
+}
+
+function base64url(input) {
+    return Buffer.from(input).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function signJwt(header, payload, sign) {
+    const data = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
+    return `${data}.${base64url(sign(data))}`;
+}
+
+async function getMeetingSettings() {
+    const s = { domain: 'meet.jit.si', embed: false, authMode: 'NONE', appId: '', jaasKeyId: '', ...(await getSetting('meeting', {})) };
+    if (s.authMode === 'JAAS') s.domain = '8x8.vc';
+    return s;
+}
+
+// Token for one person and one class; null when the service does not use sign-in
+function meetingToken(settings, secrets, session, user, isHost) {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + 12 * 3600;
+    // Jitsi compares the room claim with its (lower-case) room name
+    const room = meetingRoomName(session).toLowerCase();
+    const name = user.name || user.id;
+    if (settings.authMode === 'JWT') {
+        // sub '*': the server's internal XMPP domain (e.g. meet.jitsi in Docker) often differs from its public name
+        return signJwt({ alg: 'HS256', typ: 'JWT' }, {
+            aud: 'jitsi', iss: settings.appId, sub: '*', room, nbf: now - 60, exp,
+            moderator: isHost,
+            context: { user: { id: user.id, name, email: user.email || '', affiliation: isHost ? 'owner' : 'member', moderator: isHost } }
+        }, data => crypto.createHmac('sha256', secrets.appSecret).update(data).digest());
+    }
+    if (settings.authMode === 'JAAS') {
+        return signJwt({ alg: 'RS256', typ: 'JWT', kid: settings.jaasKeyId }, {
+            aud: 'jitsi', iss: 'chat', sub: settings.appId, room, nbf: now - 60, exp,
+            context: {
+                user: { id: user.id, name, email: user.email || '', avatar: '', moderator: isHost ? 'true' : 'false' },
+                features: { livestreaming: 'false', recording: isHost ? 'true' : 'false', transcription: 'false', 'outbound-call': 'false' }
+            }
+        }, data => crypto.createSign('RSA-SHA256').update(data).sign(secrets.jaasPrivateKey));
+    }
+    return null;
+}
+
+async function handleMeetingToken(req, res) {
+    const body = await readJson(req);
+    const d = await decideVirtualAccess(req, body.sessionId);
+    if (d.status !== 200) {
+        sendJson(res, d.status, { success: false, error: d.message });
+        return;
+    }
+    if (!d.isHost && d.session.status !== 'LIVE' && !d.session.isLive) {
+        sendJson(res, 403, { success: false, error: 'This class has not started yet.' });
+        return;
+    }
+    const settings = await getMeetingSettings();
+    if (settings.authMode === 'NONE') {
+        sendJson(res, 200, { success: true, token: null });
+        return;
+    }
+    const secrets = await getSetting('meetingSecrets', {});
+    const who = caller(req);
+    try {
+        const token = meetingToken(settings, secrets, d.session, { id: who.id, ...(who.user || {}) }, d.isHost);
+        sendJson(res, 200, { success: true, token, isHost: d.isHost });
+    } catch (e) {
+        sendJson(res, 500, { success: false, error: 'The live classroom sign-in is not set up correctly. Ask the administrator to check the classroom service settings.' });
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1164,7 +1256,13 @@ async function route(req, res) {
     // Live classroom service: public meet.jit.si cannot be embedded (5-minute limit), so it opens in a new tab;
     // a self-hosted Jitsi or JaaS domain may be embedded inside the portal
     if (p === '/api/settings/meeting' && m === 'GET') {
-        sendJson(res, 200, { success: true, settings: { domain: 'meet.jit.si', embed: false, ...(await getSetting('meeting', {})) } });
+        const settings = await getMeetingSettings();
+        // Only whether a secret is saved, never the secret itself
+        if (can(req, 'settings.meetings')) {
+            const secrets = await getSetting('meetingSecrets', {});
+            Object.assign(settings, { hasAppSecret: !!secrets.appSecret, hasPrivateKey: !!secrets.jaasPrivateKey });
+        }
+        sendJson(res, 200, { success: true, settings });
         return true;
     }
     if (p === '/api/settings/meeting' && m === 'POST') {
@@ -1173,15 +1271,38 @@ async function route(req, res) {
             return true;
         }
         const body = await readJson(req);
-        const domain = String(body.domain || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
-        if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
-            sendJson(res, 400, { success: false, error: 'Enter a valid domain, e.g. meet.jit.si or meet.yourschool.org' });
-            return true;
+        const fail = error => { sendJson(res, 400, { success: false, error }); return true; };
+        const authMode = MEETING_AUTH_MODES.includes(body.authMode) ? body.authMode : 'NONE';
+        const domain = authMode === 'JAAS' ? '8x8.vc'
+            : String(body.domain || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
+        if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return fail('Enter a valid domain, e.g. meet.jit.si or meet.yourschool.org');
+        const appId = String(body.appId || '').trim();
+        const jaasKeyId = String(body.jaasKeyId || '').trim();
+        const secrets = { ...(await getSetting('meetingSecrets', {})) };
+        // A blank secret field keeps the saved one
+        if (String(body.appSecret || '').trim()) secrets.appSecret = String(body.appSecret).trim();
+        if (String(body.jaasPrivateKey || '').trim()) secrets.jaasPrivateKey = String(body.jaasPrivateKey).trim();
+
+        if (authMode === 'JWT') {
+            if (domain === 'meet.jit.si') return fail('meet.jit.si cannot check sign-in tokens. Enter your own Jitsi server domain.');
+            if (!appId) return fail('Enter the App ID configured on your Jitsi server.');
+            if (!secrets.appSecret || secrets.appSecret.length < 16) return fail('Enter the App secret configured on your Jitsi server (at least 16 characters).');
         }
-        const settings = { domain, embed: !!body.embed && domain !== 'meet.jit.si' };
+        if (authMode === 'JAAS') {
+            if (!/^vpaas-magic-cookie-[a-z0-9]+$/i.test(appId)) return fail('Enter the JaaS App ID (it starts with vpaas-magic-cookie-).');
+            if (!jaasKeyId.startsWith(`${appId}/`)) return fail('Enter the JaaS API key ID (it starts with your App ID and a slash).');
+            try {
+                crypto.createPrivateKey(secrets.jaasPrivateKey || '');
+            } catch (e) {
+                return fail('Paste the JaaS private key (the full -----BEGIN PRIVATE KEY----- block).');
+            }
+        }
+
+        const settings = { domain, embed: !!body.embed && domain !== 'meet.jit.si', authMode, appId: authMode === 'NONE' ? '' : appId, jaasKeyId: authMode === 'JAAS' ? jaasKeyId : '' };
         await saveSetting('meeting', settings);
-        await audit.log({ req, action: 'settings.meetings', entityType: 'settings', entityId: 'meeting', summary: `Live class service: ${domain}`, after: settings });
-        sendJson(res, 200, { success: true, settings });
+        await saveSetting('meetingSecrets', secrets);
+        await audit.log({ req, action: 'settings.meetings', entityType: 'settings', entityId: 'meeting', summary: `Live class service: ${domain} (${authMode === 'NONE' ? 'anyone with the link' : 'registered users only'})`, after: settings });
+        sendJson(res, 200, { success: true, settings: { ...settings, hasAppSecret: !!secrets.appSecret, hasPrivateKey: !!secrets.jaasPrivateKey } });
         return true;
     }
     if (p === '/api/admissions/status' && m === 'GET') { await handleAdmissionStatus(req, res, url); return true; }
@@ -1199,6 +1320,7 @@ async function route(req, res) {
     if (p.startsWith('/api/admissions/') && m === 'DELETE') { await handleAdmissionDelete(req, res, url); return true; }
 
     if (p === '/api/virtual-class/verify-access' && m === 'POST') { await handleVirtualVerify(req, res); return true; }
+    if (p === '/api/virtual-class/join-token' && m === 'POST') { await handleMeetingToken(req, res); return true; }
 
     // Institution setup (branches, programmes, sessions, profile), recording retention, sample data clean-up
     if (await masterData.route(req, res, url, DEPS)) return true;

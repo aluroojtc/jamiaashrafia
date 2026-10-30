@@ -112,7 +112,7 @@ async function buildContext(who, load) {
         });
     }
     (await load('assignments')).forEach(a => ctx.assignmentInfo.set(a.id, { classId: a.classId, teacherId: a.teacherId }));
-    (await load('exams')).forEach(e => ctx.examInfo.set(e.id, { classId: e.classId, createdBy: e.createdBy, status: e.status }));
+    (await load('exams')).forEach(e => ctx.examInfo.set(e.id, examInfoOf(e)));
     return ctx;
 }
 
@@ -152,6 +152,25 @@ function assignmentInScope(ctx, scope, assignmentId) {
     if (scope === 'ALL') return true;
     const a = ctx.assignmentInfo.get(assignmentId);
     return !!a && classInScope(ctx, scope, a.classId, scope === 'TEACHING' && a.teacherId === ctx.id);
+}
+
+function examInfoOf(e) {
+    return {
+        classId: e.classId, createdBy: e.createdBy, status: e.status, mode: e.mode,
+        examDate: e.examDate, startTime: e.startTime, durationMinutes: e.durationMinutes
+    };
+}
+
+// Same rule as the portal: opened by the teacher, or an online paper inside its scheduled window
+// (a few minutes' grace covers clocks that differ slightly between the student's device and the server)
+function examOpenNow(e) {
+    if (e.mode !== 'ONLINE' || e.status === 'CLOSED') return false;
+    if (e.status === 'OPEN') return true;
+    const start = new Date(`${e.examDate}T${e.startTime || '00:00'}:00`).getTime();
+    if (Number.isNaN(start)) return false;
+    const end = start + (Number(e.durationMinutes) || 60) * 60000;
+    const grace = 5 * 60000, now = Date.now();
+    return now >= start - grace && now <= end + grace;
 }
 
 function examInScope(ctx, scope, examId) {
@@ -484,7 +503,7 @@ function canWrite(ctx, collection, incoming, existing) {
         if (existing && existing.studentId !== ctx.id) return false;
         const e = ctx.examInfo.get(incoming.examId || (existing && existing.examId));
         if (!e || !classInScope(ctx, 'SELF', e.classId)) return deny(ctx, 'This exam is not for your class.');
-        if (!existing) return e.status === 'OPEN' || deny(ctx, 'This exam is not open.');
+        if (!existing) return examOpenNow(e) || deny(ctx, 'This exam is not open.');
         return existing.status !== 'SUBMITTED' || deny(ctx, 'This paper has already been submitted.');
     }
 
@@ -659,7 +678,7 @@ function prepareWrite(ctx, collection, incoming, existing) {
 function noteWrite(ctx, collection, rec) {
     if (!rec) return;
     if (collection === 'assignments') ctx.assignmentInfo.set(rec.id, { classId: rec.classId, teacherId: rec.teacherId });
-    if (collection === 'exams') ctx.examInfo.set(rec.id, { classId: rec.classId, createdBy: rec.createdBy, status: rec.status });
+    if (collection === 'exams') ctx.examInfo.set(rec.id, examInfoOf(rec));
 }
 
 /** Whether the caller may delete this stored record. */

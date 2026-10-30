@@ -1410,6 +1410,8 @@ I18n.register('ar', {
     "All students of a program": "جميع طلاب برنامج",
     "Student *": "الطالب *",
     "Billing Period / Description *": "الفترة / الوصف *",
+    "Billing Month *": "شهر الفوترة *",
+    "Fee structures, challan generation and payment verification": "هياكل الرسوم وإصدار القسائم والتحقق من الدفع",
     "Scholarship / Kafalat Waiver (%)": "المنحة / إعفاء الكفالة (%)",
     "Other Charge Label & Amount": "اسم الرسوم الأخرى ومبلغها",
     "Amounts come from each program's": "تؤخذ المبالغ من",

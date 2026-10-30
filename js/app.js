@@ -64,7 +64,7 @@ const APP_NAV = [
         title: { staff: 'Reports & Finances', teacher: 'Resources & Notices', student: 'Resources & Alerts' },
         items: [
             { route: 'reports', icon: 'fas fa-chart-line', iconColor: 'var(--gold-400)', label: { staff: 'Executive Reports', teacher: 'Teacher Reports', student: 'Reports' } },
-            { route: 'fees', icon: { staff: 'fas fa-hand-holding-heart', student: 'fas fa-file-invoice' }, label: { staff: 'Fees & Zakat Donations', student: 'My Fees & Payments' } },
+            { route: 'fees', icon: { staff: 'fas fa-hand-holding-heart', student: 'fas fa-file-invoice' }, label: { staff: 'Fees & Payments', student: 'My Fees & Payments' } },
             { route: 'library', icon: 'fas fa-book-reader', label: 'Maktaba Ashrafia' },
             { route: 'notifications', icon: 'fas fa-bullhorn', label: { staff: 'Broadcasts & Alerts', teacher: 'Notifications', student: 'Notifications' } },
             { route: 'security', icon: 'fas fa-shield-alt', label: 'Architecture & RBAC' }

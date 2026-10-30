@@ -26,6 +26,9 @@ const FeesDonationsModule = {
         GENERAL_FUND: 'General Fund (Construction & Library)'
     },
 
+    // Date / month inputs open the calendar on click and can't be typed into
+    PICK_ONLY: `onkeydown="return event.key === 'Tab'" onpaste="return false" onclick="try { this.showPicker(); } catch (e) {}" style="cursor: pointer;"`,
+
     // Bank account for fee and donation payments (Institution Setup -> Institution Profile)
     get BANK() {
         const inst = window.LmsData.institution || {};
@@ -72,16 +75,15 @@ const FeesDonationsModule = {
         const isStudent = Lms.portal() === 'student';
         const canManage = this.canManage();
         const seesChallans = this.seesAllChallans();
-        if (!seesChallans && !isStudent && this.tab === 'challans') this.tab = 'donations';
+        if (this.tab === 'donations' || (!seesChallans && !isStudent && this.tab === 'challans')) this.tab = 'structure';
 
         return `
             <div class="view-header">
                 <div class="view-title-group">
-                    <h1><i class="fas fa-hand-holding-heart" style="color: var(--gold-400);"></i> ${isStudent ? 'My Fees & Payments' : 'Fees, Payments & Donations'}</h1>
-                    <p>${isStudent ? 'View your fee challans, pay at the bank or online and upload the receipt for verification' : 'Fee structures, challan generation, payment verification and Zakat / Sadaqah ledger'}</p>
+                    <h1><i class="fas fa-hand-holding-heart" style="color: var(--gold-400);"></i> ${isStudent ? 'My Fees & Payments' : 'Fees & Payments'}</h1>
+                    <p>${isStudent ? 'View your fee challans, pay at the bank or online and upload the receipt for verification' : 'Fee structures, challan generation and payment verification'}</p>
                 </div>
                 <div class="view-actions">
-                    ${Lms.can('donations.record') || Lms.can('donations.give') ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.openDonateModal()"><i class="fas fa-donate"></i> ${Lms.can('donations.record') ? 'Record Donation' : 'Donate / Zakat'}</button>` : ''}
                     ${canManage ? `<button class="btn btn-primary btn-sm" onclick="FeesDonationsModule.openGenerateChallanModal()"><i class="fas fa-file-invoice-dollar"></i> Generate Challans</button>` : ''}
                 </div>
             </div>
@@ -91,10 +93,9 @@ const FeesDonationsModule = {
             <div class="tabs-nav">
                 ${seesChallans || isStudent ? `<button class="tab-btn ${this.tab === 'challans' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('challans')"><i class="fas fa-receipt"></i> ${isStudent ? 'My Challans' : 'Fee Challans'}</button>` : ''}
                 <button class="tab-btn ${this.tab === 'structure' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('structure')"><i class="fas fa-list-alt"></i> Fee Structure</button>
-                <button class="tab-btn ${this.tab === 'donations' ? 'active' : ''}" onclick="FeesDonationsModule.switchSubTab('donations')"><i class="fas fa-hand-holding-usd"></i> ${this.seesLedger() ? 'Donations Ledger' : 'My Donations'}</button>
             </div>
 
-            ${this.tab === 'challans' ? this.renderChallans() : this.tab === 'structure' ? this.renderStructure() : this.renderDonations()}
+            ${this.tab === 'challans' ? this.renderChallans() : this.renderStructure()}
         `;
     },
 
@@ -122,13 +123,9 @@ const FeesDonationsModule = {
                 </div>`;
         }
         const ch = this.challans();
-        const donations = (window.LmsData.donations || []).filter(d => d.status !== 'PENDING_CONFIRMATION');
         const sum = (list) => list.reduce((s, c) => s + (Number(c.netPayable) || 0), 0);
         return `
             <div class="metrics-grid">
-                <div class="metric-card gold"><div class="metric-icon-box"><i class="fas fa-coins"></i></div><div class="metric-content">
-                    <span class="metric-label">Donations Received</span><span class="metric-value">${Lms.money(donations.reduce((s, d) => s + (Number(d.amount) || 0), 0))}</span>
-                    <span class="metric-hint">Zakat ${Lms.money(donations.filter(d => d.donationType === 'ZAKAT').reduce((s, d) => s + (Number(d.amount) || 0), 0))}</span></div></div>
                 <div class="metric-card success"><div class="metric-icon-box"><i class="fas fa-check-circle"></i></div><div class="metric-content">
                     <span class="metric-label">Fees Collected</span><span class="metric-value">${Lms.money(sum(ch.filter(c => c.status === 'PAID')))}</span>
                     <span class="metric-hint">${ch.filter(c => c.status === 'PAID').length} paid challans</span></div></div>
@@ -136,7 +133,7 @@ const FeesDonationsModule = {
                     <span class="metric-label">Outstanding</span><span class="metric-value">${Lms.money(sum(ch.filter(c => c.status !== 'PAID')))}</span>
                     <span class="metric-hint">${ch.filter(c => this.isOverdue(c)).length} overdue</span></div></div>
                 <div class="metric-card info" style="cursor: pointer;" onclick="FeesDonationsModule.statusFilter = 'VERIFICATION_PENDING'; FeesDonationsModule.switchSubTab('challans')"><div class="metric-icon-box"><i class="fas fa-user-check"></i></div><div class="metric-content">
-                    <span class="metric-label">Payments to Verify</span><span class="metric-value">${ch.filter(c => c.status === 'VERIFICATION_PENDING').length + (window.LmsData.donations || []).filter(d => d.status === 'PENDING_CONFIRMATION').length}</span>
+                    <span class="metric-label">Payments to Verify</span><span class="metric-value">${ch.filter(c => c.status === 'VERIFICATION_PENDING').length}</span>
                     <span class="metric-hint">Uploaded receipts</span></div></div>
             </div>`;
     },
@@ -272,8 +269,6 @@ const FeesDonationsModule = {
 
     openGenerateChallanModal() {
         const programs = window.LmsData.programs || [];
-        const now = new Date();
-        const monthLabel = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
         Lms.openModal(
             `<i class="fas fa-file-invoice-dollar" style="color: var(--gold-400);"></i> Generate Fee Challans`,
             `<div class="form-grid">
@@ -290,8 +285,8 @@ const FeesDonationsModule = {
                     </select>
                 </div>
                 <div class="form-group"><label id="gen-target-label">Student *</label><select id="gen-target" class="form-control"></select></div>
-                <div class="form-group"><label>Billing Period / Description *</label><input type="text" id="gen-month" class="form-control" value="${Lms.esc(monthLabel)}"></div>
-                <div class="form-group"><label>Due Date *</label><input type="date" id="gen-due" class="form-control" value="${Lms.addDays(Lms.today(), 10)}"></div>
+                <div class="form-group"><label>Billing Month *</label><input type="month" id="gen-month" class="form-control" ${this.PICK_ONLY} value="${Lms.today().slice(0, 7)}"></div>
+                <div class="form-group"><label>Due Date *</label><input type="date" id="gen-due" class="form-control" ${this.PICK_ONLY} value="${Lms.addDays(Lms.today(), 10)}"></div>
                 <div class="form-group"><label>Scholarship / Kafalat Waiver (%)</label><input type="number" id="gen-waiver" min="0" max="100" class="form-control" value="0"></div>
                 <div class="form-group" id="gen-other-wrap" style="display: none;"><label>Other Charge Label & Amount</label>
                     <div style="display: flex; gap: 6px;"><input type="text" id="gen-other-label" class="form-control" placeholder="e.g. Books & Stationery"><input type="number" id="gen-other-amount" min="0" class="form-control" style="width: 120px;" placeholder="PKR"></div>
@@ -329,7 +324,8 @@ const FeesDonationsModule = {
         const type = Lms.val('gen-type');
         const scope = Lms.val('gen-scope');
         const target = Lms.val('gen-target');
-        const billingMonth = Lms.val('gen-month');
+        const month = Lms.val('gen-month');
+        const billingMonth = month ? new Date(`${month}-01T00:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : '';
         const dueDate = Lms.val('gen-due');
         if (!target || !billingMonth || !dueDate) {
             window.App.showToast('Choose who to bill, the period and the due date', 'warning');
@@ -389,7 +385,7 @@ const FeesDonationsModule = {
                 ${field('ec-adm', 'Admission', ch.admissionFee)}
                 ${field('ec-other', 'Other', ch.otherFee)}
                 ${field('ec-waiver', 'Scholarship Waiver (PKR)', ch.scholarshipWaiver)}
-                <div class="form-group"><label>Due Date</label><input type="date" id="ec-due" class="form-control" value="${Lms.esc(ch.dueDate)}"></div>
+                <div class="form-group"><label>Due Date</label><input type="date" id="ec-due" class="form-control" ${this.PICK_ONLY} value="${Lms.esc(ch.dueDate)}"></div>
             </div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-gold" onclick="FeesDonationsModule.saveEditedChallan('${ch.id}')"><i class="fas fa-save"></i> Save</button>`
@@ -439,7 +435,7 @@ const FeesDonationsModule = {
                     </select>
                 </div>
                 <div class="form-group"><label>Transaction / Receipt Reference *</label><input type="text" id="pay-ref" class="form-control" placeholder="e.g. TXN-892147981"></div>
-                <div class="form-group"><label>Payment Date *</label><input type="date" id="pay-date" class="form-control" max="${Lms.today()}" value="${Lms.today()}"></div>
+                <div class="form-group"><label>Payment Date *</label><input type="date" id="pay-date" class="form-control" ${this.PICK_ONLY} max="${Lms.today()}" value="${Lms.today()}"></div>
             </div>
             <div class="form-group"><label>Receipt / Screenshot *</label>${Lms.fileInput('pay-proof', { label: 'Upload stamped challan, bank slip or transfer screenshot', accept: '.pdf,.jpg,.jpeg,.png,.webp' })}</div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -488,7 +484,7 @@ const FeesDonationsModule = {
                 </div>` : ''}
             <div class="form-grid">
                 <div class="form-group"><label>Bank / Receipt Reference *</label><input type="text" id="ver-ref" class="form-control" value="${Lms.esc(p ? p.reference : '')}" placeholder="Cash receipt no. or bank reference"></div>
-                <div class="form-group"><label>Payment Date *</label><input type="date" id="ver-date" class="form-control" value="${Lms.esc(p ? p.date : Lms.today())}"></div>
+                <div class="form-group"><label>Payment Date *</label><input type="date" id="ver-date" class="form-control" ${this.PICK_ONLY} value="${Lms.esc(p ? p.date : Lms.today())}"></div>
             </div>
             <div class="form-group"><label>Note to student (required if rejecting)</label><input type="text" id="ver-note" class="form-control" placeholder="e.g. Amount does not match / receipt unreadable"></div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>

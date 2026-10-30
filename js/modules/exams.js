@@ -546,11 +546,21 @@ const ExamsModule = {
         this.timerHandle = setInterval(tick, 1000);
     },
 
-    submitExamPaper(auto) {
-        if (!this.attempt) return;
+    async submitExamPaper(auto) {
+        if (!this.attempt || this.submitting) return;
         const ex = (window.LmsData.exams || []).find(e => e.id === this.attempt.examId);
-        const sub = (window.LmsData.examSubmissions || []).find(s => s.id === this.attempt.submissionId);
-        if (!ex || !sub) return;
+        if (!ex) return;
+        let sub = (window.LmsData.examSubmissions || []).find(s => s.id === this.attempt.submissionId);
+        if (!sub) {
+            // The record was dropped by a sync (e.g. the server refused the start); rebuild it so the answers still reach the teacher
+            const me = Lms.me();
+            sub = {
+                id: this.attempt.submissionId, examId: ex.id, studentId: me.id, studentName: me.name, rollNo: me.rollNo || '',
+                status: 'IN_PROGRESS', startedAt: new Date(this.attempt.deadline - (Number(ex.durationMinutes) || 60) * 60000).toISOString(), answers: {}
+            };
+            window.LmsData.examSubmissions = window.LmsData.examSubmissions || [];
+            window.LmsData.examSubmissions.push(sub);
+        }
         let saved = {};
         try { saved = JSON.parse(localStorage.getItem(this.draftKey(ex.id)) || '{}'); } catch (e) { saved = {}; }
         const answers = { ...(sub.answers || {}), ...saved };
@@ -560,11 +570,24 @@ const ExamsModule = {
         }
         Object.assign(sub, { answers, status: 'SUBMITTED', submittedAt: new Date().toISOString(), autoSubmitted: !!auto });
         Lms.save();
-        window.DataStore.syncNow();
-        localStorage.removeItem(this.draftKey(ex.id));
         clearInterval(this.timerHandle);
         clearTimeout(this.checkpointHandle);
+        this.submitting = true;
+        try { await window.DataStore.syncNow(); } finally { this.submitting = false; }
         this.attempt = null;
+        // A paper the server refused is dropped by the sync: keep the answers on this device and say so
+        const kept = (window.LmsData.examSubmissions || []).some(s => s.id === sub.id && s.status === 'SUBMITTED');
+        if (!kept) {
+            window.App.showToast('Your paper could not be submitted. Your answers are kept on this device — please tell your teacher.', 'danger');
+            window.App.navigate('exams');
+            return;
+        }
+        if (!window.DataStore.isOnline()) {
+            window.App.showToast('You are offline. Your paper is saved on this device and will be sent when the connection returns.', 'warning');
+            window.App.navigate('exams');
+            return;
+        }
+        localStorage.removeItem(this.draftKey(ex.id));
         const teacherId = ex.createdBy || Lms.courseTeacherId(ex.classId, ex.courseId);
         Lms.notifyUser(teacherId, `Exam paper submitted: ${ex.title}`, `${sub.studentName} (${sub.rollNo}) submitted their online paper${auto ? ' (auto-submitted at time-out)' : ''}.`, 'EXAM', 'exams');
         window.App.showToast('Your paper has been submitted. Results will appear once published.', 'success');

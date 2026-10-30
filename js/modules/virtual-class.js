@@ -52,7 +52,7 @@ const VirtualClassModule = {
 
     // Students (and staff) who checked in to this online class
     attendeeCount(session) {
-        return (window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS' && a.virtualSessionId === session.id).length;
+        return new Set((window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS' && a.virtualSessionId === session.id).map(a => a.userId)).size;
     },
 
     // Where an online class ran, for attendance lists
@@ -72,6 +72,7 @@ const VirtualClassModule = {
                 if (window.App?.currentRoute === 'virtual-class' && this.currentTab !== 'studio') this.switchTab(this.currentTab);
             });
         }
+        this.closeStaleDayRooms();
         const currentUser = window.AuthRBAC?.currentUser || {};
         // Recording retention & vault administration, and managing every class (not just one's own)
         const canRetention = window.AuthRBAC.can('settings.recordings');
@@ -101,8 +102,11 @@ const VirtualClassModule = {
                 </div>
                 <div class="view-actions">
                     ${window.AuthRBAC.can('virtual_classes.host') ? `
-                        <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.openScheduleModal()">
-                            <i class="fas fa-plus-circle"></i> Schedule / Launch Class
+                        <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.openLaunchModal()">
+                            <i class="fas fa-play-circle"></i> Launch Today's Class
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.openScheduleModal()">
+                            <i class="fas fa-plus-circle"></i> Schedule Single Lecture
                         </button>
                     ` : ''}
                     ${this.currentTab === 'studio' ? `
@@ -353,11 +357,12 @@ const VirtualClassModule = {
 
                 <div class="vc-card-body">
                     <div class="vc-class-title">${Lms.esc(Lms.localName(session.title, session.urduTitle, true))}</div>
+                    ${session.dayRoom ? this.renderDaySchedule(session, isLive) : ''}
 
                     <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
                         <div class="vc-meta-item">
                             <i class="fas fa-user-tie"></i>
-                            <span><strong>Sheikh / Ustad:</strong> ${Lms.esc(session.hostTeacher)}</span>
+                            <span><strong>Sheikh / Ustad:</strong> ${Lms.esc(session.dayRoom ? (this.periodTeachers(session) || 'Per timetable') : session.hostTeacher)}</span>
                         </div>
                         <div class="vc-meta-item">
                             <i class="fas fa-map-marker-alt"></i>
@@ -528,10 +533,14 @@ const VirtualClassModule = {
         const today = new Date().toISOString().split('T')[0];
         const attId = 'att_vc_' + Date.now();
 
+        // A full-day room records one entry per person per timetable period they join in
+        const period = session.dayRoom ? this.currentPeriod(session) : null;
+
         // Push to local data store
         if (window.LmsData?.attendance) {
             const alreadyLogged = window.LmsData.attendance.find(a =>
-                a.userId === currentUser.id && a.session === 'VIRTUAL_CLASS' && (a.virtualSessionId === session.id || (!a.virtualSessionId && a.date === today && a.classId === session.classId))
+                a.userId === currentUser.id && a.session === 'VIRTUAL_CLASS' && (a.periodStart || null) === (period ? period.startTime : null)
+                && (a.virtualSessionId === session.id || (!a.virtualSessionId && a.date === today && a.classId === session.classId))
             );
             if (!alreadyLogged) {
                 window.LmsData.attendance.unshift({
@@ -548,7 +557,9 @@ const VirtualClassModule = {
                     status: 'PRESENT',
                     session: 'VIRTUAL_CLASS',
                     virtualSessionId: session.id,
-                    notes: `Joined online class: ${session.title}`
+                    periodStart: period ? period.startTime : null,
+                    periodName: period ? (period.courseName || period.periodName) : null,
+                    notes: `Joined online class: ${session.title}${period ? ` (${period.courseName || period.periodName})` : ''}`
                 });
                 window.DataStore?.save(window.LmsData);
             }
@@ -591,8 +602,9 @@ const VirtualClassModule = {
                             <strong style="font-size: 1.05rem; color: var(--primary-950);">${Lms.esc(session.title)}</strong>
                         </div>
                         <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
-                            <i class="fas fa-user-tie"></i> ${Lms.esc(session.hostTeacher || '')} • ${Lms.esc(session.className || '')} • Passcode <code>${Lms.esc(session.passcode || '—')}</code>
+                            <i class="fas fa-user-tie"></i> ${Lms.esc(session.dayRoom ? (this.periodTeachers(session) || 'Per timetable') : (session.hostTeacher || ''))} • ${Lms.esc(session.className || '')} • Passcode <code>${Lms.esc(session.passcode || '—')}</code>
                         </div>
+                        ${session.dayRoom ? `<div style="margin-top: 10px;">${this.renderDaySchedule(session, session.status === 'LIVE')}</div>` : ''}
                     </div>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()"><i class="fas fa-link"></i> Copy Link</button>
@@ -890,6 +902,7 @@ const VirtualClassModule = {
                                 </td>
                                 <td>
                                     <span style="font-weight: 600; color: var(--text-primary);">${Lms.esc(att.className || att.classId)}</span>
+                                    ${att.periodName ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(att.periodName)}</div>` : ''}
                                 </td>
                                 <td>${Lms.esc(att.date)}</td>
                                 <td>
@@ -928,9 +941,9 @@ const VirtualClassModule = {
             && (this.attendanceFilterClass === 'ALL' || a.classId === this.attendanceFilterClass));
         const cell = v => `"${String(v === undefined || v === null ? '' : v).replace(/"/g, '""')}"`;
 
-        let csv = 'Scholar Name,Role,Identifier,Class,Date,Check-In Time,Status,Platform\n';
+        let csv = 'Scholar Name,Role,Identifier,Class,Period,Date,Check-In Time,Status,Platform\n';
         virtualAtt.forEach(a => {
-            csv += [a.userName, a.role, a.identifier, a.className || a.classId, a.date, a.checkInTime, a.status, this.platformOf(a.virtualSessionId)].map(cell).join(',') + '\n';
+            csv += [a.userName, a.role, a.identifier, a.className || a.classId, a.periodName, a.date, a.checkInTime, a.status, this.platformOf(a.virtualSessionId)].map(cell).join(',') + '\n';
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1046,14 +1059,40 @@ const VirtualClassModule = {
                         <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6; margin-bottom: 14px;">
                             ${I18n.t('The free public {service} service ends embedded calls after 5 minutes, so classes on it open in a new tab (no time limit). If you run your own Jitsi server or an 8x8 JaaS account, enter its domain and tick "embed" to show classes inside the portal.', { service: '<strong>meet.jit.si</strong>' })}
                         </p>
+                        ${(() => {
+                            const mc = this.meetingConfig;
+                            const mode = mc.authMode || 'NONE';
+                            const saved = has => has ? 'placeholder="Saved — leave blank to keep it"' : '';
+                            return `
                         <div class="form-group" style="margin-bottom: 12px;">
+                            <label for="meeting-auth">Who can join</label>
+                            <select id="meeting-auth" class="form-control" onchange="VirtualClassModule.showMeetingAuthFields()">
+                                <option value="NONE" ${mode === 'NONE' ? 'selected' : ''}>Anyone with the meeting link (not restricted)</option>
+                                <option value="JWT" ${mode === 'JWT' ? 'selected' : ''}>Registered users only — own Jitsi server with token sign-in</option>
+                                <option value="JAAS" ${mode === 'JAAS' ? 'selected' : ''}>Registered users only — 8x8 JaaS account</option>
+                            </select>
+                            <small id="meeting-auth-warning" style="display: ${mode === 'NONE' ? 'block' : 'none'}; color: var(--danger); margin-top: 4px;">
+                                <i class="fas fa-exclamation-triangle"></i> Anyone who gets the link can enter and type any name. Public meet.jit.si cannot check who joins; choose one of the other options to admit registered users only.
+                            </small>
+                        </div>
+                        <div class="form-group" id="meeting-domain-wrap" style="margin-bottom: 12px; ${mode === 'JAAS' ? 'display: none;' : ''}">
                             <label>Jitsi server domain</label>
-                            <input type="text" id="meeting-domain" class="form-control" value="${Lms.esc(this.meetingDomain())}" placeholder="meet.jit.si">
+                            <input type="text" id="meeting-domain" class="form-control" value="${Lms.esc(mode === 'JAAS' ? 'meet.jit.si' : this.meetingDomain())}" placeholder="meet.jit.si">
+                        </div>
+                        <div id="meeting-jwt-fields" style="display: ${mode === 'JWT' ? 'block' : 'none'};">
+                            <div class="form-group" style="margin-bottom: 12px;"><label>App ID</label><input type="text" id="meeting-app-id-jwt" class="form-control" value="${Lms.esc(mode === 'JWT' ? mc.appId || '' : '')}" placeholder="app_id set on the Jitsi server"></div>
+                            <div class="form-group" style="margin-bottom: 12px;"><label>App secret</label><input type="password" id="meeting-app-secret" class="form-control" autocomplete="new-password" ${saved(mc.hasAppSecret)}></div>
+                        </div>
+                        <div id="meeting-jaas-fields" style="display: ${mode === 'JAAS' ? 'block' : 'none'};">
+                            <div class="form-group" style="margin-bottom: 12px;"><label>JaaS App ID</label><input type="text" id="meeting-app-id-jaas" class="form-control" value="${Lms.esc(mode === 'JAAS' ? mc.appId || '' : '')}" placeholder="vpaas-magic-cookie-..."></div>
+                            <div class="form-group" style="margin-bottom: 12px;"><label>API key ID</label><input type="text" id="meeting-key-id" class="form-control" value="${Lms.esc(mc.jaasKeyId || '')}" placeholder="vpaas-magic-cookie-.../abc123"></div>
+                            <div class="form-group" style="margin-bottom: 12px;"><label>Private key</label><textarea id="meeting-private-key" class="form-control" rows="4" style="font-family: monospace; font-size: 0.75rem;" ${saved(mc.hasPrivateKey) || 'placeholder="-----BEGIN PRIVATE KEY-----"'}></textarea></div>
                         </div>
                         <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 16px;">
                             <input type="checkbox" id="meeting-embed" ${this.canEmbed() ? 'checked' : ''} style="width: 18px; height: 18px;">
                             <span>Embed the classroom inside the portal (own Jitsi server / JaaS only)</span>
-                        </label>
+                        </label>`;
+                        })()}
                         <button class="btn btn-primary" onclick="VirtualClassModule.saveMeetingConfig()"><i class="fas fa-save"></i> Save Classroom Service</button>
                     </div>
                 </div>
@@ -1101,6 +1140,215 @@ const VirtualClassModule = {
             await window.DataStore.syncNow();
             this.switchTab('retention');
         }, 'Cleaning...');
+    },
+
+    // =========================================================================
+    // 6a. FULL-DAY CLASS FROM THE TIMETABLE
+    // One meeting room per class per day; each teacher joins it for their own periods
+    // =========================================================================
+    todayName() {
+        return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+    },
+
+    nowHHMM() {
+        return new Date().toTimeString().slice(0, 5);
+    },
+
+    // The class's periods on a weekday (campus-wide periods such as Namaz included as breaks)
+    periodsFor(classId, day) {
+        return (window.LmsData.timetables || [])
+            .filter(t => t.day === day && (t.classId === classId || t.classId === 'all'))
+            .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)))
+            .map(t => ({
+                startTime: t.startTime, endTime: t.endTime, courseId: t.courseId || null,
+                courseName: t.courseId ? Lms.courseTitle(t.courseId) : '', periodName: t.periodName || '',
+                teacherId: t.teacherId || null, teacherName: t.teacherId ? Lms.userName(t.teacherId, '') : '',
+                isBreak: !t.courseId
+            }));
+    },
+
+    // Classes the user may launch today: ones with teaching periods today that they can host
+    launchableClassIds() {
+        const me = window.AuthRBAC?.currentUser || {};
+        const today = this.todayName();
+        const slots = (window.LmsData.timetables || []).filter(t => t.day === today && t.classId !== 'all' && t.courseId);
+        const ids = [...new Set(slots.map(t => t.classId))].filter(id => Lms.getClass(id));
+        if (window.AuthRBAC.can('virtual_classes.manage')) return ids;
+        const mine = Lms.myClassIds();
+        return ids.filter(id => mine.includes(id) || slots.some(t => t.classId === id && t.teacherId === me.id));
+    },
+
+    // Today's open full-day room for a class, if one was launched already
+    todaysDayRoom(classId) {
+        return (window.LmsData.virtualClasses || []).find(s => s.dayRoom && s.classId === classId && s.date === Lms.today() && s.status !== 'COMPLETED') || null;
+    },
+
+    currentPeriod(session) {
+        if (!session.periods || session.date !== Lms.today()) return null;
+        const now = this.nowHHMM();
+        return session.periods.find(p => now >= p.startTime && now < p.endTime) || null;
+    },
+
+    // Teachers of the period running now, or of the next one
+    periodTeachers(session) {
+        const now = this.nowHHMM();
+        const p = this.currentPeriod(session) || (session.date === Lms.today() ? (session.periods || []).find(x => !x.isBreak && x.startTime > now) : null);
+        return p ? (p.teacherName || '') : '';
+    },
+
+    renderDaySchedule(session, highlightNow) {
+        const periods = session.periods || [];
+        if (!periods.length) return '';
+        const isToday = session.date === Lms.today();
+        const now = this.nowHHMM();
+        return `
+            <div style="border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 10px; margin-top: 8px; font-size: 0.78rem; display: flex; flex-direction: column; gap: 3px;">
+                ${periods.map(p => {
+                    const current = highlightNow && isToday && now >= p.startTime && now < p.endTime;
+                    const done = isToday && now >= p.endTime;
+                    return `
+                        <div style="display: flex; gap: 8px; align-items: baseline; ${current ? 'font-weight: 700; color: var(--success);' : done ? 'color: var(--text-muted);' : ''}">
+                            <span style="font-family: monospace; white-space: nowrap;">${Lms.fmtTime(p.startTime)}–${Lms.fmtTime(p.endTime)}</span>
+                            <span style="min-width: 0;">${p.isBreak ? `<i class="fas fa-mosque"></i> ${Lms.esc(p.periodName || 'Break')}` : `${Lms.esc(p.courseName || p.periodName)}${p.teacherName ? ` — ${Lms.esc(p.teacherName)}` : ''}`}</span>
+                            ${current ? '<span class="status-pill success" style="font-size: 0.62rem; margin-inline-start: auto;">Now</span>' : ''}
+                        </div>`;
+                }).join('')}
+            </div>`;
+    },
+
+    // Full-day rooms left open from an earlier day are closed
+    closeStaleDayRooms() {
+        const today = Lms.today();
+        let changed = false;
+        (window.LmsData.virtualClasses || []).forEach(s => {
+            if (s.dayRoom && s.date < today && s.status !== 'COMPLETED' && this.canHost(s)) {
+                Object.assign(s, { status: 'COMPLETED', isLive: false, endedAt: s.endedAt || new Date(`${s.date}T23:59:00`).toISOString() });
+                changed = true;
+            }
+        });
+        if (changed) window.DataStore.save(window.LmsData);
+    },
+
+    openLaunchModal() {
+        const classIds = this.launchableClassIds();
+        const today = this.todayName();
+        if (!classIds.length) {
+            Lms.openModal(
+                `<i class="fas fa-play-circle" style="color: var(--primary-500);"></i> Launch Today's Class`,
+                `<p style="font-size: 0.9rem; color: var(--text-secondary);">${I18n.t('No timetable periods are set for {day} for your classes. Add them in Schedules & Timetable, or schedule a single lecture instead.', { day: `<strong>${I18n.t(today)}</strong>` })}</p>`,
+                `<button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
+                 <button class="btn btn-primary" onclick="App.closeModal(); VirtualClassModule.openScheduleModal()"><i class="fas fa-plus-circle"></i> Schedule Single Lecture</button>`
+            );
+            return;
+        }
+        Lms.openModal(
+            `<i class="fas fa-play-circle" style="color: var(--primary-500);"></i> Launch Today's Class (${Lms.esc(I18n.t(today))})`,
+            `<div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+                One meeting room stays open for the whole day. Each teacher joins it for their own period from the timetable; students stay in the same room.
+            </div>
+            <div class="form-grid">
+                <div class="form-group"><label>Class *</label>
+                    <select id="launch-class" class="form-control" onchange="VirtualClassModule.refreshLaunchPreview()">${Lms.classOptions(classIds[0], classIds)}</select>
+                </div>
+                <div class="form-group"><label>Meeting Platform *</label>
+                    <select id="launch-platform" class="form-control" onchange="document.getElementById('launch-external-wrap').style.display = this.value === 'EXTERNAL' ? '' : 'none'">
+                        <option value="BUILTIN">Built-in live classroom (video, screen share, chat)</option>
+                        <option value="EXTERNAL">Zoom / Google Meet / Teams link</option>
+                    </select>
+                </div>
+                <div class="form-group" id="launch-external-wrap" style="display: none;"><label>Meeting Link (used all day) *</label><input type="url" id="launch-external" class="form-control" placeholder="https://zoom.us/j/..."></div>
+                <div class="form-group"><label>Passcode</label><input type="text" id="launch-passcode" class="form-control" value="ASH${Math.floor(100000 + Math.random() * 900000)}" style="font-family: monospace;"></div>
+            </div>
+            <div class="form-group"><label>Today's timetable</label><div id="launch-preview"></div></div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-primary" id="launch-btn" onclick="VirtualClassModule.launchDayClass(this)"><i class="fas fa-play"></i> Launch Class</button>`
+        );
+        this.refreshLaunchPreview();
+    },
+
+    refreshLaunchPreview() {
+        const classId = Lms.val('launch-class');
+        const box = document.getElementById('launch-preview');
+        const btn = document.getElementById('launch-btn');
+        if (!box) return;
+        const existing = this.todaysDayRoom(classId);
+        const session = existing || { date: Lms.today(), periods: this.periodsFor(classId, this.todayName()) };
+        box.innerHTML = (existing ? `<div class="status-pill ${existing.status === 'LIVE' ? 'danger' : 'gold'}" style="margin-bottom: 6px;"><i class="fas fa-circle"></i> ${existing.status === 'LIVE' ? "Today's room is already live — you will join it" : "Today's room exists — launching starts it"}</div>` : '')
+            + this.renderDaySchedule(session, true);
+        ['launch-platform', 'launch-external', 'launch-passcode'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = !!existing;
+        });
+        if (btn) btn.innerHTML = existing && existing.status === 'LIVE' ? '<i class="fas fa-sign-in-alt"></i> Join Class' : '<i class="fas fa-play"></i> Launch Class';
+    },
+
+    async launchDayClass(btn) {
+        const classId = Lms.val('launch-class');
+        const existing = this.todaysDayRoom(classId);
+        if (existing) {
+            window.App.closeModal();
+            if (existing.status === 'LIVE') this.enterClassroom(existing.id);
+            else this.startSessionEarly(existing.id);
+            return;
+        }
+        const day = this.todayName();
+        const periods = this.periodsFor(classId, day);
+        if (!periods.some(p => !p.isBreak)) {
+            window.App.showToast('This class has no timetable periods today', 'warning');
+            return;
+        }
+        const platform = Lms.val('launch-platform');
+        const externalUrl = Lms.val('launch-external');
+        if (platform === 'EXTERNAL' && !/^https:\/\//i.test(externalUrl)) {
+            window.App.showToast('Paste the full https:// meeting link', 'warning');
+            return;
+        }
+        const me = window.AuthRBAC?.currentUser || {};
+        const cls = Lms.getClass(classId) || { name: 'Class' };
+        const className = `${cls.name}${cls.section ? ' - ' + cls.section : ''}`;
+        const date = Lms.today();
+        const first = periods[0].startTime;
+        const last = periods.reduce((m, p) => p.endTime > m ? p.endTime : m, periods[0].endTime);
+        const toMin = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+        const startsAt = new Date(`${date}T${first}:00`);
+        const rand = () => Math.floor(100 + Math.random() * 900);
+        const session = {
+            id: Lms.uid('vc'),
+            meetingUuid: `ASH-${rand()}-${rand()}-${rand()}`,
+            dayRoom: true, date, day, periods,
+            title: `${className} — ${day} Dars`,
+            urduTitle: '',
+            hostTeacher: me.name, hostId: me.id,
+            classId, className, courseId: null, courseName: '',
+            roomName: platform === 'EXTERNAL' ? this.platformName(externalUrl) : 'Built-in live classroom',
+            platform, externalUrl: platform === 'EXTERNAL' ? externalUrl : null,
+            startsAt: startsAt.toISOString(),
+            scheduledStart: startsAt.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            durationMinutes: Math.max(10, toMin(last) - toMin(first)),
+            passcode: Lms.val('launch-passcode'),
+            createdBy: me.id,
+            status: 'LIVE', isLive: true, startedAt: new Date().toISOString(),
+            activeParticipants: 0, attendanceCount: 0
+        };
+        await Lms.busy(btn, async () => {
+            (window.LmsData.virtualClasses = window.LmsData.virtualClasses || []).unshift(session);
+            window.DataStore.save(window.LmsData);
+            await window.DataStore.syncNow();
+            Lms.notifyClass(classId, `Live class started: ${session.title}`,
+                `Today's online class is live (${Lms.fmtTime(first)}–${Lms.fmtTime(last)}). Open Online Classes and press "Join Live Class".`, 'LIVE_CLASS', 'virtual-class');
+            const teacherIds = [...new Set(periods.map(p => p.teacherId).filter(id => id && id !== me.id))];
+            if (teacherIds.length) {
+                Lms.notify(teacherIds.map(id => ({
+                    targetUserId: id, category: 'LIVE_CLASS', linkRoute: 'virtual-class',
+                    title: `Online class live: ${className}`,
+                    message: `Today's room is open. Join at your period: ${periods.filter(p => p.teacherId === id).map(p => `${Lms.fmtTime(p.startTime)} ${p.courseName}`).join(', ')}.`
+                })));
+            }
+            window.App.closeModal();
+            window.App.showToast('Class launched — students and teachers have been notified', 'success');
+            if (window.App.currentRoute !== 'virtual-class') window.App.navigate('virtual-class');
+            this.enterClassroom(session.id);
+        }, 'Launching...');
     },
 
     // =========================================================================
@@ -1371,7 +1619,7 @@ const VirtualClassModule = {
     // =========================================================================
     jitsiApi: null,
 
-    meetingConfig: { domain: 'meet.jit.si', embed: false },
+    meetingConfig: { domain: 'meet.jit.si', embed: false, authMode: 'NONE', appId: '' },
 
     async loadMeetingConfig() {
         try {
@@ -1382,7 +1630,7 @@ const VirtualClassModule = {
     },
 
     meetingDomain() {
-        return this.meetingConfig.domain || 'meet.jit.si';
+        return this.meetingConfig.authMode === 'JAAS' ? '8x8.vc' : (this.meetingConfig.domain || 'meet.jit.si');
     },
 
     // Public meet.jit.si ends embedded calls after 5 minutes, so it is never embedded
@@ -1390,30 +1638,78 @@ const VirtualClassModule = {
         return !!this.meetingConfig.embed && this.meetingDomain() !== 'meet.jit.si';
     },
 
-    meetingUrl(session) {
-        const me = window.AuthRBAC?.currentUser || {};
-        const name = `${me.name || 'Guest'}${this.isHost ? ' (Ustad)' : me.rollNo ? ' - ' + me.rollNo : ''}`;
-        return `https://${this.meetingDomain()}/${this.roomNameFor(session)}#userInfo.displayName=${encodeURIComponent(JSON.stringify(name))}&config.subject=${encodeURIComponent(JSON.stringify(session.title || ''))}&config.prejoinConfig.enabled=false`;
+    // Only registered portal users can enter: the meeting service checks a token the portal server signs
+    signInRequired() {
+        return ['JWT', 'JAAS'].includes(this.meetingConfig.authMode);
     },
 
-    openMeetingTab() {
-        if (!this.activeSession) return;
-        const win = window.open(this.meetingUrl(this.activeSession), '_blank', 'noopener');
-        if (!win) window.App?.showToast('Your browser blocked the new tab. Allow pop-ups for this site and try again.', 'warning');
+    // Room path on the meeting service (JaaS rooms sit under the account's App ID)
+    roomPath(session) {
+        const room = this.roomNameFor(session);
+        return this.meetingConfig.authMode === 'JAAS' ? `${this.meetingConfig.appId}/${room}` : room;
+    },
+
+    // Signed join token for this user and class (null when the service does not use sign-in)
+    async joinToken(session) {
+        if (!this.signInRequired()) return null;
+        const data = await Lms.api('POST', '/api/virtual-class/join-token', { sessionId: session.id });
+        return data.token || null;
+    },
+
+    meetingUrl(session, token) {
+        const me = window.AuthRBAC?.currentUser || {};
+        const name = `${me.name || 'Guest'}${this.isHost ? ' (Ustad)' : me.rollNo ? ' - ' + me.rollNo : ''}`;
+        return `https://${this.meetingDomain()}/${this.roomPath(session)}${token ? `?jwt=${encodeURIComponent(token)}` : ''}#userInfo.displayName=${encodeURIComponent(JSON.stringify(name))}&config.subject=${encodeURIComponent(JSON.stringify(session.title || ''))}&config.prejoinConfig.enabled=false`;
+    },
+
+    async openMeetingTab() {
+        const session = this.activeSession;
+        if (!session) return;
+        // Open the tab now (pop-up blockers allow it only straight from the click), then send it to the room
+        const win = window.open('about:blank', '_blank');
+        if (!win) {
+            window.App?.showToast('Your browser blocked the new tab. Allow pop-ups for this site and try again.', 'warning');
+            return;
+        }
+        try {
+            const token = await this.joinToken(session);
+            win.opener = null;
+            win.location.href = this.meetingUrl(session, token);
+        } catch (e) {
+            win.close();
+            window.App?.showToast(e.message, 'error');
+        }
+    },
+
+    showMeetingAuthFields() {
+        const mode = Lms.val('meeting-auth');
+        const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'block' : 'none'; };
+        show('meeting-auth-warning', mode === 'NONE');
+        show('meeting-domain-wrap', mode !== 'JAAS');
+        show('meeting-jwt-fields', mode === 'JWT');
+        show('meeting-jaas-fields', mode === 'JAAS');
     },
 
     async saveMeetingConfig() {
-        const me = window.AuthRBAC?.currentUser || {};
+        const mode = Lms.val('meeting-auth');
         try {
             const res = await fetch('/api/settings/meeting', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ domain: Lms.val('meeting-domain'), embed: document.getElementById('meeting-embed').checked })
+                body: JSON.stringify({
+                    domain: Lms.val('meeting-domain'),
+                    embed: document.getElementById('meeting-embed').checked,
+                    authMode: mode,
+                    appId: mode === 'JAAS' ? Lms.val('meeting-app-id-jaas') : Lms.val('meeting-app-id-jwt'),
+                    appSecret: Lms.val('meeting-app-secret'),
+                    jaasKeyId: Lms.val('meeting-key-id'),
+                    jaasPrivateKey: document.getElementById('meeting-private-key').value
+                })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
             this.meetingConfig = data.settings;
-            window.App?.showToast(data.settings.embed ? 'Live classes will open inside the portal' : 'Live classes will open in a new tab', 'success');
+            window.App?.showToast(data.settings.authMode === 'NONE' ? 'Classroom service saved. Anyone with the link can still join.' : 'Classroom service saved. Only registered users can join now.', data.settings.authMode === 'NONE' ? 'warning' : 'success');
             this.switchTab('retention');
         } catch (e) {
             window.App?.showToast(e.message, 'error');
@@ -1457,11 +1753,13 @@ const VirtualClassModule = {
         const domain = this.meetingDomain();
         const me = window.AuthRBAC?.currentUser || {};
         try {
+            const jwt = await this.joinToken(session);
             await this.loadJitsiScript(domain);
             if (!document.getElementById('jitsi-container')) return; // navigated away meanwhile
             container.innerHTML = '';
             const api = new window.JitsiMeetExternalAPI(domain, {
-                roomName: this.roomNameFor(session),
+                roomName: this.roomPath(session),
+                ...(jwt ? { jwt } : {}),
                 parentNode: container,
                 width: '100%',
                 height: '100%',
@@ -1490,7 +1788,7 @@ const VirtualClassModule = {
                 <div style="text-align: center; padding: 20px; max-width: 520px;">
                     <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: #fbbf24;"></i>
                     <div style="margin: 10px 0;">${Lms.esc(err.message)}. Check your internet connection.</div>
-                    <a class="btn btn-primary" href="https://${Lms.esc(domain)}/${Lms.esc(this.roomNameFor(session))}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Open the classroom in a new tab</a>
+                    <button class="btn btn-primary" onclick="VirtualClassModule.openMeetingTab()"><i class="fas fa-external-link-alt"></i> Open the classroom in a new tab</button>
                 </div>`;
         }
     },
@@ -1511,7 +1809,8 @@ const VirtualClassModule = {
     canHost(session) {
         const me = window.AuthRBAC?.currentUser || {};
         if (window.AuthRBAC.can('virtual_classes.manage')) return true;
-        return window.AuthRBAC.can('virtual_classes.host') && (session.hostId === me.id || Lms.portal() === 'staff' || Lms.teacherClassIds(me.id).includes(session.classId));
+        return window.AuthRBAC.can('virtual_classes.host') && (session.hostId === me.id || Lms.portal() === 'staff' || Lms.teacherClassIds(me.id).includes(session.classId)
+            || (session.periods || []).some(p => p.teacherId === me.id));
     },
 
     startSessionEarly(sessionId) {
@@ -1528,7 +1827,7 @@ const VirtualClassModule = {
         const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
         if (!session || !confirm('End this class for everyone? Students will no longer be able to join.')) return;
         Object.assign(session, { status: 'COMPLETED', isLive: false, endedAt: new Date().toISOString() });
-        session.attendanceCount = (window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS' && a.virtualSessionId === session.id && a.role === 'STUDENT').length;
+        session.attendanceCount = new Set((window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS' && a.virtualSessionId === session.id && a.role === 'STUDENT').map(a => a.userId)).size;
         window.DataStore.save(window.LmsData);
         if (this.jitsiApi) {
             try { this.jitsiApi.executeCommand('endConference'); } catch (e) { /* not moderator */ }
@@ -1551,14 +1850,15 @@ const VirtualClassModule = {
                 <div><strong>Teacher:</strong> ${Lms.esc(session.hostTeacher || '')}</div>
                 <div><strong>Scheduled:</strong> ${Lms.esc(session.scheduledStart || '')} (${Lms.esc(session.durationMinutes)} min)</div>
                 ${session.startedAt ? `<div><strong>Started:</strong> ${Lms.fmtDateTime(session.startedAt)}${session.endedAt ? ` • <strong>Ended:</strong> ${Lms.fmtDateTime(session.endedAt)}` : ''}</div>` : ''}
-                <div><strong>Attendance:</strong> ${attendees.filter(a => a.role === 'STUDENT').length} of ${roster.length} students joined</div>
+                <div><strong>Attendance:</strong> ${new Set(attendees.filter(a => a.role === 'STUDENT').map(a => a.userId)).size} of ${roster.length} students joined</div>
             </div>
+            ${session.dayRoom ? `<div style="margin-bottom: 14px;">${this.renderDaySchedule(session, false)}</div>` : ''}
             ${recording ? `<button class="btn btn-gold btn-sm" style="margin-bottom: 12px;" onclick="App.closeModal(); VirtualClassModule.openVideoPlayer('${Lms.esc(recording.id)}')"><i class="fas fa-play"></i> Watch Recording</button>` : ''}
             <div class="table-responsive">
                 <table class="data-table">
                     <thead><tr><th>Participant</th><th>Joined</th></tr></thead>
                     <tbody>
-                        ${attendees.length ? attendees.map(a => `<tr><td>${Lms.esc(a.userName)} <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(a.identifier || '')}</span></td><td>${Lms.esc(a.date)} ${Lms.esc(a.checkInTime || '')}</td></tr>`).join('')
+                        ${attendees.length ? attendees.map(a => `<tr><td>${Lms.esc(a.userName)} <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(a.identifier || '')}</span></td><td>${Lms.esc(a.date)} ${Lms.esc(a.checkInTime || '')}${a.periodName ? ` • ${Lms.esc(a.periodName)}` : ''}</td></tr>`).join('')
                             : '<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No attendance recorded for this session.</td></tr>'}
                     </tbody>
                 </table>
@@ -1574,7 +1874,7 @@ const VirtualClassModule = {
         const session = this.activeSession || {};
         const url = session.platform === 'EXTERNAL' && session.externalUrl
             ? session.externalUrl
-            : `https://${this.meetingDomain()}/${this.roomNameFor(session)}`;
+            : `https://${this.meetingDomain()}/${this.roomPath(session)}`;
         navigator.clipboard.writeText(url).then(
             () => window.App?.showToast('Meeting link copied', 'success'),
             () => window.App?.showToast(url, 'info')

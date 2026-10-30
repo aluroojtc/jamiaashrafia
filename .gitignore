@@ -15,3 +15,6 @@ uploads/
 
 # Temporary passwords issued by npm run issue-temp-passwords
 /private/
+
+# Documentation and setup guides (kept locally, not in git)
+/docs/

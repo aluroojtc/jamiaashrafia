@@ -335,16 +335,47 @@ const TimetableModule = {
             && t.blockStart === slot.blockStart && t.blockEnd === slot.blockEnd);
     },
 
+    // The same timetable saved on several days: the edited entry's block plus identical blocks
+    // (same class, times, courses) on other days. Returns { days, ids }
+    sameBlockOnDays(slot) {
+        const all = window.LmsData.timetables || [];
+        const sig = block => block.slice().sort((a, b) => a.startTime.localeCompare(b.startTime))
+            .map(t => [t.startTime, t.endTime, t.courseId || '', t.periodName || '', t.room || '', t.blockStart || '', t.blockEnd || ''].join('~')).join('|');
+        const block = this.blockOf(slot);
+        const key = sig(block);
+        const first = block.slice().sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
+        const days = [];
+        const ids = [];
+        this.DAYS.forEach(day => {
+            const candidate = day === slot.day ? first
+                : all.find(t => t.day === day && t.classId === slot.classId && t.startTime === first.startTime
+                    && (slot.classId !== 'all' || t.periodName === slot.periodName));
+            const other = candidate ? this.blockOf(candidate) : [];
+            if (other.length && sig(other) === key) {
+                days.push(day);
+                other.forEach(t => ids.push(t.id));
+            }
+        });
+        return { days, ids };
+    },
+
     openAddSlotModal(slotId) {
         this._confirmedConflicts = false;
         this._autoRoom = null;
-        this._timeTouched = false;
         const slot = slotId ? (window.LmsData.timetables || []).find(t => t.id === slotId) : null;
+        // Loaded times stay as they are; a new timetable takes the class's usual time until the admin changes it
+        this._timeTouched = !!slot;
         const block = this.blockOf(slot).sort((a, b) => a.startTime.localeCompare(b.startTime));
-        this._editIds = block.map(t => t.id);
+        const group = slot ? this.sameBlockOnDays(slot) : { days: [this.selectedDay], ids: [] };
+        this._editIds = group.ids;
         const span = slot && slot.classId !== 'all' ? this.classSpan(block) : null;
         const defaultClass = slot ? slot.classId : (this.classFilter && !['ALL', 'MINE'].includes(this.classFilter) ? this.classFilter : (window.LmsData.classes[0] || {}).id);
-        const hasExtras = !!(slot && (slot.room || (slot.classId === 'all' && slot.periodName)));
+        // A single-course entry may carry its own period name; otherwise the name is the kitab's
+        const customName = slot && (slot.classId === 'all' ? slot.periodName
+            : (block.length === 1 && slot.periodName && slot.periodName !== Lms.courseTitle(slot.courseId) ? slot.periodName : '')) || '';
+        const cls = slot ? Lms.getClass(slot.classId) : null;
+        if (slot && cls && (slot.room || '') === (cls.room || '')) this._autoRoom = slot.room || '';
+        const hasExtras = !!(slot && (slot.room || customName));
         const start = span ? this.fromMin(span.start) : (slot ? slot.startTime : '09:00');
         const end = span ? this.fromMin(span.end) : (slot ? slot.endTime : '12:00');
         Lms.openModal(
@@ -361,18 +392,18 @@ const TimetableModule = {
             <div class="form-group" style="margin-bottom: 14px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                     <label style="margin: 0;">Class Days *</label>
-                    ${slot ? '' : `<div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                         ${Object.keys(this.DAY_PRESETS).map(p => `<button type="button" class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="TimetableModule.pickDays('${p}')">${p}</button>`).join('')}
                         <button type="button" class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="TimetableModule.pickDays()">Clear</button>
-                    </div>`}
+                    </div>
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
                     ${this.DAYS.map(d => `
                         <label class="slot-day-chip">
-                            <input type="${slot ? 'radio' : 'checkbox'}" name="slot-day" class="slot-day" value="${d}" ${(slot ? slot.day === d : d === this.selectedDay) ? 'checked' : ''} onchange="TimetableModule.prefillClassTime()" style="accent-color: var(--primary-600);"> ${d}
+                            <input type="checkbox" name="slot-day" class="slot-day" value="${d}" ${group.days.includes(d) ? 'checked' : ''} onchange="TimetableModule.prefillClassTime()" style="accent-color: var(--primary-600);"> ${d}
                         </label>`).join('')}
                 </div>
-                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">${slot ? 'An entry belongs to one day; add another entry for other days.' : 'The class repeats at the same time on every day you tick.'}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">The class repeats at the same time on every day you tick.</div>
             </div>
 
             <div class="form-group" style="margin-bottom: 14px;">
@@ -396,7 +427,7 @@ const TimetableModule = {
                 <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem; color: var(--primary-700); margin-bottom: 10px;">Rooms and Periods</summary>
                 <div class="form-grid">
                     <div class="form-group"><label for="slot-room">Hall / Room</label><input type="text" id="slot-room" class="form-control" value="${Lms.esc(slot ? slot.room : '')}" placeholder="e.g. Hall Imam Bukhari"></div>
-                    <div class="form-group"><label for="slot-name">Period Name</label><input type="text" id="slot-name" class="form-control" value="${Lms.esc(slot && slot.classId === 'all' ? slot.periodName : '')}" placeholder="Defaults to the kitab's name; e.g. Namaz-e-Zuhr for a break"></div>
+                    <div class="form-group"><label for="slot-name">Period Name</label><input type="text" id="slot-name" class="form-control" value="${Lms.esc(customName)}" placeholder="Defaults to the kitab's name; e.g. Namaz-e-Zuhr for a break"></div>
                 </div>
             </details>
             <div id="slot-conflicts"></div>`,
@@ -406,7 +437,6 @@ const TimetableModule = {
         // The courses being edited, in order, each with its own length; a new timetable starts with one course row
         const rows = slot && slot.classId !== 'all' ? block.map(t => [t.courseId, this.toMin(t.endTime) - this.toMin(t.startTime)]) : [];
         this.refreshSlotCourses(rows.length ? rows : null);
-        if (!slot) this.prefillClassTime();
     },
 
     pickDays(preset) {
@@ -418,7 +448,7 @@ const TimetableModule = {
     // A new timetable for a class that already has one shows that class's time range (until the admin changes it)
     prefillClassTime() {
         const classId = Lms.val('slot-class');
-        if (this._editIds.length || this._timeTouched || !classId || classId === 'all') { this.showDuration(); return; }
+        if (this._timeTouched || !classId || classId === 'all') { this.showDuration(); return; }
         const all = (window.LmsData.timetables || []).filter(t => t.classId === classId);
         const day = (document.querySelector('.slot-day:checked') || {}).value;
         const sameDay = all.filter(t => t.day === day);
@@ -617,13 +647,22 @@ const TimetableModule = {
 
         const all = window.LmsData.timetables;
         if (slotId) {
-            // Keep the existing records (same ids) in order, add any extra courses, drop removed ones
-            const old = editIds.map(id => all.find(t => t.id === id)).filter(Boolean).sort((a, b) => a.startTime.localeCompare(b.startTime));
-            entries.forEach((e, i) => {
-                if (old[i]) Object.assign(old[i], e, { day: days[0] });
-                else all.push({ id: Lms.uid('tt'), day: days[0], ...e });
+            // On each ticked day keep that day's existing records (same ids) in order and add any extra courses;
+            // records on unticked days and removed courses are dropped
+            const old = editIds.map(id => all.find(t => t.id === id)).filter(Boolean);
+            const keep = new Set();
+            days.forEach(day => {
+                const onDay = old.filter(t => t.day === day).sort((a, b) => a.startTime.localeCompare(b.startTime));
+                entries.forEach((e, i) => {
+                    if (onDay[i]) {
+                        Object.assign(onDay[i], { blockStart: undefined, blockEnd: undefined }, e, { day });
+                        keep.add(onDay[i].id);
+                    } else {
+                        all.push({ id: Lms.uid('tt'), day, ...e });
+                    }
+                });
             });
-            const drop = new Set(old.slice(entries.length).map(t => t.id));
+            const drop = new Set(old.filter(t => !keep.has(t.id)).map(t => t.id));
             window.LmsData.timetables = all.filter(t => !drop.has(t.id));
         } else {
             days.forEach(day => entries.forEach(e => all.push({ id: Lms.uid('tt'), day, ...e })));
@@ -638,7 +677,7 @@ const TimetableModule = {
                 `${entries.map(e => `${e.periodName} at ${Lms.fmtTime(e.startTime)}`).join(', ')} on ${days.join(', ')} (${room || 'room TBA'}).`, 'ACADEMIC', 'timetable');
         }
         window.App.closeModal();
-        window.App.showToast(slotId ? 'Timetable entry updated' : `Timetable saved for ${days.length} day(s)`, 'success');
+        window.App.showToast(slotId ? `Timetable updated for ${days.length} day(s)` : `Timetable saved for ${days.length} day(s)`, 'success');
         window.App.navigate('timetable');
     },
 
