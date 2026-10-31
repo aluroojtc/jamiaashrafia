@@ -104,7 +104,6 @@ async function runTests() {
             email: `ahmad_${testTimestamp}@example.com`,
             programId,
             branchId,
-            hostelRequired: true,
             hafizStatus: true
         });
 
@@ -131,7 +130,6 @@ async function runTests() {
             email: `john_${testTimestamp}@example.co.uk`,
             programId,
             branchId,
-            hostelRequired: false,
             hafizStatus: false
         });
 

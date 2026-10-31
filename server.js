@@ -245,7 +245,6 @@ function legacyHandler(req, res) {
                         country, 
                         previous_madrasa AS previousMadrasa, 
                         hafiz_status AS hafizStatus, 
-                        hostel_required AS hostelRequired, 
                         status,
                         DATE_FORMAT(interview_date, '%Y-%m-%d %H:%i') AS interviewDate,
                         interview_score AS interviewScore, 
@@ -285,7 +284,6 @@ function legacyHandler(req, res) {
                 const [rows] = await db.query(sql, params);
                 rows.forEach(r => {
                     r.hafizStatus = !!r.hafizStatus;
-                    r.hostelRequired = !!r.hostelRequired;
                     if (r.interviewScore !== null) r.interviewScore = Number(r.interviewScore);
                 });
 
@@ -325,7 +323,7 @@ function legacyHandler(req, res) {
                         father_urdu_name AS fatherUrduName, gender, guardian_contact AS guardianContact,
                         email, phone, cnic_bform AS cnic, passport_number AS passport,
                         country, previous_madrasa AS previousMadrasa, 
-                        hafiz_status AS hafizStatus, hostel_required AS hostelRequired, status,
+                        hafiz_status AS hafizStatus, status,
                         DATE_FORMAT(interview_date, '%Y-%m-%d %H:%i') AS interviewDate,
                         interview_score AS interviewScore, allotted_roll_number AS allottedRollNo,
                         DATE_FORMAT(created_at, '%Y-%m-%d') AS appliedAt,
@@ -343,7 +341,6 @@ function legacyHandler(req, res) {
 
                 const record = rows[0];
                 record.hafizStatus = !!record.hafizStatus;
-                record.hostelRequired = !!record.hostelRequired;
                 if (record.interviewScore !== null) record.interviewScore = Number(record.interviewScore);
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -375,7 +372,6 @@ function legacyHandler(req, res) {
                     const email = String(data.email || '').trim() || null;
                     const branchId = String(data.branchId || '').trim();
                     const programId = String(data.programId || '').trim();
-                    const hostel = !!data.hostelRequired;
                     const prevMadrasa = (data.previousMadrasa || 'None').trim();
                     const hafiz = !!data.hafizStatus;
                     const gender = normGender(data.gender);
@@ -498,13 +494,13 @@ function legacyHandler(req, res) {
                             id, application_no, student_type, branch_id, program_id,
                             candidate_name, candidate_urdu_name, father_name, father_urdu_name, gender, guardian_contact, email, phone,
                             cnic_bform, passport_number, country, previous_madrasa,
-                            hafiz_status, hostel_required, status, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED', NOW(), NOW())`,
+                            hafiz_status, status, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED', NOW(), NOW())`,
                         [
                             newId, appNo, studentType, branchId, programId,
                             name, urduName, fatherName, fatherUrduName, gender, phone, email, phone,
                             cnic, passport, country, prevMadrasa,
-                            hafiz ? 1 : 0, hostel ? 1 : 0
+                            hafiz ? 1 : 0
                         ]
                     );
 
@@ -541,7 +537,6 @@ function legacyHandler(req, res) {
                         email: email,
                         programId: programId,
                         branchId: branchId,
-                        hostelRequired: hostel,
                         previousMadrasa: prevMadrasa,
                         hafizStatus: hafiz,
                         status: 'APPLIED',
@@ -637,7 +632,6 @@ function legacyHandler(req, res) {
                     const email = data.email !== undefined ? data.email.trim() : existing.email;
                     const programId = data.programId !== undefined ? data.programId : existing.program_id;
                     const branchId = data.branchId !== undefined ? data.branchId : existing.branch_id;
-                    const hostel = data.hostelRequired !== undefined ? (data.hostelRequired ? 1 : 0) : existing.hostel_required;
                     const hafiz = data.hafizStatus !== undefined ? (data.hafizStatus ? 1 : 0) : existing.hafiz_status;
                     const prev = data.previousMadrasa !== undefined ? data.previousMadrasa : existing.previous_madrasa;
                     const status = data.status !== undefined ? data.status : existing.status;
@@ -658,7 +652,7 @@ function legacyHandler(req, res) {
                     const details = [[candidateName, existing.candidate_name], [urduName, existing.candidate_urdu_name], [fatherName, existing.father_name],
                         [fatherUrduName, existing.father_urdu_name], [gender, existing.gender], [phone, existing.phone],
                         [email, existing.email], [cnic, existing.cnic_bform], [passport, existing.passport_number], [country, existing.country],
-                        [programId, existing.program_id], [branchId, existing.branch_id], [hostel, existing.hostel_required],
+                        [programId, existing.program_id], [branchId, existing.branch_id],
                         [hafiz, existing.hafiz_status], [prev, existing.previous_madrasa]];
                     if (details.some(([a, b]) => String(a === null || a === undefined ? '' : a) !== String(b === null || b === undefined ? '' : b))) {
                         needed.add('admissions.update');
@@ -688,7 +682,6 @@ function legacyHandler(req, res) {
                             country = ?,
                             program_id = ?,
                             branch_id = ?,
-                            hostel_required = ?,
                             hafiz_status = ?,
                             previous_madrasa = ?,
                             status = ?,
@@ -700,7 +693,7 @@ function legacyHandler(req, res) {
                         [
                             studentType, candidateName, urduName, fatherName, fatherUrduName, gender, phone, email,
                             cnic, passport, country, programId, branchId,
-                            hostel, hafiz, prev, status,
+                            hafiz, prev, status,
                             interviewDate || null, interviewScore || null, allottedRollNo || null,
                             appId, appId
                         ]

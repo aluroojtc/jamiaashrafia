@@ -148,28 +148,25 @@ const ReportsModule = {
     // 1. STUDENT REPORT
     renderStudentReport() {
         const students = (window.LmsData.users || []).filter(u => u.role === 'STUDENT');
-        const boarder = s => !!(s.hostel && s.hostel.toLowerCase().includes('hostel'));
         return this.reportTable({
             search: 'Search name, roll no or class...',
             selects: [
                 Lms.classFilter(),
                 { key: 'status', label: 'All statuses', options: this.statusOptions(['ACTIVE', 'SUSPENDED', 'INACTIVE', 'GRADUATED']) },
-                { key: 'residence', label: 'Hostel and day scholars', options: [['HOSTEL', 'Hostel'], ['DAY', 'Day Scholar']] },
                 Lms.genderFilter(),
                 Lms.campusFilter()
             ],
             date: { key: 'date', label: 'Enrollment date' }
-        }, ['Roll Number', 'Scholar Name', "Father's Name", 'Class', 'Hostel / Boarding', 'Enrollment Date', 'Attendance Pct', 'Status'], students.map(s => {
+        }, ['Roll Number', 'Scholar Name', "Father's Name", 'Class', 'Enrollment Date', 'Attendance Pct', 'Status'], students.map(s => {
             const pct = Lms.attendancePct(s.id);
             const status = s.status || 'ACTIVE';
             return `
-                <tr data-f-person="${Lms.esc(s.id)}" data-f-class="${Lms.esc(s.classId || '')}" data-f-status="${Lms.esc(status)}" data-f-residence="${boarder(s) ? 'HOSTEL' : 'DAY'}"
+                <tr data-f-person="${Lms.esc(s.id)}" data-f-class="${Lms.esc(s.classId || '')}" data-f-status="${Lms.esc(status)}"
                     data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}" data-f-campus="${Lms.esc(s.branchId || '')}" data-f-date="${Lms.isoDate(s.enrollmentDate)}">
                     <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(s.rollNo || 'N/A')}</span></td>
                     <td><div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.nameOf(s))}</div></td>
                     <td style="font-size: 0.85rem;">${Lms.esc(Lms.fatherOf(s) || '—')}</td>
                     <td>${Lms.getClass(s.classId) ? Lms.esc(Lms.className(s.classId)) : 'Not assigned'}</td>
-                    <td style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(s.hostel || 'Day Scholar')}</td>
                     <td>${Lms.esc(s.enrollmentDate || '—')}</td>
                     <td>${pct === null ? '<span style="color: var(--text-muted);">—</span>' : `<strong style="color: var(--primary-600);">${pct}%</strong>`}</td>
                     <td><span class="status-pill ${status === 'ACTIVE' ? 'success' : status === 'GRADUATED' ? 'gold' : 'danger'}">${Lms.esc(status)}</span></td>
@@ -345,7 +342,7 @@ const ReportsModule = {
                 Lms.campusFilter()
             ],
             date: { key: 'date', label: 'Due date' }
-        }, ['Challan No', 'Scholar / Student', 'Fee & Month', 'Tuition Fee', 'Hostel & Mess', 'Total Due', 'Due Date', 'Payment Status'], challans.map(c => {
+        }, ['Challan No', 'Scholar / Student', 'Fee & Month', 'Tuition Fee', 'Total Due', 'Due Date', 'Payment Status'], challans.map(c => {
             const student = Lms.user(c.studentId) || {};
             const overdue = fees && fees.isOverdue(c);
             return `
@@ -355,7 +352,6 @@ const ReportsModule = {
                     <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.personName(c.studentId, c.studentName))}</td>
                     <td>${Lms.esc(types[c.feeType] || c.feeType || 'Fee')}<div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(c.billingMonth || '')}</div></td>
                     <td>${Lms.money(c.tuitionFee)}</td>
-                    <td>${Lms.money(c.hostelMessFee)}</td>
                     <td><strong style="color: var(--gold-700);">${Lms.money(c.netPayable)}</strong></td>
                     <td style="${overdue ? 'color: var(--danger); font-weight: 700;' : ''}">${Lms.fmtDate(c.dueDate)}</td>
                     <td><span class="status-pill ${c.status === 'PAID' ? 'success' : c.status === 'VERIFICATION_PENDING' ? 'info' : 'danger'}">${Lms.esc(c.status || 'PENDING')}</span></td>

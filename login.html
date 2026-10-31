@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- Language (English / Urdu / Arabic): sets <html lang dir> and loads the catalog before the page renders -->
-    <script src="js/i18n.js?v=1.2"></script>
+    <script src="js/i18n.js?v=1.3"></script>
     <meta name="description" content="Jamia Ashrafia Lahore - Cloud Learning Management System Login Portal">
     <title>Login - Jamia Ashrafia Lahore LMS</title>
     
@@ -555,15 +555,6 @@
                                 <select id="eadm-branch" class="form-control" required>
                                     <option value="">Loading campuses...</option>
                                 </select>
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px; background: var(--bg-surface-elevated); border-radius: 6px; border: 1px solid var(--border-subtle);">
-                                    <input type="checkbox" id="eadm-hostel" checked style="width: 18px; height: 18px; accent-color: var(--primary-500);">
-                                    <div>
-                                        <strong style="color: var(--text-primary); font-size: 0.85rem;">Boarding / Hostel Accommodation Required</strong>
-                                        <div style="font-size: 0.75rem; color: var(--text-muted);">Subject to interview committee clearance and hostel room availability</div>
-                                    </div>
-                                </label>
                             </div>
                         </div>
                     </div>
@@ -1152,7 +1143,6 @@
             const hafiz = document.getElementById('eadm-hafiz').checked;
             const programId = document.getElementById('eadm-program').value;
             const branchId = document.getElementById('eadm-branch').value;
-            const hostel = document.getElementById('eadm-hostel').checked;
             if (!programId || !branchId) {
                 showToast("Please choose the programme and the campus you are applying to.", "warning");
                 return;
@@ -1186,7 +1176,6 @@
                 email: email,
                 programId: programId,
                 branchId: branchId,
-                hostelRequired: hostel,
                 previousMadrasa: prev || "None",
                 hafizStatus: hafiz
             };

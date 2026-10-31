@@ -233,7 +233,6 @@ const AdmissionsModule = {
         const approvedCount = admissions.filter(a => a.status === 'APPROVED').length;
         const enrolledCount = admissions.filter(a => a.status === 'ENROLLED').length;
         const rejectedCount = admissions.filter(a => a.status === 'REJECTED').length;
-        const hostelRequests = admissions.filter(a => a.hostelRequired).length;
 
         return `
             <!-- HEADER -->
@@ -287,15 +286,6 @@ const AdmissionsModule = {
                         <span class="metric-label">Approved & Enrolled</span>
                         <span class="metric-value">${approvedCount + enrolledCount}</span>
                         <span class="metric-hint" style="color: var(--primary-300);">${enrolledCount} Active Scholars</span>
-                    </div>
-                </div>
-
-                <div class="metric-card danger">
-                    <div class="metric-icon-box" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);"><i class="fas fa-bed"></i></div>
-                    <div class="metric-content">
-                        <span class="metric-label">Hostel Requests</span>
-                        <span class="metric-value">${hostelRequests}</span>
-                        <span class="metric-hint">Hostel Block A & B</span>
                     </div>
                 </div>
             </div>
@@ -432,7 +422,6 @@ const AdmissionsModule = {
                     <td>
                         <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${Lms.esc(prog.name)}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-map-marker-alt"></i> ${Lms.esc(branch.name)}</div>
-                        ${item.hostelRequired ? '<span class="status-pill danger" style="font-size: 0.65rem; margin-top: 3px;"><i class="fas fa-bed"></i> Hostel Needed</span>' : ''}
                     </td>
                     <td>
                         ${isIntl ? `
@@ -604,7 +593,6 @@ const AdmissionsModule = {
                         <div><strong>Program Sought:</strong> ${Lms.esc(prog.name)}</div>
                         <div><strong>Previous Madrasa:</strong> ${Lms.esc(item.previousMadrasa || 'None')}</div>
                         <div><strong>Hafiz-ul-Quran:</strong> ${item.hafizStatus ? '<span class="status-pill success" style="font-size: 0.7rem;">Verified Hafiz</span>' : 'No'}</div>
-                        <div><strong>Hostel Required:</strong> ${item.hostelRequired ? '<span class="status-pill danger" style="font-size: 0.7rem;">Boarding Requested</span>' : 'Day Scholar'}</div>
                         <div><strong>Allotted Roll No:</strong> <code style="color: var(--primary-700);">${Lms.esc(item.allottedRollNo || 'Pending Enrollment')}</code></div>
                     </div>
                 </div>
@@ -979,18 +967,8 @@ const AdmissionsModule = {
                     </div>
                 </div>
 
-                <!-- RESIDENCE & HOSTEL -->
+                <!-- STUDENT TYPE & FEE CATEGORY -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                    <div>
-                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
-                            Residential Placement
-                        </label>
-                        <select id="enroll-hostel" class="form-control">
-                            <option value="Day Scholar" ${!item.hostelRequired ? 'selected' : ''}>Day Scholar (Non-Resident)</option>
-                            <option value="Hostel Block A (Resident Room)" ${item.hostelRequired ? 'selected' : ''}>Hostel Block A (Boarding Resident)</option>
-                            <option value="Hostel Block B (Resident Room)">Hostel Block B (Boarding Resident)</option>
-                        </select>
-                    </div>
                     ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('STUDENT', 'enroll-group') : ''}
 
                     <div>
@@ -1037,7 +1015,6 @@ const AdmissionsModule = {
         const classId = document.getElementById('enroll-class').value;
         const email = document.getElementById('enroll-email').value.trim();
         const password = document.getElementById('enroll-pwd').value.trim();
-        const hostel = document.getElementById('enroll-hostel').value;
         if (password.length < Lms.MIN_PASSWORD_LENGTH) {
             App.showToast(`The temporary password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters.`, "warning");
             return;
@@ -1092,7 +1069,6 @@ const AdmissionsModule = {
             passport: item.passport || '',
             guardianName: item.fatherName,
             gender: item.gender || null,
-            hostel: hostel,
             status: "ACTIVE",
             avatar: item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
             enrollmentDate: new Date().toISOString().split('T')[0]
@@ -1442,12 +1418,6 @@ const AdmissionsModule = {
                                 `).join('')}
                             </select>
                         </div>
-                        <div class="form-group" style="justify-content: center;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 20px;">
-                                <input type="checkbox" id="adm-hostel" style="width: 18px; height: 18px;">
-                                <strong>Hostel & Mess Boarding Required</strong>
-                            </label>
-                        </div>
                     </div>
                 </div>
 
@@ -1648,7 +1618,6 @@ const AdmissionsModule = {
         const hafiz = document.getElementById('adm-hafiz').checked;
         const programId = document.getElementById('adm-program').value;
         const branchId = document.getElementById('adm-branch').value;
-        const hostel = document.getElementById('adm-hostel').checked;
 
         const newAppNo = `ASH-ADM-2024-${String(window.LmsData.admissions.length + 95).padStart(3, '0')}`;
         
@@ -1665,7 +1634,6 @@ const AdmissionsModule = {
             email: email || "student@ashrafia.org",
             programId: programId,
             branchId: branchId,
-            hostelRequired: hostel,
             previousMadrasa: prev || "None",
             hafizStatus: hafiz,
             status: "APPLIED",
@@ -1811,10 +1779,6 @@ const AdmissionsModule = {
                             <input type="checkbox" id="edit-adm-hafiz" style="width: 18px; height: 18px;" ${item.hafizStatus ? 'checked' : ''}>
                             <strong>Hafiz-ul-Quran</strong>
                         </label>
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="edit-adm-hostel" style="width: 18px; height: 18px;" ${item.hostelRequired ? 'checked' : ''}>
-                            <strong>Boarding / Hostel Required</strong>
-                        </label>
                     </div>
                 </div>
             </form>
@@ -1909,7 +1873,6 @@ const AdmissionsModule = {
         const branchId = document.getElementById('edit-adm-branch').value;
         const prev = document.getElementById('edit-adm-prev-madrasa').value.trim();
         const hafiz = document.getElementById('edit-adm-hafiz').checked;
-        const hostel = document.getElementById('edit-adm-hostel').checked;
         const gender = Lms.val('edit-adm-gender') || null;
 
         if (!name || !father || !phone) {
@@ -1971,7 +1934,6 @@ const AdmissionsModule = {
         item.branchId = branchId;
         item.previousMadrasa = prev || "None";
         item.hafizStatus = hafiz;
-        item.hostelRequired = hostel;
 
         // Persist
         window.DataStore.save(window.LmsData);

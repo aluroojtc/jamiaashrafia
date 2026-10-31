@@ -1,6 +1,6 @@
 /**
  * JAMIA ASHRAFIA LAHORE - FEES, PAYMENTS & DONATIONS
- * Fee structure per program (registration, admission, monthly, hostel, mess, exam),
+ * Fee structure per program (registration, admission, monthly tuition, exam),
  * challan generation for a student / class / program, student payment proof upload,
  * accountant verification, 3-part bank vouchers, and the donations (Zakat / Sadaqah) ledger.
  */
@@ -64,6 +64,7 @@ const FeesDonationsModule = {
         return ch.status !== 'PAID' && ch.dueDate && ch.dueDate < Lms.today();
     },
 
+    // hostelMessFee: only on challans issued before the hostel module was removed; kept so their totals stay right
     total(ch) {
         return ['tuitionFee', 'hostelMessFee', 'examFee', 'registrationFee', 'admissionFee', 'otherFee']
             .reduce((s, k) => s + (Number(ch[k]) || 0), 0);
@@ -225,21 +226,15 @@ const FeesDonationsModule = {
         return n;
     },
 
-    isBoarder(student) {
-        const h = String(student.hostel || '').toLowerCase();
-        return h && !h.includes('day scholar');
-    },
-
     // Build a challan for a student from the fee structure (also used by Admissions on enrollment)
     buildChallan(student, feeType, opts = {}) {
         const cls = Lms.getClass(student.classId);
         const programId = opts.programId || (cls ? cls.programId : null)
             || ((window.LmsData.programs || []).find(p => p.name === student.program) || {}).id;
         const fs = this.structureFor(programId) || {};
-        const amounts = { tuitionFee: 0, hostelMessFee: 0, examFee: 0, registrationFee: 0, admissionFee: 0, otherFee: 0 };
+        const amounts = { tuitionFee: 0, examFee: 0, registrationFee: 0, admissionFee: 0, otherFee: 0 };
         if (feeType === 'MONTHLY') {
             amounts.tuitionFee = Number(fs.monthlyTuition) || 0;
-            if (this.isBoarder(student)) amounts.hostelMessFee = (Number(fs.hostelFee) || 0) + (Number(fs.messFee) || 0);
         } else if (feeType === 'REGISTRATION') {
             amounts.registrationFee = Number(opts.registrationFee ?? fs.registrationFee) || 0;
         } else if (feeType === 'ADMISSION') {
@@ -289,7 +284,7 @@ const FeesDonationsModule = {
                 </div>
             </div>
             <div style="font-size: 0.8rem; color: var(--text-muted);">
-                ${I18n.t("Amounts come from each program's {page}. Monthly challans add hostel & mess only for boarding students. Students who already have a challan of the same type and period are skipped. Programs: {list}", {
+                ${I18n.t("Amounts come from each program's {page}. Students who already have a challan of the same type and period are skipped. Programs: {list}", {
                     page: `<strong>${I18n.t('Fee Structure')}</strong>`,
                     list: programs.map(p => Lms.esc(p.code || p.name)).join(', ')
                 })}
@@ -375,7 +370,7 @@ const FeesDonationsModule = {
             `<i class="fas fa-edit" style="color: var(--gold-400);"></i> Edit Challan ${Lms.esc(ch.challanNumber)}`,
             `<div class="form-grid">
                 ${field('ec-tuition', 'Tuition', ch.tuitionFee)}
-                ${field('ec-hostel', 'Hostel & Mess', ch.hostelMessFee)}
+                ${Number(ch.hostelMessFee) > 0 ? field('ec-hostel', 'Hostel & Mess (earlier challan)', ch.hostelMessFee) : ''}
                 ${field('ec-exam', 'Examination', ch.examFee)}
                 ${field('ec-reg', 'Registration', ch.registrationFee)}
                 ${field('ec-adm', 'Admission', ch.admissionFee)}
@@ -393,9 +388,10 @@ const FeesDonationsModule = {
         if (!ch) return;
         const n = id => Math.max(0, Number(Lms.val(id)) || 0);
         Object.assign(ch, {
-            tuitionFee: n('ec-tuition'), hostelMessFee: n('ec-hostel'), examFee: n('ec-exam'), registrationFee: n('ec-reg'),
+            tuitionFee: n('ec-tuition'), examFee: n('ec-exam'), registrationFee: n('ec-reg'),
             admissionFee: n('ec-adm'), otherFee: n('ec-other'), dueDate: Lms.val('ec-due') || ch.dueDate
         });
+        if (document.getElementById('ec-hostel')) ch.hostelMessFee = n('ec-hostel');
         ch.scholarshipWaiver = Math.min(n('ec-waiver'), this.total(ch));
         ch.netPayable = this.total(ch) - ch.scholarshipWaiver;
         if (ch.netPayable === 0) Object.assign(ch, { status: 'PAID', paidAt: Lms.today(), bankRef: 'FULL-WAIVER' });
@@ -609,17 +605,17 @@ const FeesDonationsModule = {
                 ${programs.length > 1 ? Lms.filterBar('fee-structure-table', { search: 'Search program or notes...' }) : ''}
                 <div class="table-responsive">
                     <table class="data-table" id="fee-structure-table">
-                        <thead><tr><th>Program</th><th style="text-align: end;">Registration</th><th style="text-align: end;">Admission</th><th style="text-align: end;">Monthly Tuition</th><th style="text-align: end;">Hostel / mo</th><th style="text-align: end;">Mess / mo</th><th style="text-align: end;">Exam</th>${canManage ? '<th></th>' : ''}</tr></thead>
+                        <thead><tr><th>Program</th><th style="text-align: end;">Registration</th><th style="text-align: end;">Admission</th><th style="text-align: end;">Monthly Tuition</th><th style="text-align: end;">Exam</th>${canManage ? '<th></th>' : ''}</tr></thead>
                         <tbody>
                             ${programs.map(p => {
                                 const fs = this.structureFor(p.id) || {};
                                 return `
                                     <tr>
                                         <td><div style="font-weight: 700;">${Lms.esc(p.name)}</div>${fs.notes ? `<div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(fs.notes)}</div>` : ''}</td>
-                                        ${cell(fs.registrationFee)}${cell(fs.admissionFee)}${cell(fs.monthlyTuition)}${cell(fs.hostelFee)}${cell(fs.messFee)}${cell(fs.examFee)}
+                                        ${cell(fs.registrationFee)}${cell(fs.admissionFee)}${cell(fs.monthlyTuition)}${cell(fs.examFee)}
                                         ${canManage ? `<td><button class="btn btn-secondary btn-sm" onclick="FeesDonationsModule.openStructureModal('${p.id}')"><i class="fas fa-edit"></i> Edit</button></td>` : ''}
                                     </tr>`;
-                            }).join('') || `<tr><td colspan="8" style="text-align: center; color: var(--text-muted);">No programs found.</td></tr>`}
+                            }).join('') || `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No programs found.</td></tr>`}
                         </tbody>
                     </table>
                 </div>
@@ -637,8 +633,6 @@ const FeesDonationsModule = {
                 ${f('fs-reg', 'Registration Fee (one-time)', fs.registrationFee)}
                 ${f('fs-adm', 'Admission Fee (one-time)', fs.admissionFee)}
                 ${f('fs-tuition', 'Monthly Tuition', fs.monthlyTuition)}
-                ${f('fs-hostel', 'Hostel Fee / month', fs.hostelFee)}
-                ${f('fs-mess', 'Mess Fee / month', fs.messFee)}
                 ${f('fs-exam', 'Examination Fee', fs.examFee)}
             </div>
             <div class="form-group"><label>Notes</label><input type="text" id="fs-notes" class="form-control" value="${Lms.esc(fs.notes || '')}"></div>`,
@@ -657,9 +651,11 @@ const FeesDonationsModule = {
         Object.assign(fs, {
             name: `${(Lms.program(programId) || {}).name || programId} Fee Structure`,
             registrationFee: n('fs-reg'), admissionFee: n('fs-adm'), monthlyTuition: n('fs-tuition'),
-            hostelFee: n('fs-hostel'), messFee: n('fs-mess'), examFee: n('fs-exam'), notes: Lms.val('fs-notes'),
+            examFee: n('fs-exam'), notes: Lms.val('fs-notes'),
             updatedAt: new Date().toISOString(), updatedBy: Lms.me().id
         });
+        delete fs.hostelFee;
+        delete fs.messFee;
         Lms.save();
         window.App.closeModal();
         window.App.showToast('Fee structure saved', 'success');

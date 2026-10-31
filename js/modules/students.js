@@ -5,7 +5,7 @@
  */
 
 const StudentsModule = {
-    activeTab: 'ALL', // 'ALL', 'ACTIVE', 'HOSTEL', 'SUSPENDED', 'GRADUATED'
+    activeTab: 'ALL', // 'ALL', 'ACTIVE', 'SUSPENDED', 'GRADUATED'
     activeProfileTab: 'overview', // 'overview', 'account', 'academic', 'personal', 'attendance'
 
     render() {
@@ -32,8 +32,6 @@ const StudentsModule = {
         // Tab filter
         if (this.activeTab === 'ACTIVE') {
             filtered = filtered.filter(s => (s.status || 'ACTIVE') === 'ACTIVE');
-        } else if (this.activeTab === 'HOSTEL') {
-            filtered = filtered.filter(s => s.hostel && s.hostel.toLowerCase().includes('hostel'));
         } else if (this.activeTab === 'SUSPENDED') {
             filtered = filtered.filter(s => s.status === 'SUSPENDED' || s.status === 'INACTIVE');
         } else if (this.activeTab === 'GRADUATED') {
@@ -43,7 +41,6 @@ const StudentsModule = {
         // Metrics calculations
         const totalStudents = students.length;
         const activeCount = students.filter(s => (s.status || 'ACTIVE') === 'ACTIVE').length;
-        const hostelResidents = students.filter(s => s.hostel && s.hostel.toLowerCase().includes('hostel')).length;
         const suspendedCount = students.filter(s => s.status === 'SUSPENDED' || s.status === 'INACTIVE').length;
         const attendancePcts = students.map(s => Lms.attendancePct(s.id)).filter(p => p !== null);
         const avgAttendance = attendancePcts.length ? Math.round(attendancePcts.reduce((a, p) => a + p, 0) / attendancePcts.length) : null;
@@ -56,7 +53,7 @@ const StudentsModule = {
                         <i class="fas fa-user-graduate" style="color: var(--gold-400);"></i>
                         Students Management & Comprehensive Academic Roster
                     </h1>
-                    <p>Directory of resident scholars, LMS account administration, credential controls, and granular student profiles</p>
+                    <p>Directory of enrolled scholars, LMS account administration, credential controls, and granular student profiles</p>
                 </div>
                 <div class="view-actions">
                     ${Lms.can('students.export') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.exportStudentsCSV()">
@@ -78,14 +75,6 @@ const StudentsModule = {
                         <span class="metric-hint" style="color: var(--gold-300);">${activeCount} Active Accounts</span>
                     </div>
                 </div>
-                <div class="metric-card">
-                    <div class="metric-icon-box" style="background: rgba(16, 185, 129, 0.2); color: var(--primary-400);"><i class="fas fa-hotel"></i></div>
-                    <div class="metric-content">
-                        <span class="metric-label">Boarding / Hostel</span>
-                        <span class="metric-value">${hostelResidents} Residents</span>
-                        <span class="metric-hint">Ashrafia Hostels</span>
-                    </div>
-                </div>
                 <div class="metric-card success">
                     <div class="metric-icon-box" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;"><i class="fas fa-calendar-check"></i></div>
                     <div class="metric-content">
@@ -105,9 +94,6 @@ const StudentsModule = {
                     </button>
                     <button class="btn ${this.activeTab === 'ACTIVE' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.setActiveTab('ACTIVE')">
                         <i class="fas fa-user-check"></i> Active Scholars (${activeCount})
-                    </button>
-                    <button class="btn ${this.activeTab === 'HOSTEL' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.setActiveTab('HOSTEL')">
-                        <i class="fas fa-bed"></i> Hostel Residents (${hostelResidents})
                     </button>
                     <button class="btn ${this.activeTab === 'SUSPENDED' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.setActiveTab('SUSPENDED')">
                         <i class="fas fa-user-lock"></i> Suspended / Inactive (${suspendedCount})
@@ -137,7 +123,6 @@ const StudentsModule = {
                                 <th>Scholar / Name</th>
                                 <th>Roll Number</th>
                                 <th>Program & Class</th>
-                                <th>Residence</th>
                                 <th>Attendance %</th>
                                 <th>Account Status</th>
                                 <th style="text-align: end; width: 220px;">Administrative Actions</th>
@@ -178,13 +163,6 @@ const StudentsModule = {
                                             <div style="font-weight: 600; color: var(--primary-950);">${this.classLabel(s)}</div>
                                             ${s.branchId ? `<div style="font-size: 0.72rem; color: var(--text-muted);"><i class="fas fa-map-marker-alt"></i> ${Lms.esc(Lms.branchName(s.branchId) || s.branchId)}</div>` : ''}
                                             ${this.programLabel(s) ? `<span style="font-size: 0.72rem; color: var(--text-muted);">${this.programLabel(s)}</span>` : ''}
-                                        </td>
-                                        <td style="font-size: 0.82rem;">
-                                            ${s.hostel && s.hostel.toLowerCase().includes('hostel') ? `
-                                                <span class="status-pill danger" style="font-size: 0.72rem;"><i class="fas fa-bed"></i> ${Lms.esc(s.hostel)}</span>
-                                            ` : `
-                                                <span class="status-pill" style="font-size: 0.72rem;"><i class="fas fa-home"></i> Day Scholar</span>
-                                            `}
                                         </td>
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 6px;">
@@ -239,7 +217,7 @@ const StudentsModule = {
                                 `;
                             }).join('') : `
                                 <tr>
-                                    <td colspan="8" style="text-align: center; padding: 48px; color: var(--text-muted);">
+                                    <td colspan="6" style="text-align: center; padding: 48px; color: var(--text-muted);">
                                         <i class="fas fa-user-slash" style="font-size: 2.5rem; margin-bottom: 12px; color: var(--text-muted); opacity: 0.5;"></i>
                                         <div style="font-size: 1.1rem; color: var(--primary-950); margin-bottom: 6px;">No scholars found</div>
                                         <div style="font-size: 0.85rem;">No student records match the active tab and search criteria.</div>
@@ -404,7 +382,7 @@ const StudentsModule = {
                     <i class="fas fa-graduation-cap"></i> Academic & Courses
                 </button>
                 <button class="btn ${this.activeProfileTab === 'personal' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('personal', '${Lms.esc(student.id)}')">
-                    <i class="fas fa-address-card"></i> Contact & Residence
+                    <i class="fas fa-address-card"></i> Contact Details
                 </button>
                 <button class="btn ${this.activeProfileTab === 'attendance' ? 'btn-gold' : 'btn-secondary'} btn-sm" onclick="StudentsModule.switchProfileTab('attendance', '${Lms.esc(student.id)}')">
                     <i class="fas fa-calendar-check"></i> Attendance Logs (${studentAttendance.length})
@@ -565,10 +543,9 @@ const StudentsModule = {
                     </div>
 
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
-                        <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-phone-alt"></i> Contact & Residence</h4>
+                        <h4 style="color: var(--gold-400); margin-bottom: 10px;"><i class="fas fa-phone-alt"></i> Contact Details</h4>
                         <div><strong>WhatsApp / Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
                         <div><strong>Email Address:</strong> <span translate="no">${Lms.esc(student.email || 'N/A')}</span>${Lms.copyBtn(student.email, 'Copy email')}</div>
-                        <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
                         <div><strong>Emergency Contact:</strong> ${Lms.esc(student.emergencyPhone || student.phone || '—')}</div>
                         <div><strong>Previous Madrasa:</strong> ${Lms.esc(student.previousMadrasa || '—')}</div>
                     </div>
@@ -641,14 +618,13 @@ const StudentsModule = {
                     <div><strong>Campus:</strong> Main Campus (Ferozepur Rd)</div>
                 </div>
 
-                <!-- CONTACT & RESIDENCE -->
+                <!-- CONTACT -->
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
-                    <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-badge"></i> Personal & Residence</h4>
+                    <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-badge"></i> Personal Details</h4>
                     <div><strong>Father's Name:</strong> ${Lms.esc(Lms.fatherOf(student) || '—')}</div>
                     <div><strong>Gender:</strong> ${Lms.esc(Lms.genderLabel(student.gender))}</div>
                     <div><strong>Email:</strong> <span translate="no">${Lms.esc(student.email || 'N/A')}</span>${Lms.copyBtn(student.email, 'Copy email')}</div>
                     <div><strong>Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
-                    <div><strong>Residence:</strong> ${Lms.esc(student.hostel || 'Day Scholar')}</div>
                     <div><strong>Account Status:</strong> <span class="status-pill ${student.status === 'ACTIVE' || !student.status ? 'success' : 'danger'}">${Lms.esc(student.status || 'ACTIVE')}</span></div>
                 </div>
             </div>
@@ -912,16 +888,8 @@ const StudentsModule = {
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                        <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Residence / Hostel</label>
-                            <select id="edit-st-hostel" class="form-control">
-                                <option value="Day Scholar" ${!student.hostel || student.hostel.includes('Day') ? 'selected' : ''}>Day Scholar</option>
-                                <option value="Hostel Block A" ${student.hostel?.includes('Block A') ? 'selected' : ''}>Hostel Block A (Resident)</option>
-                                <option value="Hostel Block B" ${student.hostel?.includes('Block B') ? 'selected' : ''}>Hostel Block B (Resident)</option>
-                            </select>
-                        </div>
-                        <div>${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('STUDENT', 'edit-st-group', student.permissionGroup) : ''}</div>
+                    <div style="margin-bottom: 14px; max-width: calc(50% - 7px);">
+                        ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('STUDENT', 'edit-st-group', student.permissionGroup) : ''}
                     </div>
                 </form>
             `;
@@ -998,7 +966,6 @@ const StudentsModule = {
         const rollNo = document.getElementById('edit-st-roll').value.trim();
         const classId = document.getElementById('edit-st-class').value || null;
         const phone = document.getElementById('edit-st-phone').value.trim();
-        const hostel = document.getElementById('edit-st-hostel').value;
 
         let cnic = '';
         let passport = '';
@@ -1043,7 +1010,7 @@ const StudentsModule = {
         student.classId = classId;
         student.branchId = (Lms.getClass(classId) || {}).branchId || student.branchId || Lms.defaultBranchId() || null;
         student.phone = phone;
-        student.hostel = hostel;
+        delete student.hostel;
         // Student type (permission group): only sent when the editor may choose it; the server checks again
         const group = window.PermissionGroupsModule ? PermissionGroupsModule.readTypeSelect('edit-st-group') : undefined;
         if (group) student.permissionGroup = group;
@@ -1165,14 +1132,6 @@ const StudentsModule = {
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 14px;">
-                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Hostel Accommodation</label>
-                        <select id="direct-st-hostel" class="form-control">
-                            <option value="Day Scholar">Day Scholar (Non-Resident)</option>
-                            <option value="Hostel Block A">Hostel Block A (Resident)</option>
-                            <option value="Hostel Block B">Hostel Block B (Resident)</option>
-                        </select>
-                    </div>
                     ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('STUDENT', 'direct-st-group') : ''}
                 </form>
             `;
@@ -1244,7 +1203,6 @@ const StudentsModule = {
         const phone = document.getElementById('direct-st-phone').value.trim();
         const email = document.getElementById('direct-st-email').value.trim();
         const pwd = document.getElementById('direct-st-pwd').value.trim();
-        const hostel = document.getElementById('direct-st-hostel').value;
         if (pwd.length < Lms.MIN_PASSWORD_LENGTH) {
             App.showToast(`The temporary password must be at least ${Lms.MIN_PASSWORD_LENGTH} characters.`, "warning");
             return;
@@ -1306,7 +1264,6 @@ const StudentsModule = {
             cnic: cnic,
             passport: passport,
             gender: Lms.val('direct-st-gender') || null,
-            hostel: hostel,
             status: "ACTIVE",
             avatar: name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
             enrollmentDate: new Date().toISOString().split('T')[0]
@@ -1448,7 +1405,6 @@ const StudentsModule = {
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${Lms.esc(student.rollNo || 'N/A')}</span></div>
                                 ${this.programLabel(student) ? `<div><span style="color: var(--text-muted); font-size: 0.78rem;">Program:</span> <span style="font-weight: 600;">${this.programLabel(student)}</span></div>` : ''}
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Class:</span> <span style="font-weight: 600;">${this.classLabel(student)}</span></div>
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Residence:</span> <span style="font-weight: 600;">${Lms.esc(student.hostel || 'Day Scholar')}</span></div>
                             </div>
                         </div>
 
@@ -1483,11 +1439,11 @@ const StudentsModule = {
     // Export Students list to CSV
     exportStudentsCSV() {
         const students = (window.LmsData.users || []).filter(u => u.role === 'STUDENT');
-        let csv = "Roll No,Name (English),Name (Urdu),Father Name (English),Father Name (Urdu),Gender,Program,Class,Email,Phone,Residence,Attendance %,Status\n";
+        let csv = "Roll No,Name (English),Name (Urdu),Father Name (English),Father Name (Urdu),Gender,Program,Class,Email,Phone,Attendance %,Status\n";
         students.forEach(s => {
             const cls = Lms.getClass(s.classId);
             const pct = Lms.attendancePct(s.id);
-            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${Lms.fatherEnglish(s)}","${s.fatherUrduName || ''}","${s.gender ? Lms.genderLabel(s.gender) : ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${s.hostel || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
+            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${Lms.fatherEnglish(s)}","${s.fatherUrduName || ''}","${s.gender ? Lms.genderLabel(s.gender) : ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

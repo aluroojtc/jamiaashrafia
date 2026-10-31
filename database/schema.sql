@@ -231,7 +231,6 @@ CREATE TABLE student_admissions (
     date_of_birth DATE NOT NULL,
     previous_madrasa VARCHAR(255),
     hafiz_status BOOLEAN DEFAULT FALSE,
-    hostel_required BOOLEAN DEFAULT FALSE,
     status admission_status DEFAULT 'APPLIED',
     interview_date TIMESTAMP WITH TIME ZONE,
     interview_score NUMERIC(5,2),
@@ -328,7 +327,6 @@ CREATE TABLE fee_structures (
     session_id UUID NOT NULL REFERENCES academic_sessions(id) ON DELETE CASCADE,
     admission_fee NUMERIC(10,2) DEFAULT 0.00,
     tuition_monthly NUMERIC(10,2) DEFAULT 0.00,
-    hostel_mess_monthly NUMERIC(10,2) DEFAULT 0.00,
     examination_fee NUMERIC(10,2) DEFAULT 0.00,
     library_deposit NUMERIC(10,2) DEFAULT 0.00,
     currency VARCHAR(10) DEFAULT 'PKR'
@@ -342,7 +340,6 @@ CREATE TABLE fee_challans (
     billing_month VARCHAR(50) NOT NULL,
     due_date DATE NOT NULL,
     amount_tuition NUMERIC(10,2) DEFAULT 0.00,
-    amount_hostel NUMERIC(10,2) DEFAULT 0.00,
     amount_misc NUMERIC(10,2) DEFAULT 0.00,
     scholarship_discount NUMERIC(10,2) DEFAULT 0.00,
     total_payable NUMERIC(10,2) NOT NULL,

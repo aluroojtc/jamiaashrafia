@@ -391,7 +391,7 @@ const AttendanceModule = {
                     <div class="metric-content">
                         <span class="metric-label">Late Arrivals</span>
                         <span class="metric-value">${lateCount} Days</span>
-                        <span class="metric-hint">Hostel Logged</span>
+                        <span class="metric-hint">Checked in late</span>
                     </div>
                 </div>
                 <div class="metric-card danger">

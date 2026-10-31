@@ -194,6 +194,11 @@ function ensureSchema() {
             if (Number(admTable.c) && !(await columnExists('student_admissions', 'father_urdu_name'))) {
                 await db.query(`ALTER TABLE student_admissions ADD COLUMN father_urdu_name VARCHAR(255) NULL AFTER father_name`);
             }
+            // The hostel module was removed (2026-10-31): its one column goes too
+            if (Number(admTable.c) && (await columnExists('student_admissions', 'hostel_required'))) {
+                await db.query(`ALTER TABLE student_admissions DROP COLUMN hostel_required`);
+                console.log('[DB] Removed student_admissions.hostel_required (hostel module removed)');
+            }
 
             await db.query(`CREATE TABLE IF NOT EXISTS notification_reads (
                 notification_id VARCHAR(50) NOT NULL,
