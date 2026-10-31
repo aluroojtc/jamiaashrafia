@@ -233,7 +233,9 @@ function legacyHandler(req, res) {
                         branch_id AS branchId, 
                         program_id AS programId, 
                         candidate_name AS name,
+                        candidate_urdu_name AS urduName,
                         father_name AS fatherName,
+                        father_urdu_name AS fatherUrduName,
                         gender,
                         guardian_contact AS guardianContact,
                         email, 
@@ -264,9 +266,10 @@ function legacyHandler(req, res) {
                     params.push(statusFilter);
                 }
                 if (search && search.trim()) {
-                    sql += ' AND (candidate_name LIKE ? OR application_no LIKE ? OR cnic_bform LIKE ? OR passport_number LIKE ? OR country LIKE ?)';
+                    sql += ' AND (candidate_name LIKE ? OR candidate_urdu_name LIKE ? OR father_name LIKE ? OR father_urdu_name LIKE ?'
+                        + ' OR application_no LIKE ? OR cnic_bform LIKE ? OR passport_number LIKE ? OR country LIKE ?)';
                     const term = `%${search.trim()}%`;
-                    params.push(term, term, term, term, term);
+                    params.push(term, term, term, term, term, term, term, term);
                 }
                 // Only applications to the campuses this person works with
                 const reach = await lmsApi.campusScope(req);
@@ -318,7 +321,8 @@ function legacyHandler(req, res) {
                     `SELECT 
                         id, application_no AS applicationNo, student_type AS studentType,
                         branch_id AS branchId, program_id AS programId, candidate_name AS name,
-                        father_name AS fatherName, gender, guardian_contact AS guardianContact,
+                        candidate_urdu_name AS urduName, father_name AS fatherName,
+                        father_urdu_name AS fatherUrduName, gender, guardian_contact AS guardianContact,
                         email, phone, cnic_bform AS cnic, passport_number AS passport,
                         country, previous_madrasa AS previousMadrasa, 
                         hafiz_status AS hafizStatus, hostel_required AS hostelRequired, status,
@@ -364,7 +368,9 @@ function legacyHandler(req, res) {
                     const data = JSON.parse(body);
                     const studentType = (data.studentType || 'LOCAL').toUpperCase();
                     const name = (data.name || '').trim();
+                    const urduName = String(data.urduName || '').trim() || null;
                     const fatherName = (data.fatherName || '').trim();
+                    const fatherUrduName = String(data.fatherUrduName || '').trim() || null;
                     const phone = (data.phone || '').trim();
                     const email = String(data.email || '').trim() || null;
                     const branchId = String(data.branchId || '').trim();
@@ -490,13 +496,13 @@ function legacyHandler(req, res) {
                     await conn.execute(
                         `INSERT INTO student_admissions (
                             id, application_no, student_type, branch_id, program_id,
-                            candidate_name, father_name, gender, guardian_contact, email, phone,
+                            candidate_name, candidate_urdu_name, father_name, father_urdu_name, gender, guardian_contact, email, phone,
                             cnic_bform, passport_number, country, previous_madrasa,
                             hafiz_status, hostel_required, status, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED', NOW(), NOW())`,
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED', NOW(), NOW())`,
                         [
                             newId, appNo, studentType, branchId, programId,
-                            name, fatherName, gender, phone, email, phone,
+                            name, urduName, fatherName, fatherUrduName, gender, phone, email, phone,
                             cnic, passport, country, prevMadrasa,
                             hafiz ? 1 : 0, hostel ? 1 : 0
                         ]
@@ -524,7 +530,9 @@ function legacyHandler(req, res) {
                         applicationNo: appNo,
                         studentType: studentType,
                         name: name,
+                        urduName: urduName,
                         fatherName: fatherName,
+                        fatherUrduName: fatherUrduName,
                         gender: gender,
                         cnic: cnic,
                         passport: passport,
@@ -616,7 +624,9 @@ function legacyHandler(req, res) {
                     }
 
                     const candidateName = data.name !== undefined ? data.name.trim() : existing.candidate_name;
+                    const urduName = data.urduName !== undefined ? (String(data.urduName || '').trim() || null) : (existing.candidate_urdu_name || null);
                     const fatherName = data.fatherName !== undefined ? data.fatherName.trim() : existing.father_name;
+                    const fatherUrduName = data.fatherUrduName !== undefined ? (String(data.fatherUrduName || '').trim() || null) : (existing.father_urdu_name || null);
                     const gender = data.gender !== undefined ? normGender(data.gender) : (existing.gender || null);
                     if (gender === undefined) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -645,7 +655,8 @@ function legacyHandler(req, res) {
                         needed.add('admissions.schedule_interview');
                     }
                     if (statusChanged && !needed.size) needed.add('admissions.update');
-                    const details = [[candidateName, existing.candidate_name], [fatherName, existing.father_name], [gender, existing.gender], [phone, existing.phone],
+                    const details = [[candidateName, existing.candidate_name], [urduName, existing.candidate_urdu_name], [fatherName, existing.father_name],
+                        [fatherUrduName, existing.father_urdu_name], [gender, existing.gender], [phone, existing.phone],
                         [email, existing.email], [cnic, existing.cnic_bform], [passport, existing.passport_number], [country, existing.country],
                         [programId, existing.program_id], [branchId, existing.branch_id], [hostel, existing.hostel_required],
                         [hafiz, existing.hafiz_status], [prev, existing.previous_madrasa]];
@@ -666,7 +677,9 @@ function legacyHandler(req, res) {
                         `UPDATE student_admissions SET
                             student_type = ?,
                             candidate_name = ?,
+                            candidate_urdu_name = ?,
                             father_name = ?,
+                            father_urdu_name = ?,
                             gender = ?,
                             phone = ?,
                             email = ?,
@@ -685,7 +698,7 @@ function legacyHandler(req, res) {
                             updated_at = NOW()
                         WHERE id = ? OR application_no = ?`,
                         [
-                            studentType, candidateName, fatherName, gender, phone, email,
+                            studentType, candidateName, urduName, fatherName, fatherUrduName, gender, phone, email,
                             cnic, passport, country, programId, branchId,
                             hostel, hafiz, prev, status,
                             interviewDate || null, interviewScore || null, allottedRollNo || null,
@@ -710,7 +723,9 @@ function legacyHandler(req, res) {
                             applicationNo: existing.application_no,
                             status: status,
                             name: candidateName,
+                            urduName: urduName,
                             fatherName: fatherName,
+                            fatherUrduName: fatherUrduName,
                             gender: gender,
                             studentType: studentType,
                             allottedRollNo: allottedRollNo

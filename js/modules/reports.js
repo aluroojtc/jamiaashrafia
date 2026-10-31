@@ -159,14 +159,15 @@ const ReportsModule = {
                 Lms.campusFilter()
             ],
             date: { key: 'date', label: 'Enrollment date' }
-        }, ['Roll Number', 'Scholar Name', 'Class', 'Hostel / Boarding', 'Enrollment Date', 'Attendance Pct', 'Status'], students.map(s => {
+        }, ['Roll Number', 'Scholar Name', "Father's Name", 'Class', 'Hostel / Boarding', 'Enrollment Date', 'Attendance Pct', 'Status'], students.map(s => {
             const pct = Lms.attendancePct(s.id);
             const status = s.status || 'ACTIVE';
             return `
-                <tr data-f-class="${Lms.esc(s.classId || '')}" data-f-status="${Lms.esc(status)}" data-f-residence="${boarder(s) ? 'HOSTEL' : 'DAY'}"
+                <tr data-f-person="${Lms.esc(s.id)}" data-f-class="${Lms.esc(s.classId || '')}" data-f-status="${Lms.esc(status)}" data-f-residence="${boarder(s) ? 'HOSTEL' : 'DAY'}"
                     data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}" data-f-campus="${Lms.esc(s.branchId || '')}" data-f-date="${Lms.isoDate(s.enrollmentDate)}">
                     <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(s.rollNo || 'N/A')}</span></td>
-                    <td><div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(s.name, s.urduName))}</div></td>
+                    <td><div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.nameOf(s))}</div></td>
+                    <td style="font-size: 0.85rem;">${Lms.esc(Lms.fatherOf(s) || '—')}</td>
                     <td>${Lms.getClass(s.classId) ? Lms.esc(Lms.className(s.classId)) : 'Not assigned'}</td>
                     <td style="color: var(--text-muted); font-size: 0.82rem;">${Lms.esc(s.hostel || 'Day Scholar')}</td>
                     <td>${Lms.esc(s.enrollmentDate || '—')}</td>
@@ -190,7 +191,7 @@ const ReportsModule = {
         }, ['Teacher Name', 'Designation / Chair', 'Specialization', 'Official Email', 'Accredited Sanad', 'Classes Taught'], teachers.map(t => {
             const classIds = Lms.teacherClassIds(t.id);
             return `
-                <tr data-f-status="${t.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'}" data-f-class="${Lms.esc(classIds.join('|'))}"
+                <tr data-f-person="${Lms.esc(t.id)}" data-f-status="${t.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'}" data-f-class="${Lms.esc(classIds.join('|'))}"
                     data-f-gender="${Lms.GENDERS[t.gender] ? t.gender : 'NONE'}" data-f-campus="${Lms.campusValues(t)}">
                     <td><div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(t.name, t.urduName))}</div></td>
                     <td><span class="status-pill gold">${Lms.esc(t.designation || 'Teacher')}</span></td>
@@ -220,10 +221,10 @@ const ReportsModule = {
             const classId = r.classId || (r.role === 'STUDENT' ? (Lms.user(r.userId) || {}).classId : '');
             const cls = classId && Lms.getClass(classId);
             return `
-                <tr data-f-role="${r.role === 'STUDENT' || r.role === 'TEACHER' ? r.role : 'STAFF'}" data-f-status="${Lms.esc(r.status)}" data-f-class="${Lms.esc(classId || '')}" data-f-session="${Lms.esc(r.session || 'DAILY')}"
+                <tr data-f-person="${Lms.esc(r.userId || '')}" data-f-role="${r.role === 'STUDENT' || r.role === 'TEACHER' ? r.role : 'STAFF'}" data-f-status="${Lms.esc(r.status)}" data-f-class="${Lms.esc(classId || '')}" data-f-session="${Lms.esc(r.session || 'DAILY')}"
                     data-f-campus="${cls ? Lms.esc(cls.branchId || '') : Lms.campusValues(Lms.user(r.userId))}" data-f-date="${Lms.esc(r.date)}" data-f-search="${Lms.esc(r.identifier || '')}">
                     <td><strong>${Lms.esc(r.date)}</strong></td>
-                    <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(r.userName)}</td>
+                    <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.personName(r.userId, r.userName))}</td>
                     <td><span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}">${Lms.esc(r.role)}</span></td>
                     <td style="font-size: 0.82rem; color: var(--text-secondary);">${Lms.esc(cls ? Lms.className(classId) : (r.className || 'General'))}</td>
                     <td style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-300)'};">${Lms.esc(r.checkInTime || '—')}</td>
@@ -272,7 +273,7 @@ const ReportsModule = {
         }, ['Assignment Title', 'Class / Course', 'Assigned By', 'Due Date', 'Total Marks', 'Submissions Received'], assignments.map(a => {
             const count = subs.filter(s => s.assignmentId === a.id).length;
             return `
-                <tr data-f-class="${Lms.esc(a.classId || '')}" data-f-course="${Lms.esc(a.courseId || '')}" data-f-state="${a.dueDate < Lms.today() ? 'PAST' : 'OPEN'}" data-f-date="${Lms.isoDate(a.dueDate)}">
+                <tr data-f-person="${Lms.esc(a.teacherId || '')}" data-f-class="${Lms.esc(a.classId || '')}" data-f-course="${Lms.esc(a.courseId || '')}" data-f-state="${a.dueDate < Lms.today() ? 'PAST' : 'OPEN'}" data-f-date="${Lms.isoDate(a.dueDate)}">
                     <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(a.title)}</td>
                     <td>${Lms.esc(Lms.className(a.classId))}<div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(Lms.courseTitle(a.courseId))}</div></td>
                     <td style="color: var(--text-secondary);">${Lms.esc(Lms.userName(a.teacherId))}</td>
@@ -320,9 +321,9 @@ const ReportsModule = {
             date: { key: 'date', label: 'Applied on' }
         }, ['Form No', 'Applicant Name', 'Program Applied', 'Branch Choice', 'Submission Date', 'Status'], admissions.map(a => `
             <tr data-f-program="${Lms.esc(a.programId || '')}" data-f-status="${Lms.esc(a.status || 'APPLIED')}" data-f-campus="${Lms.esc(a.branchId || '')}"
-                data-f-date="${Lms.isoDate(a.appliedAt || a.createdAt)}" data-f-search="${Lms.esc([a.fatherName, a.cnic, a.passport].filter(Boolean).join(' '))}">
+                data-f-date="${Lms.isoDate(a.appliedAt || a.createdAt)}" data-f-search="${Lms.esc([Lms.nameSearch(a), a.cnic, a.passport].filter(Boolean).join(' '))}">
                 <td><span class="status-pill primary">${Lms.esc(a.applicationNo || '—')}</span></td>
-                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(a.name || '—')}</td>
+                <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.nameOf(a) || '—')}</td>
                 <td>${Lms.esc((Lms.program(a.programId) || {}).name || a.programId || '—')}</td>
                 <td>${Lms.esc(Lms.branchName(a.branchId) || '—')}</td>
                 <td>${Lms.fmtDate(a.appliedAt || a.createdAt)}</td>
@@ -348,10 +349,10 @@ const ReportsModule = {
             const student = Lms.user(c.studentId) || {};
             const overdue = fees && fees.isOverdue(c);
             return `
-                <tr data-f-status="${Lms.esc(c.status || 'PENDING')}${overdue ? '|OVERDUE' : ''}" data-f-type="${Lms.esc(c.feeType || '')}" data-f-class="${Lms.esc(c.classId || student.classId || '')}"
+                <tr data-f-person="${Lms.esc(c.studentId || '')}" data-f-status="${Lms.esc(c.status || 'PENDING')}${overdue ? '|OVERDUE' : ''}" data-f-type="${Lms.esc(c.feeType || '')}" data-f-class="${Lms.esc(c.classId || student.classId || '')}"
                     data-f-campus="${Lms.esc(student.branchId || '')}" data-f-date="${Lms.isoDate(c.dueDate)}" data-f-search="${Lms.esc(c.rollNo || '')}">
                     <td><span class="status-pill primary" style="font-family: monospace;">${Lms.esc(c.challanNumber)}</span></td>
-                    <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(c.studentName)}</td>
+                    <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.personName(c.studentId, c.studentName))}</td>
                     <td>${Lms.esc(types[c.feeType] || c.feeType || 'Fee')}<div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(c.billingMonth || '')}</div></td>
                     <td>${Lms.money(c.tuitionFee)}</td>
                     <td>${Lms.money(c.hostelMessFee)}</td>
@@ -399,10 +400,10 @@ const ReportsModule = {
             ],
             date: { key: 'date', label: 'Scheduled' }
         }, ['Lecture Topic', 'Class', 'Host Sheikh / Teacher', 'Scheduled Time', 'Passcode', 'Active Scholars', 'Live Status'], live.map(v => `
-            <tr data-f-class="${Lms.esc(v.classId || '')}" data-f-status="${Lms.esc(v.status || 'UPCOMING')}" data-f-date="${Lms.isoDate(v.scheduledStart || v.date)}">
+            <tr data-f-person="${Lms.esc(v.hostId || '')}" data-f-class="${Lms.esc(v.classId || '')}" data-f-status="${Lms.esc(v.status || 'UPCOMING')}" data-f-date="${Lms.isoDate(v.scheduledStart || v.date)}">
                 <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(v.title)}</td>
                 <td style="font-size: 0.82rem;">${Lms.esc(v.classId ? Lms.className(v.classId) : (v.className || '—'))}</td>
-                <td>${Lms.esc(v.hostTeacher || Lms.userName(v.hostId))}</td>
+                <td>${Lms.esc(Lms.personName(v.hostId, v.hostTeacher))}</td>
                 <td>${v.scheduledStart ? Lms.fmtDateTime(v.scheduledStart) : Lms.fmtDate(v.date)}</td>
                 <td><code>${Lms.esc(v.passcode || '—')}</code></td>
                 <td><strong style="color: var(--primary-600);">${I18n.t('{n} joined', { n: window.VirtualClassModule ? window.VirtualClassModule.attendeeCount(v) : 0 })}</strong></td>

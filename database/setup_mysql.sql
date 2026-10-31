@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS student_admissions (
     branch_id VARCHAR(50) NOT NULL DEFAULT 'b1',
     program_id VARCHAR(50) NOT NULL DEFAULT 'p1',
     candidate_name VARCHAR(255) NOT NULL,
+    candidate_urdu_name VARCHAR(255) NULL,               -- name in Urdu script
     father_name VARCHAR(255) NOT NULL,
+    father_urdu_name VARCHAR(255) NULL,                  -- father's name in Urdu script
     gender VARCHAR(10) NULL,                             -- 'MALE' or 'FEMALE'
     guardian_contact VARCHAR(50) NULL,
     email VARCHAR(255) NULL,

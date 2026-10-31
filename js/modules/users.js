@@ -183,7 +183,7 @@ const UsersModule = {
 
                                 return `
                                     <tr data-f-role="${Lms.esc(u.role)}" data-f-status="${Lms.esc(status)}" data-f-campus="${Lms.campusValues(u)}"
-                                        data-f-search="${Lms.esc([u.urduName, u.id].filter(Boolean).join(' '))}">
+                                        data-f-search="${Lms.esc([Lms.nameSearch(u), u.id].filter(Boolean).join(' '))}">
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 12px;">
                                                 <div class="user-avatar" style="width: 38px; height: 38px; font-size: 0.82rem; background: linear-gradient(135deg, var(--primary-600), var(--gold-600));">
@@ -265,19 +265,8 @@ const UsersModule = {
 
         modalContainer.innerHTML = `
             <form id="form-add-user" onsubmit="UsersModule.handleAddUserSubmit(event)">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                    <div>
-                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
-                            Full Name (English) *
-                        </label>
-                        <input type="text" id="add-user-name" class="form-control" placeholder="e.g. Maulana Abdul Samad" required>
-                    </div>
-                    <div>
-                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
-                            Urdu Name
-                        </label>
-                        <input type="text" id="add-user-urdu" class="form-control" placeholder="e.g. مولانا عبد الصمد" style="font-family: 'Amiri', serif;">
-                    </div>
+                <div class="form-grid" style="margin-bottom: 16px;">
+                    ${Lms.nameFields('add-user', null, { namePlaceholder: 'e.g. Maulana Abdul Samad', urduPlaceholder: 'e.g. مولانا عبد الصمد' })}
                 </div>
 
                 <div style="margin-bottom: 16px; max-width: calc(50% - 8px);">
@@ -363,8 +352,8 @@ const UsersModule = {
 
     handleAddUserSubmit(e) {
         e.preventDefault();
-        const name = document.getElementById('add-user-name').value.trim();
-        const urduName = document.getElementById('add-user-urdu').value.trim();
+        const names = Lms.readNameFields('add-user');
+        const name = names.name;
         const email = document.getElementById('add-user-email').value.trim().toLowerCase();
         const role = document.getElementById('add-user-role').value;
         const username = document.getElementById('add-user-username').value.trim().toLowerCase();
@@ -399,8 +388,7 @@ const UsersModule = {
 
         const newUser = {
             id: id,
-            name: name,
-            urduName: urduName || name,
+            ...names,
             email: email,
             username: username,
             phone: phone,
@@ -452,23 +440,12 @@ const UsersModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> ${isSuperAdmin ? 'Edit Super Admin Profile' : 'Edit System User'}: ${Lms.esc(user.name)}`;
+        modalTitle.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> ${isSuperAdmin ? 'Edit Super Admin Profile' : 'Edit System User'}: ${Lms.esc(Lms.nameOf(user))}`;
 
         modalContainer.innerHTML = `
             <form id="form-edit-user" onsubmit="UsersModule.handleEditUserSubmit(event, '${Lms.esc(userId)}')">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                    <div>
-                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
-                            Full Name (English) *
-                        </label>
-                        <input type="text" id="edit-user-name" class="form-control" value="${Lms.esc(user.name)}" required>
-                    </div>
-                    <div>
-                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
-                            Urdu Name
-                        </label>
-                        <input type="text" id="edit-user-urdu" class="form-control" value="${Lms.esc(user.urduName || '')}" style="font-family: 'Amiri', serif;">
-                    </div>
+                <div class="form-grid" style="margin-bottom: 16px;">
+                    ${Lms.nameFields('edit-user', user)}
                 </div>
 
                 <div style="margin-bottom: 16px; max-width: calc(50% - 8px);">
@@ -555,8 +532,7 @@ const UsersModule = {
         const user = window.LmsData?.users?.find(u => u.id === userId);
         if (!user) return;
 
-        const name = document.getElementById('edit-user-name').value.trim();
-        const urduName = document.getElementById('edit-user-urdu').value.trim();
+        const names = Lms.readNameFields('edit-user');
         const email = document.getElementById('edit-user-email').value.trim().toLowerCase();
         const username = document.getElementById('edit-user-username').value.trim().toLowerCase();
         const phone = document.getElementById('edit-user-phone').value.trim();
@@ -576,8 +552,7 @@ const UsersModule = {
             return;
         }
 
-        user.name = name;
-        user.urduName = urduName;
+        Lms.applyNames(user, names);
         user.email = email;
         user.username = username;
         user.phone = phone;
@@ -639,8 +614,8 @@ const UsersModule = {
         Lms.openModal(
             grant ? `<i class="fas fa-crown" style="color: var(--gold-400);"></i> Make Super Admin` : `<i class="fas fa-crown" style="color: var(--danger);"></i> Remove Super Admin`,
             `<p style="margin-bottom: 12px;">${grant
-                                ? I18n.t('{name} will have full control of every account, role, record and setting. Their current role stays with them as an additional role.', { name: `<strong>${Lms.esc(user.name)}</strong>` })
-                : I18n.t('{name} will lose Super Admin rights and be signed out. There must always be at least one Super Admin.', { name: `<strong>${Lms.esc(user.name)}</strong>` })}</p>
+                                ? I18n.t('{name} will have full control of every account, role, record and setting. Their current role stays with them as an additional role.', { name: `<strong>${Lms.esc(Lms.nameOf(user))}</strong>` })
+                : I18n.t('{name} will lose Super Admin rights and be signed out. There must always be at least one Super Admin.', { name: `<strong>${Lms.esc(Lms.nameOf(user))}</strong>` })}</p>
              ${grant ? '' : `<div class="form-group"><label for="sa-new-role">Role from now on *</label><select id="sa-new-role" class="form-control">${roles.map(r => `<option value="${Lms.esc(r.id)}">${Lms.esc(r.name || r.id)}</option>`).join('')}</select></div>`}
              <div class="form-group"><label for="sa-password">Your password (to confirm) *</label><input type="password" id="sa-password" class="form-control" autocomplete="current-password"></div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -674,11 +649,11 @@ const UsersModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${Lms.esc(user.name)}`;
+        modalTitle.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${Lms.esc(Lms.nameOf(user))}`;
 
         modalContainer.innerHTML = `
             <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-prominent);">
-                <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(user.name)}</div>
+                <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.nameOf(user))}</div>
                 <div style="font-size: 0.85rem; color: var(--gold-700);"><span translate="no">${Lms.esc(user.email)}</span>${Lms.copyBtn(user.email, 'Copy email')} &bull; Role: ${Lms.esc(user.role)}</div>
             </div>
 
@@ -723,7 +698,7 @@ const UsersModule = {
         window.DataStore.save(window.LmsData);
         Lms.credentialsModal(
             `<i class="fas fa-key" style="color: var(--gold-400);"></i> Password Reset`,
-            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(user.name)}</strong>` }),
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(Lms.nameOf(user))}</strong>` }),
             this.loginRows(user, newPwd)
         );
     },
@@ -774,7 +749,7 @@ const UsersModule = {
         modalContainer.innerHTML = `
             <div style="padding: 10px 0;">
                 <p style="color: var(--text-primary); font-size: 1rem; margin-bottom: 12px;">
-                                        ${I18n.t('Are you sure you want to permanently delete system user {name}?', { name: `<strong>"${Lms.esc(user.name)}"</strong>` })}
+                                        ${I18n.t('Are you sure you want to permanently delete system user {name}?', { name: `<strong>"${Lms.esc(Lms.nameOf(user))}"</strong>` })}
                 </p>
                 <div style="padding: 12px; background: rgba(239, 68, 68, 0.08); border-inline-start: 3px solid var(--danger); border-radius: 4px; font-size: 0.85rem; color: #7f1d1d;">
                     <div><strong>Email:</strong> ${Lms.esc(user.email)}</div>
@@ -810,11 +785,13 @@ const UsersModule = {
     // EXPORT USERS CSV
     exportCSV() {
         const users = this.getSystemUsers();
-        const headers = ["ID", "Name", "Urdu Name", "Email", "Role", "Designation", "Status"];
+        const headers = ["ID", "Name (English)", "Name (Urdu)", "Father Name (English)", "Father Name (Urdu)", "Email", "Role", "Designation", "Status"];
         const rows = users.map(u => [
             `"${u.id}"`,
             `"${u.name}"`,
             `"${u.urduName || ''}"`,
+            `"${Lms.fatherEnglish(u)}"`,
+            `"${u.fatherUrduName || ''}"`,
             `"${u.email}"`,
             `"${u.role}"`,
             `"${u.designation || ''}"`,

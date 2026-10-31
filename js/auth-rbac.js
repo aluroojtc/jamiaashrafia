@@ -412,12 +412,12 @@ const AuthRBAC = {
         if (this.currentUser) {
             const names = (this.session.roles || []).map(r => r.name);
             const roleText = names.length ? names.join(' + ') : this.roleName(this.currentUser.role);
-            if (nameEl) nameEl.textContent = this.currentUser.name;
+            if (nameEl) nameEl.textContent = window.Lms ? Lms.nameOf(this.currentUser) : this.currentUser.name;
             if (roleEl) roleEl.textContent = roleText;
             if (avatarEl) avatarEl.textContent = this.currentUser.avatar || window.Lms?.initials(this.currentUser.name) || 'JA';
             const ddName = document.getElementById('dropdown-user-name');
             const ddRole = document.getElementById('dropdown-user-role');
-            if (ddName) ddName.textContent = this.currentUser.name;
+            if (ddName) ddName.textContent = window.Lms ? Lms.nameOf(this.currentUser) : this.currentUser.name;
             if (ddRole) ddRole.textContent = roleText;
         }
     }

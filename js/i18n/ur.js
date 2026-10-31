@@ -3645,5 +3645,16 @@ I18n.register('ur', {
     "No online classes yet.": "ابھی کوئی آن لائن کلاس نہیں۔",
     "No online class check-ins recorded yet.": "آن لائن کلاس کی کوئی حاضری ابھی درج نہیں ہوئی۔",
     "No lectures have been recorded yet.": "ابھی کوئی درس ریکارڈ نہیں ہوا۔",
-    "No system users yet.": "ابھی کوئی سسٹم صارف نہیں۔"
+    "No system users yet.": "ابھی کوئی سسٹم صارف نہیں۔",
+    // ---- bilingual names ----
+    "Name (English)": "نام (انگریزی)",
+    "Name (Urdu)": "نام (اردو)",
+    "Father Name (English)": "والد کا نام (انگریزی)",
+    "Father Name (Urdu)": "والد کا نام (اردو)",
+    "Name (English):": "نام (انگریزی):",
+    "Name (Urdu):": "نام (اردو):",
+    "Father Name (English):": "والد کا نام (انگریزی):",
+    "Father Name (Urdu):": "والد کا نام (اردو):",
+    "Name (English) *": "نام (انگریزی) *",
+    "Father Name (English) *": "والد کا نام (انگریزی) *"
 });

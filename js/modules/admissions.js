@@ -406,15 +406,15 @@ const AdmissionsModule = {
             const isIntl = (item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport));
             return `
                 <tr data-f-category="${isIntl ? 'INTERNATIONAL' : 'LOCAL'}" data-f-program="${Lms.esc(item.programId || '')}" data-f-campus="${Lms.esc(item.branchId || '')}"
-                    data-f-date="${Lms.isoDate(item.appliedAt || item.createdAt)}" data-f-search="${Lms.esc([item.fatherName, item.cnic, item.passport, item.country, item.phone].filter(Boolean).join(' '))}">
+                    data-f-date="${Lms.isoDate(item.appliedAt || item.createdAt)}" data-f-search="${Lms.esc([Lms.nameSearch(item), item.cnic, item.passport, item.country, item.phone].filter(Boolean).join(' '))}">
                     <td>
                         <div style="font-weight: 700; color: var(--primary-950);">
                             <a href="javascript:void(0)" onclick="AdmissionsModule.viewApplication('${Lms.esc(item.id)}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--gold-600)'" onmouseout="this.style.color='var(--primary-950)'">
-                                ${Lms.esc(item.name)}
+                                ${Lms.esc(Lms.nameOf(item))}
                             </a>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--gold-700); font-family: monospace; font-weight: 700;"><span translate="no">${Lms.esc(item.applicationNo)}</span>${Lms.copyBtn(item.applicationNo, 'Copy tracking number')}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.parentOf(item.gender, true)} ${Lms.esc(item.fatherName)} ${Lms.genderPill(item.gender)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.parentOf(item.gender, true)} ${Lms.esc(Lms.fatherOf(item))} ${Lms.genderPill(item.gender)}</div>
                     </td>
                     <td>
                         ${isIntl ? `
@@ -544,7 +544,7 @@ const AdmissionsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-file-alt" style="color: var(--gold-400);"></i> Applicant Dossier: ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)})`;
+            titleEl.innerHTML = `<i class="fas fa-file-alt" style="color: var(--gold-400);"></i> Applicant Dossier: ${Lms.esc(Lms.nameOf(item))} (${Lms.esc(item.applicationNo)})`;
         }
 
         if (bodyEl) {
@@ -554,13 +554,13 @@ const AdmissionsModule = {
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                         <div style="min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem; font-weight: 700;">${Lms.esc(item.name)}</h3>
+                                <h3 style="color: var(--primary-950); margin: 0; font-size: 1.3rem; font-weight: 700;">${Lms.esc(Lms.nameOf(item))}</h3>
                                 <span style="display: inline-flex; align-items: center;">
                                     <span class="status-pill gold" style="font-family: monospace; font-size: 0.8rem; letter-spacing: 0.02em;" translate="no">${Lms.esc(item.applicationNo)}</span>${Lms.copyBtn(item.applicationNo, 'Copy tracking number')}
                                 </span>
                             </div>
                             <div style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 6px;">
-                                <i class="fas fa-user" style="color: var(--gold-600); width: 16px;"></i> ${Lms.parentOf(item.gender)} <strong style="color: var(--primary-900);">${Lms.esc(item.fatherName)}</strong> ${Lms.genderPill(item.gender)}
+                                <i class="fas fa-user" style="color: var(--gold-600); width: 16px;"></i> ${Lms.parentOf(item.gender)} <strong style="color: var(--primary-900);">${Lms.esc(Lms.fatherOf(item))}</strong> ${Lms.genderPill(item.gender)}
                             </div>
                             <div style="display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">
                                 <span><i class="fas fa-calendar-alt" style="color: var(--primary-600); width: 16px;"></i> Applied: <strong style="color: var(--text-primary);">${Lms.esc(item.appliedAt || '—')}</strong></span>
@@ -581,8 +581,10 @@ const AdmissionsModule = {
                     <!-- PERSONAL & IDENTITY -->
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--primary-950); margin-bottom: 8px;"><i class="fas fa-id-card"></i> Personal Information</h4>
-                        <div><strong>Candidate Name:</strong> ${Lms.esc(item.name)}</div>
-                        <div><strong>Father's Name:</strong> ${Lms.esc(item.fatherName)}</div>
+                        <div><strong>Name (English):</strong> ${Lms.esc(item.name || '—')}</div>
+                        <div><strong>Name (Urdu):</strong> <span dir="rtl" lang="ur">${Lms.esc(item.urduName || '—')}</span></div>
+                        <div><strong>Father Name (English):</strong> ${Lms.esc(item.fatherName || '—')}</div>
+                        <div><strong>Father Name (Urdu):</strong> <span dir="rtl" lang="ur">${Lms.esc(item.fatherUrduName || '—')}</span></div>
                         <div><strong>Gender:</strong> ${item.gender ? Lms.genderPill(item.gender) : `<span style="color: var(--text-muted);">Not specified</span>`}</div>
                         <div><strong>Student Category:</strong> ${isIntl ? '<span class="status-pill gold"><i class="fas fa-globe"></i> International Student</span>' : '<span class="status-pill info"><i class="fas fa-flag"></i> Local Student</span>'}</div>
                         ${isIntl ? `
@@ -706,10 +708,10 @@ const AdmissionsModule = {
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
                 <p style="color: var(--text-primary); font-size: 0.95rem; margin-bottom: 6px;">
-                    Schedule interview for candidate <strong>${Lms.esc(item.name)}</strong> (<code style="color: var(--gold-700);">${Lms.esc(item.applicationNo)}</code>).
+                    Schedule interview for candidate <strong>${Lms.esc(Lms.nameOf(item))}</strong> (<code style="color: var(--gold-700);">${Lms.esc(item.applicationNo)}</code>).
                 </p>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
-                    Father: ${Lms.esc(item.fatherName)} &bull; CNIC: ${Lms.esc(item.cnic)}
+                    Father: ${Lms.esc(Lms.fatherOf(item))} &bull; CNIC: ${Lms.esc(item.cnic)}
                 </div>
             </div>
 
@@ -776,12 +778,12 @@ const AdmissionsModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-clipboard-check" style="color: var(--gold-400);"></i> Candidate Interview Evaluation: ${Lms.esc(item.name)}`;
+        modalTitle.innerHTML = `<i class="fas fa-clipboard-check" style="color: var(--gold-400);"></i> Candidate Interview Evaluation: ${Lms.esc(Lms.nameOf(item))}`;
 
         modalBody.innerHTML = `
             <form id="form-interview-eval" onsubmit="AdmissionsModule.handleEvaluationSubmit(event, '${id}')">
                 <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle); margin-bottom: 16px; font-size: 0.85rem;">
-                    <div><strong>Candidate:</strong> ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)}) &bull; ${Lms.parentOf(item.gender, true)} ${Lms.esc(item.fatherName)}</div>
+                    <div><strong>Candidate:</strong> ${Lms.esc(Lms.nameOf(item))} (${Lms.esc(item.applicationNo)}) &bull; ${Lms.parentOf(item.gender, true)} ${Lms.esc(Lms.fatherOf(item))}</div>
                     <div style="color: var(--text-muted);">Interview Date: ${Lms.esc(item.interviewDate || 'Current Session')}</div>
                 </div>
 
@@ -920,8 +922,8 @@ const AdmissionsModule = {
                 <div style="background: linear-gradient(135deg, rgba(6, 78, 59, 0.3) 0%, rgba(217, 119, 6, 0.15) 100%); border-inline-start: 4px solid var(--gold-400); padding: 12px 16px; border-radius: 4px; margin-bottom: 18px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                         <div>
-                            <strong style="color: var(--primary-950); font-size: 1rem;">${Lms.esc(item.name)}</strong>
-                            <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; ${Lms.parentOf(item.gender, true)} ${Lms.esc(item.fatherName)}</span>
+                            <strong style="color: var(--primary-950); font-size: 1rem;">${Lms.esc(Lms.nameOf(item))}</strong>
+                            <span style="color: var(--text-muted); font-size: 0.8rem;"> &bull; ${Lms.parentOf(item.gender, true)} ${Lms.esc(Lms.fatherOf(item))}</span>
                             <div style="font-size: 0.78rem; color: var(--gold-700);">CNIC: ${Lms.esc(item.cnic)} &bull; Score: ${item.interviewScore === null || item.interviewScore === undefined ? '—' : Lms.esc(item.interviewScore) + '%'}</div>
                         </div>
                         <span class="status-pill success"><i class="fas fa-check"></i> Interview Cleared</span>
@@ -1073,7 +1075,9 @@ const AdmissionsModule = {
         const newStudentUser = {
             id: newStudentUserId,
             name: item.name,
-            urduName: item.name,
+            urduName: item.urduName || '',
+            fatherName: item.fatherName || '',
+            fatherUrduName: item.fatherUrduName || '',
             role: "STUDENT",
             studentType: isIntlStudent ? "INTERNATIONAL" : "LOCAL",
             country: item.country || (isIntlStudent ? "International" : "Pakistan"),
@@ -1207,7 +1211,7 @@ const AdmissionsModule = {
         modalBody.innerHTML = `
             <div style="margin-bottom: 16px;">
                 <p style="color: var(--text-primary); font-size: 0.95rem; margin-bottom: 4px;">
-                    ${I18n.t('Are you sure you want to mark application {no} ({name}) as Rejected?', { no: `<strong>${Lms.esc(item.applicationNo)}</strong>`, name: Lms.esc(item.name) })}
+                    ${I18n.t('Are you sure you want to mark application {no} ({name}) as Rejected?', { no: `<strong>${Lms.esc(item.applicationNo)}</strong>`, name: Lms.esc(Lms.nameOf(item)) })}
                 </p>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
                     This decision will be permanently archived in the admissions registry.
@@ -1344,14 +1348,7 @@ const AdmissionsModule = {
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label>Candidate Full Name (English) *</label>
-                            <input type="text" id="adm-name" class="form-control" placeholder="e.g. Muhammad Bilal Usmani" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Father's Name *</label>
-                            <input type="text" id="adm-father" class="form-control" placeholder="e.g. Maulana Abdul Rehman" required>
-                        </div>
+                        ${Lms.nameFields('adm', null, { fatherRequired: true, namePlaceholder: 'e.g. Muhammad Bilal Usmani', fatherPlaceholder: 'e.g. Maulana Abdul Rehman' })}
                         <div class="form-group">
                             <label for="adm-gender">Gender *</label>
                             <select id="adm-gender" class="form-control" required>${Lms.genderOptions('')}</select>
@@ -1641,8 +1638,7 @@ const AdmissionsModule = {
 
     submitApplication() {
         const studentType = document.querySelector('input[name="adm_student_type"]:checked')?.value || 'LOCAL';
-        const name = document.getElementById('adm-name').value.trim();
-        const father = document.getElementById('adm-father').value.trim();
+        const names = Lms.readNameFields('adm');
         const cnic = studentType === 'LOCAL' ? document.getElementById('adm-cnic').value.trim() : '';
         const passport = studentType === 'INTERNATIONAL' ? document.getElementById('adm-passport').value.trim() : '';
         const country = studentType === 'INTERNATIONAL' ? document.getElementById('adm-country').value.trim() : 'Pakistan';
@@ -1660,8 +1656,7 @@ const AdmissionsModule = {
             id: `adm_${Date.now()}`,
             applicationNo: newAppNo,
             studentType: studentType,
-            name: name,
-            fatherName: father,
+            ...names,
             gender: Lms.val('adm-gender') || null,
             cnic: cnic,
             passport: passport,
@@ -1712,7 +1707,7 @@ const AdmissionsModule = {
         const modalTitle = document.getElementById('modal-title-text');
         const modalFooter = document.getElementById('modal-footer-container');
 
-        modalTitle.innerHTML = `<i class="fas fa-edit" style="color: var(--gold-400);"></i> Edit Application: ${Lms.esc(item.name)} (${Lms.esc(item.applicationNo)})`;
+        modalTitle.innerHTML = `<i class="fas fa-edit" style="color: var(--gold-400);"></i> Edit Application: ${Lms.esc(Lms.nameOf(item))} (${Lms.esc(item.applicationNo)})`;
         modalBody.innerHTML = `
             <form id="edit-admission-form" onsubmit="event.preventDefault(); AdmissionsModule.saveEditedApplication('${Lms.esc(item.id)}')">
                 <div class="form-grid">
@@ -1744,14 +1739,7 @@ const AdmissionsModule = {
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Candidate Full Name (English) *</label>
-                        <input type="text" id="edit-adm-name" class="form-control" value="${Lms.esc(item.name || '')}" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Father's Name *</label>
-                        <input type="text" id="edit-adm-father" class="form-control" value="${Lms.esc(item.fatherName || '')}" required>
-                    </div>
+                    ${Lms.nameFields('edit-adm', item, { fatherRequired: true })}
                     <div class="form-group">
                         <label for="edit-adm-gender">Gender *</label>
                         <select id="edit-adm-gender" class="form-control" required>${Lms.genderOptions(item.gender || '')}</select>
@@ -1912,8 +1900,9 @@ const AdmissionsModule = {
         if (!item) return;
 
         const studentType = document.querySelector('input[name="edit_adm_student_type"]:checked')?.value || 'LOCAL';
-        const name = document.getElementById('edit-adm-name').value.trim();
-        const father = document.getElementById('edit-adm-father').value.trim();
+        const names = Lms.readNameFields('edit-adm');
+        const name = names.name;
+        const father = names.fatherName;
         const phone = document.getElementById('edit-adm-phone').value.trim();
         const email = document.getElementById('edit-adm-email').value.trim();
         const programId = document.getElementById('edit-adm-program').value;
@@ -1971,8 +1960,7 @@ const AdmissionsModule = {
 
         // Apply edits to item
         item.studentType = studentType;
-        item.name = name;
-        item.fatherName = father;
+        Lms.applyNames(item, names);
         item.gender = gender;
         item.cnic = cnic;
         item.passport = passport;
@@ -2034,7 +2022,7 @@ const AdmissionsModule = {
                             <span style="font-size: 0.65rem; color: var(--primary-800); font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Photo</span>
                         </div>
                         <div style="flex: 1; font-size: 0.84rem; line-height: 1.65; color: var(--text-primary);">
-                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${Lms.esc(item.name)}</strong></div>
+                            <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${Lms.esc(Lms.nameOf(item))}</strong></div>
                             <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${Lms.esc(item.allottedRollNo || 'ASH-2026-001')}</span></div>
                             <div><span style="color: var(--text-muted); font-size: 0.78rem;">Department:</span> <span style="font-weight: 600;">Dars-e-Nizami</span></div>
                             ${(item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport)) ? `
@@ -2075,14 +2063,14 @@ const AdmissionsModule = {
 
     exportAdmissionsCSV() {
         const rows = [
-            ["Application No", "Category", "Name", "Father Name", "Gender", "Identification (CNIC/Passport)", "Country", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
+            ["Application No", "Category", "Name (English)", "Name (Urdu)", "Father Name (English)", "Father Name (Urdu)", "Gender", "Identification (CNIC/Passport)", "Country", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
         ];
         (window.LmsData.admissions || []).forEach(a => {
             const isIntl = (a.studentType === 'INTERNATIONAL' || (!a.cnic && a.passport));
             const idDoc = isIntl ? (a.passport || 'N/A') : (a.cnic || 'N/A');
             const country = isIntl ? (a.country || 'International') : 'Pakistan';
             const cat = isIntl ? 'INTERNATIONAL' : 'LOCAL';
-            rows.push([a.applicationNo, cat, a.name, a.fatherName, Lms.genderLabel(a.gender), idDoc, country, a.phone, a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
+            rows.push([a.applicationNo, cat, a.name, a.urduName || '', a.fatherName, a.fatherUrduName || '', Lms.genderLabel(a.gender), idDoc, country, a.phone, a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
         });
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
         const encodedUri = encodeURI(csvContent);

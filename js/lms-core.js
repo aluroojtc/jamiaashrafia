@@ -260,9 +260,79 @@ const Lms = {
         return (window.LmsData.users || []).find(u => u.id === id) || null;
     },
 
+    // A person's name in the page language (Urdu name on Urdu pages when one is recorded)
     userName(id, fallback = '—') {
         const u = this.user(id);
-        return u ? u.name : fallback;
+        return u ? this.nameOf(u) : fallback;
+    },
+
+    // ---------------------------------------------------------------------
+    // Bilingual names. Every person (and admission application) keeps:
+    //   name / urduName                    their name in English and in Urdu
+    //   fatherName / fatherUrduName        father's name in English and in Urdu
+    // Students recorded before this kept the father's English name in guardianName; it is still read
+    // (and kept up to date) so no record loses it. English stays the stored name for records copied
+    // into other places (challans, attendance, results), so they are looked up by id when shown.
+    // ---------------------------------------------------------------------
+    nameOf(rec) {
+        return rec ? this.localName(rec.name, rec.urduName) : '';
+    },
+
+    fatherEnglish(rec) {
+        return rec ? (rec.guardianName || rec.fatherName || '') : '';
+    },
+
+    fatherOf(rec) {
+        return rec ? this.localName(this.fatherEnglish(rec), rec.fatherUrduName) : '';
+    },
+
+    // Shown name of someone referenced by id in another record, else the name stored on that record
+    personName(id, stored) {
+        const u = id ? this.user(id) : null;
+        return u ? this.nameOf(u) : (stored || '');
+    },
+
+    // Both languages of a person's and father's names, for search (data-f-search)
+    nameSearch(rec) {
+        if (!rec) return '';
+        return [rec.name, rec.urduName, this.fatherEnglish(rec), rec.fatherUrduName].filter(Boolean).join(' ');
+    },
+
+    // Name (English / Urdu) and Father Name (English / Urdu) inputs for a form. prefix gives the ids:
+    // <prefix>-name, <prefix>-urdu, <prefix>-father, <prefix>-father-urdu.
+    // opts.nameRequired / opts.fatherRequired mark the English fields required; opts.nameReadonly shows the English name
+    // without letting it change; opts.father: false leaves out the father's name.
+    nameFields(prefix, rec, opts = {}) {
+        const r = rec || {};
+        const field = (id, label, value, urdu, required, placeholder, readonly) => `
+            <div class="form-group">
+                <label for="${prefix}-${id}">${I18n.t(label)}${required ? ' *' : ''}</label>
+                <input type="text" id="${prefix}-${id}" class="form-control" value="${this.esc(value || '')}"
+                    ${urdu ? 'dir="rtl" lang="ur" style="font-family: \'Amiri\', \'Noto Nastaliq Urdu\', serif;"' : 'dir="ltr" lang="en"'}
+                    ${placeholder ? `placeholder="${this.esc(placeholder)}"` : ''} ${required ? 'required' : ''} ${readonly ? 'readonly style="opacity: 0.75;"' : ''}>
+            </div>`;
+        return field('name', 'Name (English)', r.name, false, opts.nameRequired !== false && !opts.nameReadonly, opts.namePlaceholder, opts.nameReadonly)
+            + field('urdu', 'Name (Urdu)', r.urduName, true, false, opts.urduPlaceholder || 'اردو میں نام')
+            + (opts.father === false ? ''
+                : field('father', 'Father Name (English)', this.fatherEnglish(r), false, !!opts.fatherRequired, opts.fatherPlaceholder)
+                + field('father-urdu', 'Father Name (Urdu)', r.fatherUrduName, true, false, 'اردو میں والد کا نام'));
+    },
+
+    // Values of nameFields; a missing input reads as undefined so callers can leave that field alone
+    readNameFields(prefix) {
+        const get = id => {
+            const el = document.getElementById(`${prefix}-${id}`);
+            return el ? String(el.value || '').trim() : undefined;
+        };
+        return { name: get('name'), urduName: get('urdu'), fatherName: get('father'), fatherUrduName: get('father-urdu') };
+    },
+
+    // Copy name fields read from a form onto a person; the father's English name also goes to guardianName on
+    // records that use it, so older screens and exports keep showing it
+    applyNames(target, names) {
+        ['name', 'urduName', 'fatherName', 'fatherUrduName'].forEach(k => { if (names[k] !== undefined) target[k] = names[k]; });
+        if (names.fatherName !== undefined && (target.role === 'STUDENT' || target.guardianName !== undefined)) target.guardianName = names.fatherName;
+        return target;
     },
 
     teachers() {
@@ -366,7 +436,7 @@ const Lms = {
     teacherOptions(selectedId, includeNone, branchId) {
         return (includeNone ? `<option value="">— Not assigned —</option>` : '') + this.teachers()
             .filter(t => !branchId || t.id === selectedId || this.worksAtCampus(t, branchId))
-            .map(t => `<option value="${this.esc(t.id)}" ${t.id === selectedId ? 'selected' : ''}>${this.esc(t.name)}${t.designation ? ' (' + this.esc(t.designation) + ')' : ''}</option>`).join('');
+            .map(t => `<option value="${this.esc(t.id)}" ${t.id === selectedId ? 'selected' : ''}>${this.esc(this.nameOf(t))}${t.designation ? ' (' + this.esc(t.designation) + ')' : ''}</option>`).join('');
     },
 
     // ---------------------------------------------------------------------
@@ -630,7 +700,8 @@ const Lms = {
     //       date: { key: 'date', label: 'Date' }                    // rows carry data-f-date="YYYY-MM-DD"
     //   })
     //
-    // Rows declare values as data-f-<key> ("a|b" for several); data-f-search adds hidden search words.
+    // Rows declare values as data-f-<key> ("a|b" for several); data-f-search adds hidden search words, and
+    // data-f-person="<user id>|..." adds those people's names in English and Urdu, so either script finds them.
     // A row with a single spanning cell (an empty-state row) or data-f-skip is never filtered.
     // ---------------------------------------------------------------------
     _filters: {},
@@ -811,7 +882,8 @@ const Lms = {
         rows.forEach(row => {
             let ok = true;
             if (words.length) {
-                const hay = `${this._searchText(row)} ${row.getAttribute('data-f-search') || ''}`.toLowerCase();
+                const people = (row.getAttribute('data-f-person') || '').split('|').filter(Boolean).map(id => this.nameSearch(this.user(id))).join(' ');
+                const hay = `${this._searchText(row)} ${row.getAttribute('data-f-search') || ''} ${people}`.toLowerCase();
                 ok = words.every(w => hay.includes(w));
             }
             if (ok) ok = config.selects.every(spec => !st.sel[spec.id] || this._rowValues(row, spec).includes(st.sel[spec.id]));

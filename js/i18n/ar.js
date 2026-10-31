@@ -3645,5 +3645,16 @@ I18n.register('ar', {
     "No online classes yet.": "لا توجد فصول عبر الإنترنت بعد.",
     "No online class check-ins recorded yet.": "لم يُسجل حضور لأي فصل عبر الإنترنت بعد.",
     "No lectures have been recorded yet.": "لم تُسجل أي محاضرة بعد.",
-    "No system users yet.": "لا يوجد مستخدمو نظام بعد."
+    "No system users yet.": "لا يوجد مستخدمو نظام بعد.",
+    // ---- bilingual names ----
+    "Name (English)": "الاسم (بالإنجليزية)",
+    "Name (Urdu)": "الاسم (بالأردية)",
+    "Father Name (English)": "اسم الأب (بالإنجليزية)",
+    "Father Name (Urdu)": "اسم الأب (بالأردية)",
+    "Name (English):": "الاسم (بالإنجليزية):",
+    "Name (Urdu):": "الاسم (بالأردية):",
+    "Father Name (English):": "اسم الأب (بالإنجليزية):",
+    "Father Name (Urdu):": "اسم الأب (بالأردية):",
+    "Name (English) *": "الاسم (بالإنجليزية) *",
+    "Father Name (English) *": "اسم الأب (بالإنجليزية) *"
 });

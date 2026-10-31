@@ -82,7 +82,7 @@ const TeachersModule = {
                     return `
                         <div class="card" style="margin: 0; ${t.status === 'INACTIVE' ? 'opacity: 0.65;' : ''}" data-f-status="${t.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'}"
                             data-f-gender="${Lms.GENDERS[t.gender] ? t.gender : 'NONE'}" data-f-campus="${Lms.campusValues(t)}" data-f-class="${Lms.esc(w.classIds.join('|'))}"
-                            data-f-date="${Lms.isoDate(t.joinedAt || t.createdAt)}" data-f-search="${Lms.esc([t.urduName, t.phone].filter(Boolean).join(' '))}">
+                            data-f-date="${Lms.isoDate(t.joinedAt || t.createdAt)}" data-f-search="${Lms.esc([Lms.nameSearch(t), t.phone].filter(Boolean).join(' '))}">
                             <div style="display: flex; gap: 14px; margin-bottom: 14px;">
                                 <div class="avatar-circle gold" style="width: 54px; height: 54px; font-size: 1.2rem; flex-shrink: 0;">${Lms.esc(t.avatar || Lms.initials(t.name))}</div>
                                 <div style="min-width: 0;">
@@ -132,8 +132,7 @@ const TeachersModule = {
         Lms.openModal(
             `<i class="fas fa-user-plus" style="color: var(--gold-400);"></i> ${t ? 'Edit Teacher' : 'Register New Teacher'}`,
             `<div class="form-grid">
-                <div class="form-group"><label>Full Name *</label><input type="text" id="reg-t-name" class="form-control" value="${Lms.esc(d.name || '')}" placeholder="e.g. Maulana Abdul Samad"></div>
-                <div class="form-group"><label>Name in Urdu / Arabic</label><input type="text" id="reg-t-urdu" class="form-control" dir="rtl" value="${Lms.esc(d.urduName || '')}"></div>
+                ${Lms.nameFields('reg-t', d, { namePlaceholder: 'e.g. Maulana Abdul Samad' })}
                 <div class="form-group"><label for="reg-t-gender">Gender *</label><select id="reg-t-gender" class="form-control">${Lms.genderOptions(d.gender || '')}</select></div>
                 <div class="form-group"><label>Designation *</label><input type="text" id="reg-t-desig" class="form-control" value="${Lms.esc(d.designation || '')}" placeholder="e.g. Ustad-ul-Hadith"></div>
                 <div class="form-group"><label>Highest Sanad / Degree</label><input type="text" id="reg-t-sanad" class="form-control" value="${Lms.esc(d.sanad || d.qualification || '')}"></div>
@@ -157,7 +156,8 @@ const TeachersModule = {
 
     async saveTeacher(teacherId) {
         if (!this.canManage()) return;
-        const name = Lms.val('reg-t-name');
+        const names = Lms.readNameFields('reg-t');
+        const name = names.name;
         const desig = Lms.val('reg-t-desig');
         const email = Lms.val('reg-t-email').toLowerCase();
         if (!name || !desig || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -174,8 +174,8 @@ const TeachersModule = {
             return;
         }
         const fields = {
-            name, designation: desig, email, gender,
-            urduName: Lms.val('reg-t-urdu') || name, sanad: Lms.val('reg-t-sanad'), specialization: Lms.val('reg-t-spec'),
+            ...names, designation: desig, email, gender,
+            sanad: Lms.val('reg-t-sanad'), specialization: Lms.val('reg-t-spec'),
             phone: Lms.val('reg-t-phone'), ...Lms.readCampusAccess('reg-t')
         };
         // Additional system roles (e.g. Librarian), when the picker was shown
@@ -237,7 +237,7 @@ const TeachersModule = {
         Lms.save();
         Lms.credentialsModal(
             `<i class="fas fa-key" style="color: var(--gold-400);"></i> Password Reset`,
-            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(t.name)}</strong>` }),
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(Lms.nameOf(t))}</strong>` }),
             this.loginRows(t.email, pwd)
         );
     },
@@ -311,7 +311,7 @@ const TeachersModule = {
         Lms.openModal(
             `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> My Profile`,
             `<div class="form-grid">
-                <div class="form-group"><label>Name in Urdu / Arabic</label><input type="text" id="mp-urdu" class="form-control" dir="rtl" value="${Lms.esc(me.urduName || '')}"></div>
+                ${Lms.nameFields('mp', me, { nameReadonly: true })}
                 <div class="form-group"><label>Mobile</label><input type="tel" id="mp-phone" class="form-control" value="${Lms.esc(me.phone || '')}"></div>
                 <div class="form-group"><label>Highest Sanad / Degree</label><input type="text" id="mp-sanad" class="form-control" value="${Lms.esc(me.sanad || '')}"></div>
                 <div class="form-group"><label>Specialization</label><input type="text" id="mp-spec" class="form-control" value="${Lms.esc(me.specialization || '')}"></div>
@@ -345,7 +345,10 @@ const TeachersModule = {
                 return;
             }
         }
-        Object.assign(me, { urduName: Lms.val('mp-urdu'), phone: Lms.val('mp-phone'), sanad: Lms.val('mp-sanad'), specialization: Lms.val('mp-spec'), bio: document.getElementById('mp-bio').value.trim() });
+        const names = Lms.readNameFields('mp');
+        delete names.name;
+        Lms.applyNames(me, names);
+        Object.assign(me, { phone: Lms.val('mp-phone'), sanad: Lms.val('mp-sanad'), specialization: Lms.val('mp-spec'), bio: document.getElementById('mp-bio').value.trim() });
         Lms.save();
         window.App.closeModal();
         window.App.showToast(pwd ? 'Profile and password updated' : 'Profile updated', 'success');
@@ -388,9 +391,9 @@ const TeachersModule = {
                     <thead><tr><th>Roll No</th><th>Student</th><th>Status</th></tr></thead>
                     <tbody>
                         ${students.length ? students.map(s => `
-                            <tr data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}">
+                            <tr data-f-person="${Lms.esc(s.id)}" data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}">
                                 <td><strong>${Lms.esc(s.rollNo || '')}</strong></td>
-                                <td>${Lms.esc(s.name)}</td>
+                                <td>${Lms.esc(Lms.nameOf(s))}</td>
                                 <td>
                                     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                                         ${[['PRESENT', 'Present', 'success'], ['LATE', 'Late', 'warning'], ['ABSENT', 'Absent', 'danger'], ['LEAVE', 'Leave', 'info']].map(([v, l, c]) => `

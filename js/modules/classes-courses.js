@@ -108,7 +108,7 @@ const ClassesCoursesModule = {
                     const isSelected = c.id === this.selectedClassId;
                     const count = Lms.studentsInClass(c.id).length;
                     return `
-                        <div class="card" data-f-program="${Lms.esc(c.programId || '')}" style="padding: 16px; margin: 0; cursor: pointer; border: ${isSelected ? '2px solid var(--primary-600)' : '1px solid var(--border-subtle)'}; background: ${isSelected ? 'var(--primary-50)' : 'var(--bg-surface)'};" onclick="ClassesCoursesModule.selectClass('${c.id}')">
+                        <div class="card" data-f-person="${Lms.esc(c.teacherId || '')}" data-f-program="${Lms.esc(c.programId || '')}" style="padding: 16px; margin: 0; cursor: pointer; border: ${isSelected ? '2px solid var(--primary-600)' : '1px solid var(--border-subtle)'}; background: ${isSelected ? 'var(--primary-50)' : 'var(--bg-surface)'};" onclick="ClassesCoursesModule.selectClass('${c.id}')">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                                 <span class="status-pill ${isSelected ? 'gold' : 'info'}" style="font-size: 0.65rem;">${Lms.esc((Lms.program(c.programId) || {}).code || 'Class')}</span>
                                 <span style="font-size: 0.75rem; color: var(--gold-700);"><i class="fas fa-user-friends"></i> ${count}${c.capacity ? ' / ' + c.capacity : ''}</span>
@@ -169,7 +169,7 @@ const ClassesCoursesModule = {
                                     if (!course) return '';
                                     const materials = (window.LmsData.courseMaterials || []).filter(m => m.courseId === course.id && (!m.classId || m.classId === cls.id));
                                     return `
-                                        <tr data-f-teacher="${ct.teacherId ? 'ASSIGNED' : 'NONE'}">
+                                        <tr data-f-person="${Lms.esc(ct.teacherId || '')}" data-f-teacher="${ct.teacherId ? 'ASSIGNED' : 'NONE'}">
                                             <td>
                                                 <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(course.title, course.urduTitle))}</div>
                                                 <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(course.code)} • ${materials.length} material file(s)</div>
@@ -206,11 +206,11 @@ const ClassesCoursesModule = {
                     ${students.length > 5 ? Lms.filterBar('class-students-list', { search: 'Search name or roll no...', selects: [Lms.genderFilter()] }) : ''}
                     <div id="class-students-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 460px; overflow-y: auto;">
                         ${students.length ? students.map(s => `
-                            <div data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}" style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                            <div data-f-person="${Lms.esc(s.id)}" data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}" style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
                                 <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
                                     <div class="user-avatar" style="width: 34px; height: 34px; flex-shrink: 0;">${Lms.esc(s.avatar || Lms.initials(s.name))}</div>
                                     <div style="min-width: 0;">
-                                        <div style="font-weight: 600; font-size: 0.85rem; color: var(--primary-950);">${Lms.esc(s.name)}</div>
+                                        <div style="font-weight: 600; font-size: 0.85rem; color: var(--primary-950);">${Lms.esc(Lms.nameOf(s))}</div>
                                         <div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(s.rollNo || '')}</div>
                                     </div>
                                 </div>
@@ -404,7 +404,7 @@ const ClassesCoursesModule = {
                         <label class="enroll-row" data-q="${Lms.esc((s.name + ' ' + (s.rollNo || '')).toLowerCase())}" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); cursor: pointer;">
                             <input type="checkbox" class="enroll-check" value="${Lms.esc(s.id)}" style="width: 18px; height: 18px;">
                             <div style="flex: 1;">
-                                <div style="font-weight: 600;">${Lms.esc(s.name)} <span style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(s.rollNo || '')}</span></div>
+                                <div style="font-weight: 600;">${Lms.esc(Lms.nameOf(s))} <span style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(s.rollNo || '')}</span></div>
                                 <div style="font-size: 0.72rem; color: var(--text-muted);">Current: ${Lms.esc(s.classId ? Lms.className(s.classId) : 'Not enrolled')}</div>
                             </div>
                         </label>`).join('')}

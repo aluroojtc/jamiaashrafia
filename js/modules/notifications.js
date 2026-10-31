@@ -197,7 +197,7 @@ const NotificationsModule = {
                         <thead><tr><th>Announcement</th><th>Audience</th><th>Sent</th><th>Read by</th></tr></thead>
                         <tbody>
                             ${this.sent.length ? this.sent.map(n => `
-                                <tr data-f-audience="${n.targetUserId ? 'ONE' : n.targetClassId ? 'CLASS' : 'ROLE'}" data-f-date="${Lms.isoDate(n.createdAt || n.time)}" data-f-search="${Lms.esc(n.message)}">
+                                <tr data-f-person="${Lms.esc(n.targetUserId || '')}" data-f-audience="${n.targetUserId ? 'ONE' : n.targetClassId ? 'CLASS' : 'ROLE'}" data-f-date="${Lms.isoDate(n.createdAt || n.time)}" data-f-search="${Lms.esc(n.message)}">
                                     <td><div style="font-weight: 700;">${Lms.esc(n.title)}</div><div style="font-size: 0.78rem; color: var(--text-muted); max-width: 420px;">${Lms.esc(String(n.message).slice(0, 140))}</div></td>
                                     <td style="font-size: 0.8rem;">${Lms.esc(this.audienceLabel(n))}</td>
                                     <td style="font-size: 0.8rem;">${Lms.esc(n.time)}</td>
@@ -235,7 +235,7 @@ const NotificationsModule = {
                 </div>
                 <div class="form-group" id="bc-class-wrap" style="display: none;"><label>Class *</label><select id="bc-class" class="form-control">${Lms.classOptions(null, portal === 'staff' ? null : classIds)}</select></div>
                 <div class="form-group" id="bc-user-wrap" style="display: none;"><label>Person *</label>
-                    <select id="bc-user" class="form-control">${people.map(u => `<option value="${Lms.esc(u.id)}">${Lms.esc(u.name)} — ${Lms.esc(u.rollNo || u.designation || u.role)}</option>`).join('')}</select>
+                    <select id="bc-user" class="form-control">${people.map(u => `<option value="${Lms.esc(u.id)}">${Lms.esc(Lms.nameOf(u))} — ${Lms.esc(u.rollNo || u.designation || u.role)}</option>`).join('')}</select>
                 </div>
                 <div class="form-group"><label>Category *</label>
                     <select id="bc-cat" class="form-control">${Object.entries(this.CATEGORIES).filter(([k]) => !financeOnly || ['FEE', 'GENERAL'].includes(k)).map(([k, [l]]) => `<option value="${k}" ${(financeOnly ? 'FEE' : 'ACADEMIC') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>

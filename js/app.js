@@ -590,7 +590,7 @@ const App = {
                         Jamia Ashrafia Executive Administrative Portal
                     </h1>
                     <p>
-                        Welcome, <strong>${Lms.esc(user.name)}</strong>
+                        Welcome, <strong>${Lms.esc(Lms.nameOf(user))}</strong>
                         <span class="status-pill gold" style="margin-inline-start: 6px;">${Lms.esc(roleDef.name || roleDef.title || role)}</span>
                     </p>
                 </div>
@@ -782,7 +782,7 @@ const App = {
                             ? `<span class="status-pill danger" style="animation: pulse 1.5s infinite;"><i class="fas fa-circle"></i> Live Now</span>`
                             : `<span class="status-pill gold"><i class="fas fa-clock"></i> Next Online Class • ${Lms.esc(session.scheduledStart || '')}</span>`}
                         <h3 style="color: var(--text-primary); margin-top: 6px;">${Lms.esc(session.title)}</h3>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-user-tie"></i> ${Lms.esc(session.hostTeacher || '')} • ${Lms.esc(session.className || '')}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-user-tie"></i> ${Lms.esc(Lms.personName(session.hostId, session.hostTeacher))} • ${Lms.esc(session.className || '')}</div>
                     </div>
                     <button class="btn ${live ? 'btn-primary' : 'btn-secondary'}" onclick="App.navigate('virtual-class')">
                         <i class="fas ${live ? 'fa-sign-in-alt' : 'fa-video'}"></i> ${live ? (isHostView ? 'Open Live Room' : 'Join Class') : 'Online Classes'}
@@ -892,12 +892,12 @@ const App = {
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                             ${toCheck.slice(0, 5).map(s => {
                                 const a = (data.assignments || []).find(x => x.id === s.assignmentId) || {};
-                                return this.dashListItem(Lms.esc(s.studentName), `${Lms.esc(a.title || '')} • submitted ${Lms.fmtDateTime(s.submittedAt)}`,
+                                return this.dashListItem(Lms.esc(Lms.personName(s.studentId, s.studentName)), `${Lms.esc(a.title || '')} • submitted ${Lms.fmtDateTime(s.submittedAt)}`,
                                     `<button class="btn btn-gold btn-sm" onclick="AssignmentsModule.openGradeSubmissionModal('${s.id}')">Check</button>`, 'var(--warning)');
                             }).join('')}
                             ${papersToMark.slice(0, 5).map(s => {
                                 const ex = (data.exams || []).find(x => x.id === s.examId) || {};
-                                return this.dashListItem(Lms.esc(s.studentName), `Exam: ${Lms.esc(ex.title || '')} • ${Lms.fmtDateTime(s.submittedAt)}`,
+                                return this.dashListItem(Lms.esc(Lms.personName(s.studentId, s.studentName)), `Exam: ${Lms.esc(ex.title || '')} • ${Lms.fmtDateTime(s.submittedAt)}`,
                                     `<button class="btn btn-gold btn-sm" onclick="ExamsModule.openMarkSubmissionModal('${s.id}')">Mark</button>`, 'var(--info)');
                             }).join('')}
                             ${!toCheck.length && !papersToMark.length ? this.dashEmpty('All caught up — nothing waiting for checking.') : ''}
@@ -1117,7 +1117,7 @@ const App = {
                             ${(window.LmsData.roles || []).map(r => {
                                 const holders = (window.LmsData.users || []).filter(u => u.role === r.id && u.status !== 'INACTIVE');
                                 const who = !holders.length ? '—'
-                                    : holders.length <= 3 ? holders.map(u => Lms.esc(u.name)).join(', ')
+                                    : holders.length <= 3 ? holders.map(u => Lms.esc(Lms.nameOf(u))).join(', ')
                                         : I18n.t('{n} accounts', { n: holders.length });
                                 return `
                                 <tr data-f-domain="${Lms.esc(r.domain || 'SYSTEM')}">

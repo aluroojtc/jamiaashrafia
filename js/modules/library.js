@@ -192,10 +192,10 @@ const LibraryModule = {
                                 const fine = this.fineFor(l);
                                 const role = (Lms.user(l.userId) || {}).role;
                                 return `
-                                    <tr data-f-status="${Lms.esc(l.status)}${this.isOverdue(l) ? '|OVERDUE' : ''}" data-f-date="${Lms.isoDate(l.requestedAt || l.issuedAt)}"
+                                    <tr data-f-person="${Lms.esc(l.userId || '')}" data-f-status="${Lms.esc(l.status)}${this.isOverdue(l) ? '|OVERDUE' : ''}" data-f-date="${Lms.isoDate(l.requestedAt || l.issuedAt)}"
                                         data-f-role="${role === 'STUDENT' || role === 'TEACHER' ? role : 'STAFF'}">
                                         <td><div style="font-weight: 700;">${Lms.esc(b.title)}</div><div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(b.accessionNo)}</div></td>
-                                        ${manage ? `<td><div style="font-weight: 600;">${Lms.esc(l.userName || Lms.userName(l.userId))}</div><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc((Lms.user(l.userId) || {}).rollNo || (Lms.user(l.userId) || {}).role || '')}</div></td>` : ''}
+                                        ${manage ? `<td><div style="font-weight: 600;">${Lms.esc(Lms.personName(l.userId, l.userName))}</div><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc((Lms.user(l.userId) || {}).rollNo || (Lms.user(l.userId) || {}).role || '')}</div></td>` : ''}
                                         <td>${pill(l)}</td>
                                         <td style="font-size: 0.78rem;">${Lms.fmtDate(l.requestedAt)}${l.issuedAt ? '<br>Issued ' + Lms.fmtDate(l.issuedAt) : ''}${l.returnedAt ? '<br>Returned ' + Lms.fmtDate(l.returnedAt) : ''}</td>
                                         <td style="font-size: 0.8rem; ${this.isOverdue(l) ? 'color: var(--danger); font-weight: 700;' : ''}">${l.dueDate ? Lms.fmtDate(l.dueDate) : '—'}</td>
@@ -340,7 +340,7 @@ const LibraryModule = {
                     <select id="issue-book" class="form-control">${books.map(b => `<option value="${Lms.esc(b.id)}" ${b.id === bookId ? 'selected' : ''}>${Lms.esc(b.title)} (${this.available(b)} available)</option>`).join('')}</select>
                 </div>
                 <div class="form-group"><label>Borrower *</label>
-                    <select id="issue-user" class="form-control">${users.map(u => `<option value="${Lms.esc(u.id)}">${Lms.esc(u.name)} — ${Lms.esc(u.rollNo || u.designation || u.role)}</option>`).join('')}</select>
+                    <select id="issue-user" class="form-control">${users.map(u => `<option value="${Lms.esc(u.id)}">${Lms.esc(Lms.nameOf(u))} — ${Lms.esc(u.rollNo || u.designation || u.role)}</option>`).join('')}</select>
                 </div>
                 <div class="form-group"><label>Return Due Date *</label><input type="date" id="issue-due" class="form-control" min="${Lms.today()}" value="${Lms.addDays(Lms.today(), this.LOAN_DAYS)}"></div>
             </div>`,

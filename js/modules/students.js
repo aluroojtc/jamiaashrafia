@@ -151,7 +151,7 @@ const StudentsModule = {
                                 
                                 return `
                                     <tr data-f-class="${Lms.esc(s.classId || 'NONE')}" data-f-status="${Lms.esc(status)}" data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}"
-                                        data-f-campus="${Lms.esc(s.branchId || '')}" data-f-date="${Lms.isoDate(s.enrollmentDate)}" data-f-search="${Lms.esc([s.urduName, s.phone, s.cnic, s.fatherName].filter(Boolean).join(' '))}">
+                                        data-f-campus="${Lms.esc(s.branchId || '')}" data-f-date="${Lms.isoDate(s.enrollmentDate)}" data-f-search="${Lms.esc([Lms.nameSearch(s), s.phone, s.cnic].filter(Boolean).join(' '))}">
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 10px;">
                                                 <div class="user-avatar" style="width: 38px; height: 38px; font-size: 0.85rem; background: var(--primary-700); border: 2px solid ${status === 'ACTIVE' ? 'var(--primary-400)' : 'var(--danger)'};">
@@ -548,8 +548,10 @@ const StudentsModule = {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem;">
                     <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 2;">
                         <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-card"></i> Candidate Identity</h4>
-                        <div><strong>Full Name:</strong> ${Lms.esc(student.name)}</div>
-                        <div><strong>Father's Name:</strong> ${Lms.esc(student.guardianName || student.fatherName || '—')}</div>
+                        <div><strong>Name (English):</strong> ${Lms.esc(student.name || '—')}</div>
+                        <div><strong>Name (Urdu):</strong> <span dir="rtl" lang="ur">${Lms.esc(student.urduName || '—')}</span></div>
+                        <div><strong>Father Name (English):</strong> ${Lms.esc(Lms.fatherEnglish(student) || '—')}</div>
+                        <div><strong>Father Name (Urdu):</strong> <span dir="rtl" lang="ur">${Lms.esc(student.fatherUrduName || '—')}</span></div>
                         <div><strong>Gender:</strong> ${student.gender ? Lms.genderPill(student.gender) : `<span style="color: var(--text-muted);">Not specified</span>`}</div>
                         <div><strong>Student Category:</strong> <span class="status-pill ${isIntl ? 'gold' : 'success'}">${isIntl ? '<i class="fas fa-globe-americas"></i> International Student' : '<i class="fas fa-flag"></i> Local Student'}</span></div>
                         ${isIntl ? `
@@ -642,7 +644,7 @@ const StudentsModule = {
                 <!-- CONTACT & RESIDENCE -->
                 <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.9;">
                     <h4 style="color: var(--primary-300); margin-bottom: 10px;"><i class="fas fa-id-badge"></i> Personal & Residence</h4>
-                    <div><strong>Guardian:</strong> ${Lms.esc(student.guardianName || student.fatherName || '—')}</div>
+                    <div><strong>Father's Name:</strong> ${Lms.esc(Lms.fatherOf(student) || '—')}</div>
                     <div><strong>Gender:</strong> ${Lms.esc(Lms.genderLabel(student.gender))}</div>
                     <div><strong>Email:</strong> <span translate="no">${Lms.esc(student.email || 'N/A')}</span>${Lms.copyBtn(student.email, 'Copy email')}</div>
                     <div><strong>Phone:</strong> ${Lms.esc(student.phone || '—')}</div>
@@ -678,7 +680,7 @@ const StudentsModule = {
                 <i class="${icon}" style="width: 18px;"></i> ${label}
             </button>`;
         Lms.openModal(
-            `<i class="fas fa-ellipsis-v" style="color: var(--gold-400);"></i> ${Lms.esc(s.name)} (${Lms.esc(s.rollNo || '')})`,
+            `<i class="fas fa-ellipsis-v" style="color: var(--gold-400);"></i> ${Lms.esc(Lms.nameOf(s))} (${Lms.esc(s.rollNo || '')})`,
             `<div style="display: flex; flex-direction: column; gap: 8px;">
                 ${action('fas fa-user-edit', 'Edit student details', `StudentsModule.openEditStudentModal('${Lms.esc(s.id)}')`)}
                 ${action('fas fa-school', `Change class (current: ${Lms.esc(s.classId ? Lms.className(s.classId) : 'not enrolled')})`, `App.navigate('classes'); setTimeout(() => ClassesCoursesModule.openEnrollModal('${Lms.esc(s.classId || (window.LmsData.classes[0] || {}).id)}'), 50)`)}
@@ -738,14 +740,14 @@ const StudentsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${Lms.esc(student.name)}`;
+            titleEl.innerHTML = `<i class="fas fa-key" style="color: var(--gold-400);"></i> Reset Password: ${Lms.esc(Lms.nameOf(student))}`;
         }
 
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <div style="margin-bottom: 16px;">
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 14px;">
-                        Reset LMS login credentials for scholar <strong>${Lms.esc(student.name)}</strong> (<code style="color: var(--gold-700);">${Lms.esc(student.rollNo)}</code>).
+                        Reset LMS login credentials for scholar <strong>${Lms.esc(Lms.nameOf(student))}</strong> (<code style="color: var(--gold-700);">${Lms.esc(student.rollNo)}</code>).
                     </p>
                     <div style="margin-bottom: 16px;">
                         <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
@@ -798,7 +800,7 @@ const StudentsModule = {
         window.DataStore.save(window.LmsData);
         Lms.credentialsModal(
             `<i class="fas fa-key" style="color: var(--gold-400);"></i> Password Reset`,
-            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(student.name)}</strong>` }),
+            I18n.t('Share these login details with {name}:', { name: `<strong>${Lms.esc(Lms.nameOf(student))}</strong>` }),
             this.loginRows(student, newPwd)
         );
     },
@@ -823,7 +825,7 @@ const StudentsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> Edit Scholar Information: ${Lms.esc(student.name)}`;
+            titleEl.innerHTML = `<i class="fas fa-user-edit" style="color: var(--gold-400);"></i> Edit Scholar Information: ${Lms.esc(Lms.nameOf(student))}`;
         }
 
         if (bodyEl) {
@@ -853,15 +855,8 @@ const StudentsModule = {
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                        <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Candidate Name (English) *</label>
-                            <input type="text" id="edit-st-name" class="form-control" value="${Lms.esc(student.name || '')}" required>
-                        </div>
-                        <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Name in Urdu</label>
-                            <input type="text" id="edit-st-urdu" class="form-control" value="${Lms.esc(student.urduName || '')}" style="font-family: 'Amiri', serif;">
-                        </div>
+                    <div class="form-grid" style="margin-bottom: 14px;">
+                        ${Lms.nameFields('edit-st', student, { fatherRequired: true })}
                     </div>
 
                     <div style="margin-bottom: 14px; max-width: calc(50% - 7px);">
@@ -869,15 +864,9 @@ const StudentsModule = {
                         <select id="edit-st-gender" class="form-control" required>${Lms.genderOptions(student.gender || '')}</select>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                        <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father / Guardian Name *</label>
-                            <input type="text" id="edit-st-guardian" class="form-control" value="${Lms.esc(student.guardianName || student.fatherName || '')}" required>
-                        </div>
-                        <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Roll Number *</label>
-                            <input type="text" id="edit-st-roll" class="form-control" value="${Lms.esc(student.rollNo || '')}" required>
-                        </div>
+                    <div style="margin-bottom: 14px; max-width: calc(50% - 7px);">
+                        <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Roll Number *</label>
+                        <input type="text" id="edit-st-roll" class="form-control" value="${Lms.esc(student.rollNo || '')}" required>
                     </div>
 
                     <!-- IDENTIFICATION FIELDS -->
@@ -1000,9 +989,7 @@ const StudentsModule = {
         if (!student) return;
 
         const studentType = document.querySelector('input[name="edit_st_student_type"]:checked')?.value || 'LOCAL';
-        const name = document.getElementById('edit-st-name').value.trim();
-        const urduName = document.getElementById('edit-st-urdu').value.trim();
-        const guardianName = document.getElementById('edit-st-guardian').value.trim();
+        const names = Lms.readNameFields('edit-st');
         const gender = Lms.val('edit-st-gender') || null;
         if (!gender) {
             App.showToast("Please select the student's gender", "warning");
@@ -1046,9 +1033,7 @@ const StudentsModule = {
         }
 
         student.studentType = studentType;
-        student.name = name;
-        student.urduName = urduName;
-        student.guardianName = guardianName;
+        Lms.applyNames(student, names);
         student.gender = gender;
         student.rollNo = rollNo;
         student.cnic = cnic;
@@ -1111,15 +1096,8 @@ const StudentsModule = {
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                        <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Scholar Name (English) *</label>
-                            <input type="text" id="direct-st-name" class="form-control" placeholder="e.g. Hafiz Usman Ghani" required>
-                        </div>
-                        <div>
-                            <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 4px;">Father's Name *</label>
-                            <input type="text" id="direct-st-father" class="form-control" placeholder="e.g. Maulana Abdul Shakoor" required>
-                        </div>
+                    <div class="form-grid" style="margin-bottom: 14px;">
+                        ${Lms.nameFields('direct-st', null, { fatherRequired: true, namePlaceholder: 'e.g. Hafiz Usman Ghani', fatherPlaceholder: 'e.g. Maulana Abdul Shakoor' })}
                     </div>
 
                     <div style="margin-bottom: 14px; max-width: calc(50% - 7px);">
@@ -1259,8 +1237,8 @@ const StudentsModule = {
     handleDirectEnrollSubmit(e) {
         e.preventDefault();
         const studentType = document.querySelector('input[name="direct_st_student_type"]:checked')?.value || 'LOCAL';
-        const name = document.getElementById('direct-st-name').value.trim();
-        const father = document.getElementById('direct-st-father').value.trim();
+        const names = Lms.readNameFields('direct-st');
+        const name = names.name;
         const rollNo = document.getElementById('direct-st-roll').value.trim();
         const classId = document.getElementById('direct-st-class').value || null;
         const phone = document.getElementById('direct-st-phone').value.trim();
@@ -1311,7 +1289,10 @@ const StudentsModule = {
         const newStudent = {
             id: `u_stud_${Date.now()}`,
             name: name,
-            urduName: name,
+            urduName: names.urduName,
+            fatherName: names.fatherName,
+            fatherUrduName: names.fatherUrduName,
+            guardianName: names.fatherName,
             role: "STUDENT",
             studentType: studentType,
             country: country,
@@ -1324,7 +1305,6 @@ const StudentsModule = {
             phone: phone,
             cnic: cnic,
             passport: passport,
-            guardianName: father,
             gender: Lms.val('direct-st-gender') || null,
             hostel: hostel,
             status: "ACTIVE",
@@ -1370,13 +1350,13 @@ const StudentsModule = {
         const footerEl = document.getElementById('modal-footer-container');
 
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fas fa-calendar-alt" style="color: var(--gold-400);"></i> Attendance History: ${Lms.esc(student.name)} (${Lms.esc(student.rollNo)})`;
+            titleEl.innerHTML = `<i class="fas fa-calendar-alt" style="color: var(--gold-400);"></i> Attendance History: ${Lms.esc(Lms.nameOf(student))} (${Lms.esc(student.rollNo)})`;
         }
 
         if (bodyEl) {
             bodyEl.innerHTML = `
                 <div style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-secondary);">
-                    ${I18n.t('Viewing attendance timestamps, check-in/out hours, and session notes for {name}.', { name: `<strong>${Lms.esc(student.name)}</strong>` })}
+                    ${I18n.t('Viewing attendance timestamps, check-in/out hours, and session notes for {name}.', { name: `<strong>${Lms.esc(Lms.nameOf(student))}</strong>` })}
                 </div>
                 ${Lms.filterBar('student-attendance-modal-table', {
                     search: 'Search session or notes...',
@@ -1464,7 +1444,7 @@ const StudentsModule = {
                                 <span style="font-size: 0.65rem; color: var(--primary-800); font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Photo</span>
                             </div>
                             <div style="flex: 1; font-size: 0.84rem; line-height: 1.65; color: var(--text-primary);">
-                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${Lms.esc(student.name)}</strong></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.78rem;">Name:</span> <strong style="color: var(--primary-950); font-size: 0.92rem;">${Lms.esc(Lms.nameOf(student))}</strong></div>
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Roll No:</span> <span style="color: var(--gold-700); font-weight: 800; font-family: monospace; font-size: 0.92rem;">${Lms.esc(student.rollNo || 'N/A')}</span></div>
                                 ${this.programLabel(student) ? `<div><span style="color: var(--text-muted); font-size: 0.78rem;">Program:</span> <span style="font-weight: 600;">${this.programLabel(student)}</span></div>` : ''}
                                 <div><span style="color: var(--text-muted); font-size: 0.78rem;">Class:</span> <span style="font-weight: 600;">${this.classLabel(student)}</span></div>
@@ -1503,11 +1483,11 @@ const StudentsModule = {
     // Export Students list to CSV
     exportStudentsCSV() {
         const students = (window.LmsData.users || []).filter(u => u.role === 'STUDENT');
-        let csv = "Roll No,Name,Urdu Name,Gender,Program,Class,Email,Phone,Guardian,Residence,Attendance %,Status\n";
+        let csv = "Roll No,Name (English),Name (Urdu),Father Name (English),Father Name (Urdu),Gender,Program,Class,Email,Phone,Residence,Attendance %,Status\n";
         students.forEach(s => {
             const cls = Lms.getClass(s.classId);
             const pct = Lms.attendancePct(s.id);
-            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${s.gender ? Lms.genderLabel(s.gender) : ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${s.guardianName || s.fatherName || ''}","${s.hostel || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
+            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${Lms.fatherEnglish(s)}","${s.fatherUrduName || ''}","${s.gender ? Lms.genderLabel(s.gender) : ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${s.hostel || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

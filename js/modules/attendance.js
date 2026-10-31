@@ -298,10 +298,10 @@ const AttendanceModule = {
                                 const classId = r.classId || (r.role === 'STUDENT' ? (Lms.user(r.userId) || {}).classId : '');
                                 const cls = classId && Lms.getClass(classId);
                                 return `
-                                <tr data-f-class="${Lms.esc(classId || '')}" data-f-role="${r.role === 'STUDENT' || r.role === 'TEACHER' ? r.role : 'STAFF'}" data-f-status="${Lms.esc(r.status)}" data-f-date="${Lms.esc(r.date)}"
+                                <tr data-f-person="${Lms.esc(r.userId || '')}" data-f-class="${Lms.esc(classId || '')}" data-f-role="${r.role === 'STUDENT' || r.role === 'TEACHER' ? r.role : 'STAFF'}" data-f-status="${Lms.esc(r.status)}" data-f-date="${Lms.esc(r.date)}"
                                     data-f-campus="${cls ? Lms.esc(cls.branchId || '') : Lms.campusValues(Lms.user(r.userId))}">
                                     <td>
-                                        <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(r.userName)}</div>
+                                        <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.personName(r.userId, r.userName))}</div>
                                     </td>
                                     <td>
                                         <span class="status-pill ${r.role === 'TEACHER' ? 'success' : 'primary'}" style="font-size: 0.72rem;">${Lms.esc(r.role)}</span>
@@ -361,7 +361,7 @@ const AttendanceModule = {
                         <i class="fas fa-calendar-check" style="color: var(--gold-400);"></i>
                         My Attendance Record & History
                     </h1>
-                    <p>Talib-e-Ilm: <strong>${Lms.esc(user.name)}</strong> • Roll No: <strong>${Lms.esc(user.rollNo || '—')}</strong></p>
+                    <p>Talib-e-Ilm: <strong>${Lms.esc(Lms.nameOf(user))}</strong> • Roll No: <strong>${Lms.esc(user.rollNo || '—')}</strong></p>
                 </div>
             </div>
 

@@ -122,7 +122,7 @@ const AssignmentsModule = {
             }) : ''}
             <div id="my-assignments-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
                 ${shown.length ? shown.map(({ a, st }) => `
-                    <div class="card" data-f-course="${Lms.esc(a.courseId || '')}" data-f-date="${Lms.isoDate(a.dueDate)}" style="display: flex; flex-direction: column; justify-content: space-between; margin: 0; border-top: 3px solid var(--${st.pill === 'success' ? 'success' : st.pill === 'danger' ? 'danger' : st.pill === 'info' ? 'info' : 'warning'});">
+                    <div class="card" data-f-person="${Lms.esc(a.teacherId || '')}" data-f-course="${Lms.esc(a.courseId || '')}" data-f-date="${Lms.isoDate(a.dueDate)}" style="display: flex; flex-direction: column; justify-content: space-between; margin: 0; border-top: 3px solid var(--${st.pill === 'success' ? 'success' : st.pill === 'danger' ? 'danger' : st.pill === 'info' ? 'info' : 'warning'});">
                         <div>
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px;">
                                 <span class="status-pill gold" style="font-size: 0.7rem;">${Lms.esc((Lms.getCourse(a.courseId) || {}).code || 'Kitab')}</span>
@@ -188,8 +188,8 @@ const AssignmentsModule = {
                                 ${toCheck.length ? toCheck.map(s => {
                                     const a = list.find(x => x.id === s.assignmentId) || {};
                                     return `
-                                        <tr data-f-class="${Lms.esc(a.classId || '')}" data-f-late="${s.isLate ? 'LATE' : 'ONTIME'}" data-f-date="${Lms.isoDate(s.submittedAt)}">
-                                            <td><div style="font-weight: 700;">${Lms.esc(s.studentName)}</div><div style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(s.rollNo || '')}</div></td>
+                                        <tr data-f-person="${Lms.esc(s.studentId || '')}" data-f-class="${Lms.esc(a.classId || '')}" data-f-late="${s.isLate ? 'LATE' : 'ONTIME'}" data-f-date="${Lms.isoDate(s.submittedAt)}">
+                                            <td><div style="font-weight: 700;">${Lms.esc(Lms.personName(s.studentId, s.studentName))}</div><div style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(s.rollNo || '')}</div></td>
                                             <td><div style="font-weight: 600;">${Lms.esc(a.title || '')}</div><div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(Lms.className(a.classId))}</div></td>
                                             <td style="font-size: 0.8rem;">${Lms.fmtDateTime(s.submittedAt)} ${s.isLate ? '<span class="status-pill danger" style="font-size: 0.65rem;">Late</span>' : ''}</td>
                                             <td>${Lms.fileLinks(s.attachments) || '<span style="color: var(--text-muted); font-size: 0.75rem;">Text only</span>'}</td>
@@ -218,7 +218,7 @@ const AssignmentsModule = {
                         const pending = subs.filter(s => !s.isGraded && !s.resubmitRequested).length;
                         const state = [a.dueDate < Lms.today() ? 'PAST' : 'OPEN', pending ? 'TO_CHECK' : ''].filter(Boolean).join('|');
                         return `
-                            <div class="card" data-f-class="${Lms.esc(a.classId || '')}" data-f-course="${Lms.esc(a.courseId || '')}" data-f-state="${state}" data-f-date="${Lms.isoDate(a.dueDate)}"
+                            <div class="card" data-f-person="${Lms.esc(a.teacherId || '')}" data-f-class="${Lms.esc(a.classId || '')}" data-f-course="${Lms.esc(a.courseId || '')}" data-f-state="${state}" data-f-date="${Lms.isoDate(a.dueDate)}"
                                 style="display: flex; flex-direction: column; justify-content: space-between; margin: 0;">
                                 <div>
                                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
@@ -511,8 +511,8 @@ const AssignmentsModule = {
                     <thead><tr><th>Student</th><th>Status</th><th>Submitted</th><th>Marks</th><th></th></tr></thead>
                     <tbody>
                         ${rows.length ? rows.map(({ st, sub }) => `
-                            <tr data-f-status="${!sub ? 'NONE' : [sub.isGraded ? 'CHECKED' : sub.resubmitRequested ? 'RETURNED' : 'TO_CHECK', sub.isLate ? 'LATE' : ''].filter(Boolean).join('|')}" data-f-date="${sub ? Lms.isoDate(sub.submittedAt) : ''}">
-                                <td><strong>${Lms.esc(st.name)}</strong><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(st.rollNo || '')}</div></td>
+                            <tr data-f-person="${Lms.esc(st.id || '')}" data-f-status="${!sub ? 'NONE' : [sub.isGraded ? 'CHECKED' : sub.resubmitRequested ? 'RETURNED' : 'TO_CHECK', sub.isLate ? 'LATE' : ''].filter(Boolean).join('|')}" data-f-date="${sub ? Lms.isoDate(sub.submittedAt) : ''}">
+                                <td><strong>${Lms.esc(Lms.nameOf(st))}</strong><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(st.rollNo || '')}</div></td>
                                 <td>${!sub ? '<span class="status-pill danger">Not submitted</span>'
                                     : sub.isGraded ? '<span class="status-pill success">Checked</span>'
                                     : sub.resubmitRequested ? '<span class="status-pill warning">Returned for resubmission</span>'
@@ -552,9 +552,9 @@ const AssignmentsModule = {
         }
         const max = Number(asg.maxMarks) || 100;
         Lms.openModal(
-            `<i class="fas fa-pencil-alt" style="color: var(--gold-400);"></i> Check: ${Lms.esc(sub.studentName)} — ${Lms.esc(asg.title || '')}`,
+            `<i class="fas fa-pencil-alt" style="color: var(--gold-400);"></i> Check: ${Lms.esc(Lms.personName(sub.studentId, sub.studentName))} — ${Lms.esc(asg.title || '')}`,
             `<div style="margin-bottom: 12px; background: var(--bg-surface-elevated); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); font-size: 0.85rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
-                <span><strong>Student:</strong> ${Lms.esc(sub.studentName)} (${Lms.esc(sub.rollNo || '')})</span>
+                <span><strong>Student:</strong> ${Lms.esc(Lms.personName(sub.studentId, sub.studentName))} (${Lms.esc(sub.rollNo || '')})</span>
                 <span><strong>Submitted:</strong> ${Lms.fmtDateTime(sub.submittedAt)} ${sub.isLate ? '<span class="status-pill danger">Late</span>' : ''}</span>
             </div>
             <div class="form-group" style="margin-bottom: 14px;">

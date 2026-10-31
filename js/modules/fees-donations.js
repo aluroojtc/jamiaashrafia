@@ -181,10 +181,10 @@ const FeesDonationsModule = {
                         <thead><tr><th>Challan & Student</th><th>Type & Period</th><th>Amount</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
                         <tbody>
                             ${list.length ? list.map(ch => `
-                                <tr data-f-status="${Lms.esc(statusTags(ch))}" data-f-type="${Lms.esc(ch.feeType || '')}" data-f-class="${Lms.esc(ch.classId || studentOf(ch).classId || '')}"
+                                <tr data-f-person="${Lms.esc(ch.studentId || '')}" data-f-status="${Lms.esc(statusTags(ch))}" data-f-type="${Lms.esc(ch.feeType || '')}" data-f-class="${Lms.esc(ch.classId || studentOf(ch).classId || '')}"
                                     data-f-campus="${Lms.esc(studentOf(ch).branchId || '')}" data-f-date="${Lms.isoDate(ch.dueDate)}">
                                     <td>
-                                        <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(ch.studentName)}</div>
+                                        <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.personName(ch.studentId, ch.studentName))}</div>
                                         <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-700);">${Lms.esc(ch.challanNumber)}</div>
                                         <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(ch.rollNo || '')} • ${Lms.esc(ch.class || '')}</div>
                                     </td>
@@ -306,7 +306,7 @@ const FeesDonationsModule = {
         const sel = document.getElementById('gen-target');
         if (scope === 'STUDENT') {
             label.textContent = 'Student *';
-            sel.innerHTML = Lms.students().filter(s => s.status !== 'INACTIVE').map(s => `<option value="${Lms.esc(s.id)}">${Lms.esc(s.name)} — ${Lms.esc(s.rollNo || '')}</option>`).join('');
+            sel.innerHTML = Lms.students().filter(s => s.status !== 'INACTIVE').map(s => `<option value="${Lms.esc(s.id)}">${Lms.esc(Lms.nameOf(s))} — ${Lms.esc(s.rollNo || '')}</option>`).join('');
         } else if (scope === 'CLASS') {
             label.textContent = 'Class *';
             sel.innerHTML = Lms.classOptions();
@@ -468,7 +468,7 @@ const FeesDonationsModule = {
         Lms.openModal(
             `<i class="fas fa-user-check" style="color: var(--gold-400);"></i> ${p && ch.status === 'VERIFICATION_PENDING' ? 'Verify Payment' : 'Record Payment'}: ${Lms.esc(ch.challanNumber)}`,
             `<div style="background: var(--bg-surface-elevated); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px;">
-                <div><strong>${Lms.esc(ch.studentName)}</strong> (${Lms.esc(ch.rollNo)}) • ${Lms.esc(this.FEE_TYPES[ch.feeType] || '')} • ${Lms.esc(ch.billingMonth || '')}</div>
+                <div><strong>${Lms.esc(Lms.personName(ch.studentId, ch.studentName))}</strong> (${Lms.esc(ch.rollNo)}) • ${Lms.esc(this.FEE_TYPES[ch.feeType] || '')} • ${Lms.esc(ch.billingMonth || '')}</div>
                 <div style="font-size: 1.1rem; font-weight: 800; color: var(--primary-800); margin-top: 4px;">${Lms.money(ch.netPayable)}</div>
             </div>
             ${p && ch.status === 'VERIFICATION_PENDING' ? `
@@ -694,10 +694,10 @@ const FeesDonationsModule = {
                         <thead><tr><th>Receipt & Donor</th><th>Category</th><th>Purpose</th><th>Amount</th><th>Date & Channel</th><th>Status</th><th></th></tr></thead>
                         <tbody>
                             ${list.length ? list.map(d => `
-                                <tr data-f-type="${Lms.esc(d.donationType || '')}" data-f-status="${d.status === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : 'RECEIVED'}"
+                                <tr data-f-person="${d.isAnonymous && !canManage ? '' : Lms.esc(d.donorUserId || '')}" data-f-type="${Lms.esc(d.donationType || '')}" data-f-status="${d.status === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : 'RECEIVED'}"
                                     data-f-channel="${Lms.esc(d.paymentChannel || '')}" data-f-date="${Lms.isoDate(d.receivedAt)}">
                                     <td>
-                                        <div style="font-weight: 700;">${d.isAnonymous && !canManage ? 'Anonymous' : Lms.esc(d.donorName)}${d.isAnonymous ? ' <i class="fas fa-user-secret" title="Anonymous in public ledger" style="color: var(--text-muted);"></i>' : ''}</div>
+                                        <div style="font-weight: 700;">${d.isAnonymous && !canManage ? 'Anonymous' : Lms.esc(Lms.personName(d.donorUserId, d.donorName))}${d.isAnonymous ? ' <i class="fas fa-user-secret" title="Anonymous in public ledger" style="color: var(--text-muted);"></i>' : ''}</div>
                                         <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-700);">${Lms.esc(d.receiptNo)}</div>
                                     </td>
                                     <td><span class="status-pill ${d.donationType === 'ZAKAT' ? 'gold' : 'info'}">${Lms.esc((this.DONATION_TYPES[d.donationType] || d.donationType).split(' (')[0])}</span></td>

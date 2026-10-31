@@ -653,8 +653,8 @@ const ExamsModule = {
                         ${students.map(st => {
                             const s = subs.find(x => x.studentId === st.id);
                             return `
-                                <tr data-f-status="${!s ? 'NONE' : s.status === 'IN_PROGRESS' ? 'WRITING' : s.isMarked ? 'MARKED' : 'TO_MARK'}" data-f-date="${s ? Lms.isoDate(s.submittedAt) : ''}">
-                                    <td><strong>${Lms.esc(st.name)}</strong><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(st.rollNo || '')}</div></td>
+                                <tr data-f-person="${Lms.esc(st.id)}" data-f-status="${!s ? 'NONE' : s.status === 'IN_PROGRESS' ? 'WRITING' : s.isMarked ? 'MARKED' : 'TO_MARK'}" data-f-date="${s ? Lms.isoDate(s.submittedAt) : ''}">
+                                    <td><strong>${Lms.esc(Lms.nameOf(st))}</strong><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(st.rollNo || '')}</div></td>
                                     <td>${!s ? '<span class="status-pill danger">Not attempted</span>' : s.status === 'IN_PROGRESS' ? '<span class="status-pill warning">Writing now</span>' : s.isMarked ? '<span class="status-pill success">Marked</span>' : '<span class="status-pill info">To mark</span>'}</td>
                                     <td style="font-size: 0.78rem;">${s && s.submittedAt ? Lms.fmtDateTime(s.submittedAt) + (s.autoSubmitted ? ' (timed out)' : '') : '—'}</td>
                                     <td>${s && s.isMarked ? `<strong>${Lms.esc(s.marksObtained)}</strong>/${total}` : '—'}</td>
@@ -690,7 +690,7 @@ const ExamsModule = {
         const auto = this.autoMarks(ex, sub);
         const existing = sub.questionMarks || {};
         Lms.openModal(
-            `<i class="fas fa-pen-nib" style="color: var(--gold-400);"></i> Mark Paper: ${Lms.esc(sub.studentName)}`,
+            `<i class="fas fa-pen-nib" style="color: var(--gold-400);"></i> Mark Paper: ${Lms.esc(Lms.personName(sub.studentId, sub.studentName))}`,
             `<div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">${Lms.esc(ex.title)} • Submitted ${Lms.fmtDateTime(sub.submittedAt)} • Total ${this.examTotal(ex)} marks</div>
             ${(ex.questions || []).map((q, i) => {
                 const ans = sub.answers ? sub.answers[q.id] : undefined;
@@ -809,8 +809,8 @@ const ExamsModule = {
                         ${students.length ? students.map(s => {
                             const r = this.resultOf(ex.id, s.id);
                             return `
-                                <tr>
-                                    <td><strong>${Lms.esc(s.name)}</strong></td>
+                                <tr data-f-person="${Lms.esc(s.id)}">
+                                    <td><strong>${Lms.esc(Lms.nameOf(s))}</strong></td>
                                     <td>${Lms.esc(s.rollNo || '')}</td>
                                     <td><input type="number" class="form-control sheet-mark" data-sid="${Lms.esc(s.id)}" min="0" max="${total}" step="0.5" style="width: 90px;" value="${r ? Lms.esc(r.marksObtained) : ''}" ${canEdit ? '' : 'disabled'}></td>
                                     <td><input type="text" class="form-control sheet-rem" data-sid="${Lms.esc(s.id)}" style="min-width: 200px;" value="${r ? Lms.esc(r.examinerRemarks || '') : ''}" ${canEdit ? '' : 'disabled'}></td>
@@ -917,9 +917,9 @@ const ExamsModule = {
                                 const pct = r.percentage !== undefined ? r.percentage : (r.marksObtained / (r.totalMarks || 100) * 100);
                                 const g = Lms.wifaqGrade(pct);
                                 return `
-                                    <tr data-f-exam="${Lms.esc(r.examId)}" data-f-grade="${g.code}" data-f-published="${r.published ? 'YES' : 'NO'}"
+                                    <tr data-f-person="${Lms.esc(r.studentId || '')}" data-f-exam="${Lms.esc(r.examId)}" data-f-grade="${g.code}" data-f-published="${r.published ? 'YES' : 'NO'}"
                                         data-f-class="${Lms.esc(ex.classId || '')}" data-f-date="${Lms.isoDate(ex.examDate)}">
-                                        ${isStudent ? '' : `<td><div style="font-weight: 700;">${Lms.esc(r.studentName)}</div><div style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(r.rollNo)}</div></td>`}
+                                        ${isStudent ? '' : `<td><div style="font-weight: 700;">${Lms.esc(Lms.personName(r.studentId, r.studentName))}</div><div style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(r.rollNo)}</div></td>`}
                                         <td><div style="font-weight: 600;">${Lms.esc(ex.title || '')}</div><div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.fmtDate(ex.examDate)}</div></td>
                                         <td><strong>${Lms.esc(r.marksObtained)}</strong> / ${Lms.esc(r.totalMarks || 100)} <span style="font-size: 0.75rem; color: var(--text-muted);">(${Math.round(pct * 10) / 10}%)</span></td>
                                         <td><span class="status-pill ${g.pill}">${Lms.esc(g.label)}</span></td>
@@ -942,7 +942,7 @@ const ExamsModule = {
         const total = res.totalMarks || 100;
         const g = Lms.wifaqGrade(res.marksObtained / total * 100);
         Lms.openModal(
-            `<i class="fas fa-award" style="color: var(--gold-400);"></i> Marksheet: ${Lms.esc(res.studentName)}`,
+            `<i class="fas fa-award" style="color: var(--gold-400);"></i> Marksheet: ${Lms.esc(Lms.personName(res.studentId, res.studentName))}`,
             `<div class="sanad-certificate">
                 <div class="sanad-inner-border">
                     <div class="sanad-bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
@@ -952,7 +952,7 @@ const ExamsModule = {
                     <div style="font-size: 1.25rem; color: var(--primary-800); margin-bottom: 14px; font-weight: 700;">${Lms.esc(Lms.localName(ex.title || I18n.t('Examination Result'), ex.urduTitle))}</div>
                     <div class="sanad-student-details">
                         ${I18n.t('This is to certify that {student} (Roll No: {roll}), {className}, appeared in {exam} ({course}) and secured {marks} with the distinction:', {
-                            student: `<strong>${Lms.esc(res.studentName)}</strong>`,
+                            student: `<strong>${Lms.esc(Lms.personName(res.studentId, res.studentName))}</strong>`,
                             roll: `<strong>${Lms.esc(res.rollNo)}</strong>`,
                             className: Lms.esc(Lms.className(ex.classId)),
                             exam: `<strong>${Lms.esc(ex.title || I18n.t('the examination'))}</strong>`,

@@ -326,7 +326,7 @@ const VirtualClassModule = {
         }
 
         return `
-            <div class="vc-card ${isLive ? 'is-live' : ''}" data-f-class="${Lms.esc(session.classId || '')}" data-f-date="${Lms.isoDate(session.scheduledStart || session.date)}"
+            <div class="vc-card ${isLive ? 'is-live' : ''}" data-f-person="${Lms.esc(session.hostId || '')}" data-f-class="${Lms.esc(session.classId || '')}" data-f-date="${Lms.isoDate(session.scheduledStart || session.date)}"
                 data-f-search="${Lms.esc([session.className, session.hostTeacher].filter(Boolean).join(' '))}">
                 <div class="vc-card-header">
                     <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -698,7 +698,7 @@ const VirtualClassModule = {
                         <p>No lectures have been recorded yet.</p>
                     </div>
                 ` : filtered.map(rec => `
-                    <div class="vc-vault-card" data-f-class="${Lms.esc(rec.classId || '')}" data-f-keep="${this.daysRemaining(rec) === null ? 'KEPT' : 'EXPIRING'}"
+                    <div class="vc-vault-card" data-f-person="${Lms.esc(rec.teacherId || '')}" data-f-class="${Lms.esc(rec.classId || '')}" data-f-keep="${this.daysRemaining(rec) === null ? 'KEPT' : 'EXPIRING'}"
                         data-f-date="${Lms.isoDate(rec.recordedDate)}" data-f-search="${Lms.esc(rec.courseName || '')}">
                         <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
                             <div style="width: 50px; height: 50px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); color: var(--primary-400); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
@@ -716,7 +716,7 @@ const VirtualClassModule = {
                                     })()}
                                 </div>
                                 <div style="display: flex; gap: 16px; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap;">
-                                    <span><i class="fas fa-user-tie" style="color: var(--primary-400);"></i> ${Lms.esc(rec.teacherName)}</span>
+                                    <span><i class="fas fa-user-tie" style="color: var(--primary-400);"></i> ${Lms.esc(Lms.personName(rec.teacherId, rec.teacherName))}</span>
                                     <span><i class="fas fa-calendar" style="color: var(--primary-400);"></i> ${Lms.fmtDate(rec.recordedDate)}${rec.recordedTime ? ' ' + Lms.esc(rec.recordedTime) : ''}</span>
                                     <span><i class="fas fa-clock" style="color: var(--primary-400);"></i> Duration: ${Lms.esc(rec.durationFormatted)}</span>
                                     ${rec.fileSizeBytes ? `<span><i class="fas fa-file-video" style="color: var(--primary-400);"></i> ${Lms.esc(Lms.fileSize(rec.fileSizeBytes))}</span>` : rec.externalUrl ? `<span><i class="fas fa-link" style="color: var(--primary-400);"></i> External link</span>` : ''}
@@ -825,9 +825,9 @@ const VirtualClassModule = {
                                 </td>
                             </tr>
                         ` : virtualAtt.map(att => `
-                            <tr data-f-class="${Lms.esc(att.classId || '')}" data-f-role="${Lms.esc(att.role)}" data-f-status="${Lms.esc(att.status)}" data-f-date="${Lms.esc(att.date)}">
+                            <tr data-f-person="${Lms.esc(att.userId || '')}" data-f-class="${Lms.esc(att.classId || '')}" data-f-role="${Lms.esc(att.role)}" data-f-status="${Lms.esc(att.status)}" data-f-date="${Lms.esc(att.date)}">
                                 <td>
-                                    <div style="font-weight: 700; color: var(--text-primary);">${Lms.esc(att.userName)}</div>
+                                    <div style="font-weight: 700; color: var(--text-primary);">${Lms.esc(Lms.personName(att.userId, att.userName))}</div>
                                 </td>
                                 <td>
                                     <span class="status-pill ${att.role === 'TEACHER' ? 'gold' : 'neutral'}" style="font-size: 0.72rem;">
@@ -1130,7 +1130,7 @@ const VirtualClassModule = {
                     return `
                         <div style="display: flex; gap: 8px; align-items: baseline; ${current ? 'font-weight: 700; color: var(--success);' : done ? 'color: var(--text-muted);' : ''}">
                             <span style="font-family: monospace; white-space: nowrap;">${Lms.fmtTime(p.startTime)}–${Lms.fmtTime(p.endTime)}</span>
-                            <span style="min-width: 0;">${p.isBreak ? `<i class="fas fa-mosque"></i> ${Lms.esc(p.periodName || 'Break')}` : `${Lms.esc(p.courseName || p.periodName)}${p.teacherName ? ` — ${Lms.esc(p.teacherName)}` : ''}`}</span>
+                            <span style="min-width: 0;">${p.isBreak ? `<i class="fas fa-mosque"></i> ${Lms.esc(p.periodName || 'Break')}` : `${Lms.esc(p.courseName || p.periodName)}${p.teacherName ? ` — ${Lms.esc(Lms.personName(p.teacherId, p.teacherName))}` : ''}`}</span>
                             ${current ? '<span class="status-pill success" style="font-size: 0.62rem; margin-inline-start: auto;">Now</span>' : ''}
                         </div>`;
                 }).join('')}
@@ -1329,8 +1329,8 @@ const VirtualClassModule = {
         const list = Lms.teachers().slice();
         const current = selectedId && !list.some(t => t.id === selectedId) ? Lms.user(selectedId) : null;
         if (current) list.unshift(current);
-        return `<option value="${Lms.esc(me.id)}" ${!selectedId || selectedId === me.id ? 'selected' : ''}>${Lms.esc(me.name)} (me)</option>`
-            + list.filter(t => t.id !== me.id).map(t => `<option value="${Lms.esc(t.id)}" ${t.id === selectedId ? 'selected' : ''}>${Lms.esc(t.name)}</option>`).join('');
+        return `<option value="${Lms.esc(me.id)}" ${!selectedId || selectedId === me.id ? 'selected' : ''}>${Lms.esc(Lms.nameOf(me))} (me)</option>`
+            + list.filter(t => t.id !== me.id).map(t => `<option value="${Lms.esc(t.id)}" ${t.id === selectedId ? 'selected' : ''}>${Lms.esc(Lms.nameOf(t))}</option>`).join('');
     },
 
     refreshScheduleCourses(selectedCourseId) {
@@ -1486,7 +1486,7 @@ const VirtualClassModule = {
                         <div style="padding: 16px 20px; background: var(--bg-surface-elevated, #162026); border-top: 1px solid rgba(255,255,255,0.08);">
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                                 <div>
-                                    <div style="font-weight: 600; color: #ffffff; font-size: 0.95rem;">${Lms.esc(recording.teacherName)}</div>
+                                    <div style="font-weight: 600; color: #ffffff; font-size: 0.95rem;">${Lms.esc(Lms.personName(recording.teacherId, recording.teacherName))}</div>
                                     <div style="font-size: 0.8rem; color: var(--text-muted);">${Lms.esc(recording.className)} &bull; Recorded on ${Lms.esc(recording.recordedDate)}</div>
                                 </div>
                                 <div style="display: flex; gap: 8px;">
@@ -1775,7 +1775,7 @@ const VirtualClassModule = {
             `<i class="fas fa-history" style="color: var(--gold-400);"></i> Session Log: ${Lms.esc(session.title)}`,
             `<div style="font-size: 0.85rem; line-height: 1.8; margin-bottom: 14px;">
                 <div><strong>Class:</strong> ${Lms.esc(session.className || Lms.className(session.classId))}</div>
-                <div><strong>Teacher:</strong> ${Lms.esc(session.hostTeacher || '')}</div>
+                <div><strong>Teacher:</strong> ${Lms.esc(Lms.personName(session.hostId, session.hostTeacher))}</div>
                 <div><strong>Scheduled:</strong> ${Lms.esc(session.scheduledStart || '')} (${Lms.esc(session.durationMinutes)} min)</div>
                 ${session.startedAt ? `<div><strong>Started:</strong> ${Lms.fmtDateTime(session.startedAt)}${session.endedAt ? ` • <strong>Ended:</strong> ${Lms.fmtDateTime(session.endedAt)}` : ''}</div>` : ''}
                 <div><strong>Attendance:</strong> ${new Set(attendees.filter(a => a.role === 'STUDENT').map(a => a.userId)).size} of ${roster.length} students joined</div>
@@ -1790,12 +1790,12 @@ const VirtualClassModule = {
                 <table class="data-table" id="vc-session-log-table">
                     <thead><tr><th>Participant</th><th>Joined</th></tr></thead>
                     <tbody>
-                        ${attendees.length ? attendees.map(a => `<tr data-f-role="${Lms.esc(a.role)}"><td>${Lms.esc(a.userName)} <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(a.identifier || '')}</span></td><td>${Lms.esc(a.date)} ${Lms.esc(a.checkInTime || '')}${a.periodName ? ` • ${Lms.esc(a.periodName)}` : ''}</td></tr>`).join('')
+                        ${attendees.length ? attendees.map(a => `<tr data-f-person="${Lms.esc(a.userId || '')}" data-f-role="${Lms.esc(a.role)}"><td>${Lms.esc(Lms.personName(a.userId, a.userName))} <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(a.identifier || '')}</span></td><td>${Lms.esc(a.date)} ${Lms.esc(a.checkInTime || '')}${a.periodName ? ` • ${Lms.esc(a.periodName)}` : ''}</td></tr>`).join('')
                             : '<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No attendance recorded for this session.</td></tr>'}
                     </tbody>
                 </table>
             </div>
-            ${roster.length ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;"><strong>Did not join:</strong> ${roster.filter(s => !attendees.some(a => a.userId === s.id)).map(s => Lms.esc(s.name)).join(', ') || 'None'}</div>` : ''}`,
+            ${roster.length ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;"><strong>Did not join:</strong> ${roster.filter(s => !attendees.some(a => a.userId === s.id)).map(s => Lms.esc(Lms.nameOf(s))).join(', ') || 'None'}</div>` : ''}`,
             this.canHost(session) ? `
                 <button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
                 <button class="btn btn-gold" onclick="VirtualClassModule.openAddRecordingModal('${Lms.esc(session.id)}')"><i class="fas fa-upload"></i> ${recording ? 'Replace' : 'Add'} Recording</button>` : null

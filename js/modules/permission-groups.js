@@ -240,7 +240,7 @@ const PermissionGroupsModule = {
                                 const o = this.overridesOf(domain, u.id);
                                 const current = this.groupOf(domain, u);
                                 return `
-                                <tr data-f-type="${Lms.esc(current || '')}" data-f-custom="${o.allow.length || o.deny.length ? 'YES' : 'NO'}" data-f-class="${Lms.esc(u.classId || '')}"
+                                <tr data-f-person="${Lms.esc(u.id)}" data-f-type="${Lms.esc(current || '')}" data-f-custom="${o.allow.length || o.deny.length ? 'YES' : 'NO'}" data-f-class="${Lms.esc(u.classId || '')}"
                                     data-f-campus="${Lms.campusValues(u)}" data-f-search="${Lms.esc([u.email, u.rollNo].filter(Boolean).join(' '))}">
                                     <td>
                                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(u.name, u.urduName))}</div>
@@ -415,7 +415,7 @@ const PermissionGroupsModule = {
         const effect = k => o.allow.includes(k) ? 'ALLOW' : (o.deny.includes(k) ? 'DENY' : '');
 
         Lms.openModal(
-            `<i class="fas fa-sliders-h" style="color: var(--gold-400);"></i> ${I18n.t('Permissions of {name}', { name: Lms.esc(user.name) })}`,
+            `<i class="fas fa-sliders-h" style="color: var(--gold-400);"></i> ${I18n.t('Permissions of {name}', { name: Lms.esc(Lms.nameOf(user)) })}`,
             `<form id="form-member-perms" onsubmit="PermissionGroupsModule.saveMember(event, '${domain}', '${Lms.esc(userId)}')">
                 <div class="form-group">
                     <label for="member-group">${I18n.t(domain === 'STUDENT' ? 'Student Type' : 'Teacher Type')}</label>

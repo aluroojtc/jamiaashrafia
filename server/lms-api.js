@@ -187,6 +187,13 @@ function ensureSchema() {
             if (Number(admTable.c) && !(await columnExists('student_admissions', 'gender'))) {
                 await db.query(`ALTER TABLE student_admissions ADD COLUMN gender VARCHAR(10) NULL AFTER father_name`);
             }
+            // Candidate's and father's names in Urdu (NULL on applications made before they were asked)
+            if (Number(admTable.c) && !(await columnExists('student_admissions', 'candidate_urdu_name'))) {
+                await db.query(`ALTER TABLE student_admissions ADD COLUMN candidate_urdu_name VARCHAR(255) NULL AFTER candidate_name`);
+            }
+            if (Number(admTable.c) && !(await columnExists('student_admissions', 'father_urdu_name'))) {
+                await db.query(`ALTER TABLE student_admissions ADD COLUMN father_urdu_name VARCHAR(255) NULL AFTER father_name`);
+            }
 
             await db.query(`CREATE TABLE IF NOT EXISTS notification_reads (
                 notification_id VARCHAR(50) NOT NULL,
@@ -906,7 +913,7 @@ async function handleAdmissionStatus(req, res, url) {
         return;
     }
     const [rows] = await db.query(
-        `SELECT application_no AS applicationNo, candidate_name AS name, program_id AS programId, branch_id AS branchId,
+        `SELECT application_no AS applicationNo, candidate_name AS name, candidate_urdu_name AS urduName, program_id AS programId, branch_id AS branchId,
                 status, DATE_FORMAT(interview_date, '%Y-%m-%d %H:%i') AS interviewDate, allotted_roll_number AS allottedRollNo,
                 cnic_bform AS cnic, passport_number AS passport, phone, DATE_FORMAT(created_at, '%Y-%m-%d') AS appliedAt
          FROM student_admissions WHERE application_no = ? LIMIT 1`,
