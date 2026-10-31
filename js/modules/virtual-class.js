@@ -1659,7 +1659,12 @@ const VirtualClassModule = {
     meetingUrl(session, token) {
         const me = window.AuthRBAC?.currentUser || {};
         const name = `${me.name || 'Guest'}${this.isHost ? ' (Ustad)' : me.rollNo ? ' - ' + me.rollNo : ''}`;
-        return `https://${this.meetingDomain()}/${this.roomPath(session)}${token ? `?jwt=${encodeURIComponent(token)}` : ''}#userInfo.displayName=${encodeURIComponent(JSON.stringify(name))}&config.subject=${encodeURIComponent(JSON.stringify(session.title || ''))}&config.prejoinConfig.enabled=false`;
+        return `https://${this.meetingDomain()}/${this.roomPath(session)}${token ? `?jwt=${encodeURIComponent(token)}` : ''}#userInfo.displayName=${encodeURIComponent(JSON.stringify(name))}&config.subject=${encodeURIComponent(JSON.stringify(session.title || ''))}&config.prejoinConfig.enabled=false&config.defaultLanguage=${encodeURIComponent(JSON.stringify(this.meetingLang()))}`;
+    },
+
+    // Jitsi has Arabic but no Urdu translation; Urdu users get English
+    meetingLang() {
+        return window.I18n?.lang === 'ar' ? 'ar' : 'en';
     },
 
     async openMeetingTab() {
@@ -1760,6 +1765,7 @@ const VirtualClassModule = {
             const api = new window.JitsiMeetExternalAPI(domain, {
                 roomName: this.roomPath(session),
                 ...(jwt ? { jwt } : {}),
+                lang: this.meetingLang(),
                 parentNode: container,
                 width: '100%',
                 height: '100%',
