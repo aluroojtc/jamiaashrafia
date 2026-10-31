@@ -1099,8 +1099,12 @@ const App = {
                     <h3 class="card-title"><i class="fas fa-user-lock"></i> Role-Based Access Control (RBAC) Matrix</h3>
                     <span class="status-pill success">Zero Trust Model</span>
                 </div>
+                ${(window.LmsData.roles || []).length > 1 ? Lms.filterBar('rbac-matrix-table', {
+                    search: 'Search role, office, holder or description...',
+                    selects: [{ key: 'domain', label: 'All kinds of role', options: [['SYSTEM', 'Staff roles'], ['STUDENT', 'Student types'], ['TEACHER', 'Teacher types']] }]
+                }) : ''}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="rbac-matrix-table">
                         <thead>
                             <tr>
                                 <th>Role</th>
@@ -1116,7 +1120,7 @@ const App = {
                                     : holders.length <= 3 ? holders.map(u => Lms.esc(u.name)).join(', ')
                                         : I18n.t('{n} accounts', { n: holders.length });
                                 return `
-                                <tr>
+                                <tr data-f-domain="${Lms.esc(r.domain || 'SYSTEM')}">
                                     <td><span class="status-pill ${Lms.esc(r.badgeClass || 'info')}">${Lms.esc(r.id)}</span></td>
                                     <td>${Lms.esc(r.name || r.id)}${r.urduTitle ? `<div style="font-size: 0.75rem; color: var(--text-muted);" dir="rtl">${Lms.esc(r.urduTitle)}</div>` : ''}</td>
                                     <td>${who}</td>

@@ -6,10 +6,6 @@
 
 const AttendanceModule = {
     activeTab: 'STUDENTS', // 'STUDENTS' | 'TEACHERS' | 'SUMMARY'
-    searchQuery: '',
-    filterDate: new Date().toISOString().split('T')[0],
-    filterClass: 'ALL',
-    filterStatus: 'ALL',
 
     // Helper: format today's date in YYYY-MM-DD
     getTodayDate() {
@@ -185,31 +181,10 @@ const AttendanceModule = {
             return true; // SUMMARY
         });
 
-        // Apply Search
-        if (this.searchQuery) {
-            const q = this.searchQuery.toLowerCase();
-            filtered = filtered.filter(r => 
-                r.userName.toLowerCase().includes(q) || 
-                (r.identifier && r.identifier.toLowerCase().includes(q))
-            );
-        }
-
-        // Apply Date Filter
-        if (this.filterDate && this.filterDate !== 'ALL') {
-            filtered = filtered.filter(r => r.date === this.filterDate);
-        }
-
-        // Apply Status Filter
-        if (this.filterStatus && this.filterStatus !== 'ALL') {
-            filtered = filtered.filter(r => r.status === this.filterStatus);
-        }
-
-        // Apply Class Filter (student tab); older records without a classId use the student's current class
+        // The log opens on today's records; the filter bar can widen or clear the dates
         const classIds = Lms.myClassIds();
-        if (this.filterClass !== 'ALL' && !classIds.includes(this.filterClass)) this.filterClass = 'ALL';
-        if (this.activeTab === 'STUDENTS' && this.filterClass !== 'ALL') {
-            filtered = filtered.filter(r => (r.classId || (Lms.user(r.userId) || {}).classId) === this.filterClass);
-        }
+        const tableId = `attendance-table-${this.activeTab.toLowerCase()}`;
+        if (!Lms._filters[tableId]) Object.assign(Lms.filterState(tableId), { from: today, to: today });
 
         // Compute metrics
         const totalStudents = (window.LmsData.users || []).filter(u => u.role === 'STUDENT').length;
@@ -290,39 +265,22 @@ const AttendanceModule = {
                         </button>
                     </div>
 
-                    <!-- Filter Controls -->
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <div class="search-input-wrap" style="width: 220px;">
-                            <i class="fas fa-search"></i>
-                            <input type="text" class="form-control" placeholder="Search name or ID..." value="${this.searchQuery}" oninput="AttendanceModule.setSearch(this.value)" style="padding-block: 6px; padding-inline: 36px 12px; font-size: 0.82rem;">
-                        </div>
-
-                        ${this.activeTab === 'STUDENTS' ? `
-                        <div>
-                            <select class="form-control" onchange="AttendanceModule.setClass(this.value)" aria-label="Filter by class" style="padding: 6px 10px; font-size: 0.82rem; max-width: 220px;">
-                                <option value="ALL" ${this.filterClass === 'ALL' ? 'selected' : ''}>All Classes</option>
-                                ${Lms.classOptions(this.filterClass, classIds)}
-                            </select>
-                        </div>` : ''}
-
-                        <div>
-                            <input type="date" class="form-control" value="${this.filterDate}" onchange="AttendanceModule.setDate(this.value)" style="padding: 6px 10px; font-size: 0.82rem;">
-                        </div>
-
-                        <div>
-                            <select class="form-control" onchange="AttendanceModule.setStatus(this.value)" style="padding: 6px 10px; font-size: 0.82rem;">
-                                <option value="ALL" ${this.filterStatus === 'ALL' ? 'selected' : ''}>All Statuses</option>
-                                <option value="PRESENT" ${this.filterStatus === 'PRESENT' ? 'selected' : ''}>Present</option>
-                                <option value="LATE" ${this.filterStatus === 'LATE' ? 'selected' : ''}>Late</option>
-                                <option value="ABSENT" ${this.filterStatus === 'ABSENT' ? 'selected' : ''}>Absent</option>
-                            </select>
-                        </div>
-                    </div>
                 </div>
+
+                ${Lms.filterBar(tableId, {
+                    search: 'Search name or ID...',
+                    selects: [
+                        this.activeTab === 'STUDENTS' ? Lms.classFilter(classIds) : null,
+                        this.activeTab === 'SUMMARY' ? { key: 'role', label: 'Everyone', options: [['STUDENT', 'Students'], ['TEACHER', 'Teachers'], ['STAFF', 'Staff']] } : null,
+                        { key: 'status', label: 'All Statuses', options: [['PRESENT', 'Present'], ['LATE', 'Late'], ['ABSENT', 'Absent']] },
+                        Lms.campusFilter()
+                    ],
+                    date: { key: 'date', label: 'Date' }
+                })}
 
                 <!-- ATTENDANCE DATA TABLE -->
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="${tableId}">
                         <thead>
                             <tr>
                                 <th>Name / Scholar</th>
@@ -336,8 +294,12 @@ const AttendanceModule = {
                             </tr>
                         </thead>
                         <tbody>
-                            ${filtered.length > 0 ? filtered.map(r => `
-                                <tr>
+                            ${filtered.length > 0 ? filtered.map(r => {
+                                const classId = r.classId || (r.role === 'STUDENT' ? (Lms.user(r.userId) || {}).classId : '');
+                                const cls = classId && Lms.getClass(classId);
+                                return `
+                                <tr data-f-class="${Lms.esc(classId || '')}" data-f-role="${r.role === 'STUDENT' || r.role === 'TEACHER' ? r.role : 'STAFF'}" data-f-status="${Lms.esc(r.status)}" data-f-date="${Lms.esc(r.date)}"
+                                    data-f-campus="${cls ? Lms.esc(cls.branchId || '') : Lms.campusValues(Lms.user(r.userId))}">
                                     <td>
                                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(r.userName)}</div>
                                     </td>
@@ -367,12 +329,12 @@ const AttendanceModule = {
                                         <div>${Lms.esc(r.session || 'DAILY')}</div>
                                         <div style="font-style: italic;">${Lms.esc(r.notes || '')}</div>
                                     </td>
-                                </tr>
-                            `).join('') : `
+                                </tr>`;
+                            }).join('') : `
                                 <tr>
                                     <td colspan="8" style="text-align: center; padding: 36px; color: var(--text-muted);">
                                         <i class="fas fa-calendar-times" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 8px;"></i>
-                                        <div>No attendance logs found matching the selected filters.</div>
+                                        <div>No attendance recorded yet.</div>
                                     </td>
                                 </tr>
                             `}
@@ -447,8 +409,13 @@ const AttendanceModule = {
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-history"></i> My Attendance History</h3>
                 </div>
+                ${Lms.filterBar('my-attendance-table', {
+                    search: 'Search notes or session...',
+                    selects: [{ key: 'status', label: 'All Statuses', options: [['PRESENT', 'Present'], ['LATE', 'Late'], ['ABSENT', 'Absent']] }],
+                    date: { key: 'date', label: 'Date' }
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="my-attendance-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -461,7 +428,7 @@ const AttendanceModule = {
                         </thead>
                         <tbody>
                             ${records.map(r => `
-                                <tr>
+                                <tr data-f-status="${Lms.esc(r.status)}" data-f-date="${Lms.esc(r.date)}">
                                     <td><strong>${Lms.esc(r.date)}</strong></td>
                                     <td style="color: var(--primary-300);">${Lms.esc(r.checkInTime || '—')}</td>
                                     <td style="color: var(--text-muted);">${Lms.esc(r.checkOutTime || '—')}</td>
@@ -483,30 +450,6 @@ const AttendanceModule = {
 
     setTab(tab) {
         this.activeTab = tab;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setSearch(q) {
-        this.searchQuery = q;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setDate(d) {
-        this.filterDate = d;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setStatus(s) {
-        this.filterStatus = s;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setClass(classId) {
-        this.filterClass = classId || 'ALL';
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) viewport.innerHTML = this.render();
     },

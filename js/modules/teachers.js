@@ -64,13 +64,25 @@ const TeachersModule = {
     renderDirectory(teachers) {
         const canManage = this.canManage();
         return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+            ${teachers.length ? Lms.filterBar('teachers-grid', {
+                search: 'Search name, designation, specialization or email...',
+                selects: [
+                    { key: 'status', label: 'All statuses', options: [['ACTIVE', 'Active'], ['INACTIVE', 'Inactive']] },
+                    Lms.genderFilter(),
+                    Lms.campusFilter(),
+                    Lms.classFilter(null, 'All classes taught')
+                ],
+                date: { key: 'date', label: 'Registered on' }
+            }) : ''}
+            <div id="teachers-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
                 ${teachers.length ? teachers.map(t => {
                     const w = this.workload(t.id);
                     // Accounts that also work at campuses this office does not manage are changed by someone who has them all
                     const mine = Lms.managesCampusesOf(t);
                     return `
-                        <div class="card" style="margin: 0; ${t.status === 'INACTIVE' ? 'opacity: 0.65;' : ''}">
+                        <div class="card" style="margin: 0; ${t.status === 'INACTIVE' ? 'opacity: 0.65;' : ''}" data-f-status="${t.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'}"
+                            data-f-gender="${Lms.GENDERS[t.gender] ? t.gender : 'NONE'}" data-f-campus="${Lms.campusValues(t)}" data-f-class="${Lms.esc(w.classIds.join('|'))}"
+                            data-f-date="${Lms.isoDate(t.joinedAt || t.createdAt)}" data-f-search="${Lms.esc([t.urduName, t.phone].filter(Boolean).join(' '))}">
                             <div style="display: flex; gap: 14px; margin-bottom: 14px;">
                                 <div class="avatar-circle gold" style="width: 54px; height: 54px; font-size: 1.2rem; flex-shrink: 0;">${Lms.esc(t.avatar || Lms.initials(t.name))}</div>
                                 <div style="min-width: 0;">
@@ -357,6 +369,7 @@ const TeachersModule = {
             const r = existing.find(a => a.userId === sid);
             return r ? r.status : 'PRESENT';
         };
+        Lms.resetFilter('attendance-register-table');
         Lms.openModal(
             `<i class="fas fa-clipboard-list" style="color: var(--primary-400);"></i> Class Attendance Register`,
             `<div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px;">
@@ -369,12 +382,13 @@ const TeachersModule = {
                 <button class="btn btn-secondary btn-sm" onclick="TeachersModule.markAllPresent()"><i class="fas fa-check-double"></i> All Present</button>
             </div>
             ${existing.length ? `<div class="status-pill info" style="margin-bottom: 10px;">Attendance already saved for this day — saving again updates it.</div>` : ''}
+            ${students.length > 8 ? Lms.filterBar('attendance-register-table', { search: 'Search name or roll no...', selects: [Lms.genderFilter()] }) : ''}
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table" id="attendance-register-table">
                     <thead><tr><th>Roll No</th><th>Student</th><th>Status</th></tr></thead>
                     <tbody>
                         ${students.length ? students.map(s => `
-                            <tr>
+                            <tr data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}">
                                 <td><strong>${Lms.esc(s.rollNo || '')}</strong></td>
                                 <td>${Lms.esc(s.name)}</td>
                                 <td>

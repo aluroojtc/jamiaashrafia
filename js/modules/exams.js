@@ -80,6 +80,14 @@ const ExamsModule = {
         return (window.LmsData.examResults || []).find(r => r.examId === examId && r.studentId === studentId) || null;
     },
 
+    statusKey(ex) {
+        if (ex.resultsPublished) return 'PUBLISHED';
+        if (ex.status === 'CLOSED') return 'CLOSED';
+        return this.isOpenNow(ex) ? 'OPEN' : 'SCHEDULED';
+    },
+
+    statusOptions: [['SCHEDULED', 'Scheduled'], ['OPEN', 'Open Now'], ['CLOSED', 'Closed'], ['PUBLISHED', 'Results Published']],
+
     statusPill(ex) {
         if (ex.resultsPublished) return '<span class="status-pill success"><i class="fas fa-bullhorn"></i> Results Published</span>';
         if (ex.status === 'CLOSED') return '<span class="status-pill neutral" style="background: var(--bg-surface-elevated);"><i class="fas fa-lock"></i> Closed</span>';
@@ -123,8 +131,20 @@ const ExamsModule = {
         if (!exams.length) {
             return `<div class="card">${window.App.dashEmpty(isStudent ? 'No exams scheduled for your class yet.' : 'No exams yet. Use "Create Exam / Quiz" to add one.')}</div>`;
         }
+        const courseIds = Array.from(new Set(exams.map(e => e.courseId).filter(Boolean)));
         return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 20px;">
+            ${Lms.filterBar('exams-grid', {
+                search: 'Search exam title, class or kitab...',
+                selects: [
+                    { key: 'type', label: 'All exam types', options: Object.entries(this.EXAM_TYPES) },
+                    { key: 'mode', label: 'Online and in hall', options: [['ONLINE', 'Online'], ['HALL', 'In Hall']] },
+                    { key: 'status', label: 'All statuses', options: this.statusOptions },
+                    isStudent ? null : Lms.classFilter(Array.from(new Set(exams.map(e => e.classId)))),
+                    courseIds.length > 1 ? { key: 'course', label: 'All kitabs', options: courseIds.map(id => [id, Lms.courseTitle(id)]) } : null
+                ],
+                date: { key: 'date', label: 'Exam date' }
+            })}
+            <div id="exams-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 20px;">
                 ${exams.map(ex => {
                     const subs = (window.LmsData.examSubmissions || []).filter(s => s.examId === ex.id && s.status === 'SUBMITTED');
                     const toMark = subs.filter(s => !s.isMarked).length;
@@ -132,7 +152,9 @@ const ExamsModule = {
                     const myRes = isStudent ? this.resultOf(ex.id, me.id) : null;
                     const total = this.examTotal(ex);
                     return `
-                        <div class="card" style="border-inline-start: 4px solid var(--gold-400); margin: 0; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div class="card" data-f-type="${Lms.esc(ex.examType || '')}" data-f-mode="${ex.mode === 'ONLINE' ? 'ONLINE' : 'HALL'}" data-f-status="${this.statusKey(ex)}"
+                            data-f-class="${Lms.esc(ex.classId || '')}" data-f-course="${Lms.esc(ex.courseId || '')}" data-f-date="${Lms.isoDate(ex.examDate)}"
+                            style="border-inline-start: 4px solid var(--gold-400); margin: 0; display: flex; flex-direction: column; justify-content: space-between;">
                             <div>
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px;">
                                     <span class="status-pill gold" style="font-size: 0.7rem;">${Lms.esc(this.EXAM_TYPES[ex.examType] || ex.examType)} • ${ex.mode === 'ONLINE' ? 'Online' : 'In Hall'}</span>
@@ -612,20 +634,26 @@ const ExamsModule = {
         const students = Lms.studentsInClass(ex.classId);
         const total = this.examTotal(ex);
         const onlyMcq = (ex.questions || []).every(q => q.type === 'MCQ');
+        Lms.resetFilter('exam-subs-table');
         Lms.openModal(
             `<i class="fas fa-pen-nib" style="color: var(--gold-400);"></i> Online Marking: ${Lms.esc(ex.title)}`,
             `<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 12px;">
                 ${Lms.esc(Lms.className(ex.classId))} • ${subs.filter(s => s.status === 'SUBMITTED').length} submitted of ${students.length} • Total ${total} marks
                 ${onlyMcq ? ` • <strong>${I18n.t('MCQ-only paper:')}</strong> ${I18n.t('use "Auto-mark all" to mark every submission instantly.')}` : ''}
             </div>
+            ${students.length > 1 ? Lms.filterBar('exam-subs-table', {
+                search: 'Search name or roll no...',
+                selects: [{ key: 'status', label: 'All students', options: [['NONE', 'Not attempted'], ['WRITING', 'Writing now'], ['TO_MARK', 'To mark'], ['MARKED', 'Marked']] }],
+                date: { key: 'date', label: 'Submitted on' }
+            }) : ''}
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table" id="exam-subs-table">
                     <thead><tr><th>Student</th><th>Status</th><th>Submitted</th><th>Marks</th><th></th></tr></thead>
                     <tbody>
                         ${students.map(st => {
                             const s = subs.find(x => x.studentId === st.id);
                             return `
-                                <tr>
+                                <tr data-f-status="${!s ? 'NONE' : s.status === 'IN_PROGRESS' ? 'WRITING' : s.isMarked ? 'MARKED' : 'TO_MARK'}" data-f-date="${s ? Lms.isoDate(s.submittedAt) : ''}">
                                     <td><strong>${Lms.esc(st.name)}</strong><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(st.rollNo || '')}</div></td>
                                     <td>${!s ? '<span class="status-pill danger">Not attempted</span>' : s.status === 'IN_PROGRESS' ? '<span class="status-pill warning">Writing now</span>' : s.isMarked ? '<span class="status-pill success">Marked</span>' : '<span class="status-pill info">To mark</span>'}</td>
                                     <td style="font-size: 0.78rem;">${s && s.submittedAt ? Lms.fmtDateTime(s.submittedAt) + (s.autoSubmitted ? ' (timed out)' : '') : '—'}</td>
@@ -767,13 +795,15 @@ const ExamsModule = {
         const total = this.examTotal(ex);
         const students = Lms.studentsInClass(ex.classId);
         const canEdit = this.canExam(ex, 'exams.mark');
+        Lms.resetFilter('marks-sheet-table');
         Lms.openModal(
             `<i class="fas fa-table" style="color: var(--gold-400);"></i> Marks Sheet: ${Lms.esc(ex.title)}`,
             `<div style="background: var(--bg-surface-elevated); padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 0.82rem;">
                 <strong>Scale:</strong> Mumtaz ≥80% • Jayyid Jiddan 70–79% • Jayyid 60–69% • Maqbool 40–59% • Rasib &lt;40% • Total ${total}, pass ${Lms.esc(ex.passingMarks)}
             </div>
+            ${students.length > 5 ? Lms.filterBar('marks-sheet-table', { search: 'Search name or roll no...' }) : ''}
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table" id="marks-sheet-table">
                     <thead><tr><th>Student</th><th>Roll No</th><th>Marks (/${total})</th><th>Remarks</th></tr></thead>
                     <tbody>
                         ${students.length ? students.map(s => {
@@ -868,8 +898,18 @@ const ExamsModule = {
                     <h3 class="card-title"><i class="fas fa-scroll"></i> ${isStudent ? 'My Published Results' : 'Results Ledger'}</h3>
                     <span class="status-pill success">${results.length} record(s)</span>
                 </div>
+                ${Lms.filterBar('results-table', {
+                    search: isStudent ? 'Search exam or remarks...' : 'Search student, roll no, exam or remarks...',
+                    selects: [
+                        exams.length > 1 ? { key: 'exam', label: 'All exams', options: exams.filter(e => results.some(r => r.examId === e.id)).map(e => [e.id, e.title]) } : null,
+                        { key: 'grade', label: 'All grades', options: [80, 70, 60, 40, 0].map(p => [Lms.wifaqGrade(p).code, Lms.wifaqGrade(p).label]) },
+                        isStudent ? null : { key: 'published', label: 'Published and draft', options: [['YES', 'Published'], ['NO', 'Draft']] },
+                        isStudent ? null : Lms.classFilter(Array.from(new Set(exams.map(e => e.classId))))
+                    ],
+                    date: { key: 'date', label: 'Exam date' }
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="results-table">
                         <thead><tr>${isStudent ? '' : '<th>Student</th>'}<th>Exam</th><th>Marks</th><th>Grade</th><th>Remarks</th>${isStudent ? '' : '<th>Status</th>'}<th></th></tr></thead>
                         <tbody>
                             ${results.length ? results.map(r => {
@@ -877,7 +917,8 @@ const ExamsModule = {
                                 const pct = r.percentage !== undefined ? r.percentage : (r.marksObtained / (r.totalMarks || 100) * 100);
                                 const g = Lms.wifaqGrade(pct);
                                 return `
-                                    <tr>
+                                    <tr data-f-exam="${Lms.esc(r.examId)}" data-f-grade="${g.code}" data-f-published="${r.published ? 'YES' : 'NO'}"
+                                        data-f-class="${Lms.esc(ex.classId || '')}" data-f-date="${Lms.isoDate(ex.examDate)}">
                                         ${isStudent ? '' : `<td><div style="font-weight: 700;">${Lms.esc(r.studentName)}</div><div style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(r.rollNo)}</div></td>`}
                                         <td><div style="font-weight: 600;">${Lms.esc(ex.title || '')}</div><div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.fmtDate(ex.examDate)}</div></td>
                                         <td><strong>${Lms.esc(r.marksObtained)}</strong> / ${Lms.esc(r.totalMarks || 100)} <span style="font-size: 0.75rem; color: var(--text-muted);">(${Math.round(pct * 10) / 10}%)</span></td>

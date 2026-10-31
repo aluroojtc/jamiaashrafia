@@ -69,7 +69,8 @@ const NotificationsModule = {
                         <button class="btn btn-sm ${this.filter === k ? 'btn-primary' : 'btn-secondary'}" onclick="NotificationsModule.setFilter('${Lms.esc(k)}')">${Lms.esc(l)}</button>`).join('')}
                 </div>
                 <div class="card">
-                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                    ${shown.length ? Lms.filterBar('inbox-list', { search: 'Search title, message or sender...', date: { key: 'date', label: 'Received on' } }) : ''}
+                    <div id="inbox-list" style="display: flex; flex-direction: column; gap: 10px;">
                         ${shown.length ? shown.map(n => this.renderItem(n)).join('') : window.App.dashEmpty('No notifications here.')}
                     </div>
                 </div>`}
@@ -79,7 +80,7 @@ const NotificationsModule = {
     renderItem(n) {
         const [label, icon, pill] = this.CATEGORIES[n.category] || [n.category || 'General', 'fas fa-info-circle', 'info'];
         return `
-            <div style="display: flex; align-items: flex-start; gap: 14px; padding: 14px; background: ${n.isRead ? 'var(--bg-surface-elevated)' : 'var(--primary-50)'}; border: 1px solid ${n.isRead ? 'var(--border-subtle)' : 'var(--primary-300)'}; border-radius: var(--radius-sm); ${n.linkRoute ? 'cursor: pointer;' : ''}"
+            <div data-f-date="${Lms.isoDate(n.createdAt || n.time)}" style="display: flex; align-items: flex-start; gap: 14px; padding: 14px; background: ${n.isRead ? 'var(--bg-surface-elevated)' : 'var(--primary-50)'}; border: 1px solid ${n.isRead ? 'var(--border-subtle)' : 'var(--primary-300)'}; border-radius: var(--radius-sm); ${n.linkRoute ? 'cursor: pointer;' : ''}"
                 ${n.linkRoute ? `onclick="NotificationsModule.open('${Lms.esc(n.id)}')"` : ''}>
                 <div style="width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%; background: var(--bg-surface); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--gold-700);">
                     <i class="${icon}"></i>
@@ -186,12 +187,17 @@ const NotificationsModule = {
         }
         return `
             <div class="card">
+                ${Lms.filterBar('sent-notifications-table', {
+                    search: 'Search title or message...',
+                    selects: [{ key: 'audience', label: 'All audiences', options: [['ONE', 'One person'], ['CLASS', 'A class'], ['ROLE', 'A group or everyone']] }],
+                    date: { key: 'date', label: 'Sent on' }
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="sent-notifications-table">
                         <thead><tr><th>Announcement</th><th>Audience</th><th>Sent</th><th>Read by</th></tr></thead>
                         <tbody>
                             ${this.sent.length ? this.sent.map(n => `
-                                <tr>
+                                <tr data-f-audience="${n.targetUserId ? 'ONE' : n.targetClassId ? 'CLASS' : 'ROLE'}" data-f-date="${Lms.isoDate(n.createdAt || n.time)}" data-f-search="${Lms.esc(n.message)}">
                                     <td><div style="font-weight: 700;">${Lms.esc(n.title)}</div><div style="font-size: 0.78rem; color: var(--text-muted); max-width: 420px;">${Lms.esc(String(n.message).slice(0, 140))}</div></td>
                                     <td style="font-size: 0.8rem;">${Lms.esc(this.audienceLabel(n))}</td>
                                     <td style="font-size: 0.8rem;">${Lms.esc(n.time)}</td>

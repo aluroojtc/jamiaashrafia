@@ -121,11 +121,19 @@ const RolesModule = {
 
             <div class="card">
                 <div class="card-header"><h3 class="card-title"><i class="fas fa-list-ul"></i> Roles</h3></div>
+                ${Lms.filterBar('roles-table', {
+                    search: 'Search role name, id or description...',
+                    selects: [
+                        { key: 'scope', label: 'All data scopes', options: [['ALL', this.scopeLabel('ALL')], ['TEACHING', this.scopeLabel('TEACHING')], ['SELF', this.scopeLabel('SELF')]] },
+                        { key: 'kind', label: 'Default and custom', options: [['DEFAULT', 'Default'], ['CUSTOM', 'Custom']] },
+                        { key: 'status', label: 'All statuses', options: [['ACTIVE', 'Active'], ['INACTIVE', 'Switched off']] }
+                    ]
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="roles-table">
                         <thead><tr><th>Role</th><th>Description</th><th>Data scope</th><th>Permissions</th><th style="text-align: center;">Users</th><th>Type</th><th style="text-align: end;">Actions</th></tr></thead>
                         <tbody>
-                            <tr>
+                            <tr data-f-scope="ALL" data-f-kind="DEFAULT" data-f-status="ACTIVE">
                                 <td>${this.renderRoleTitle(superRole)}</td>
                                 <td style="max-width: 320px; font-size: 0.84rem; color: var(--text-secondary);">Full control of every branch, account, record and setting.</td>
                                 <td>${this.scopeLabel('ALL')}</td>
@@ -163,7 +171,7 @@ const RolesModule = {
         const canEdit = this.canEdit(r);
         const own = r.id === window.AuthRBAC.getRole();
         return `
-            <tr>
+            <tr data-f-scope="${Lms.esc(r.scope || 'ALL')}" data-f-kind="${this.isCore(r.id) ? 'DEFAULT' : 'CUSTOM'}" data-f-status="${r.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'}">
                 <td>${this.renderRoleTitle(r)}</td>
                 <td style="max-width: 320px; font-size: 0.84rem; color: var(--text-secondary);">${Lms.esc(r.description || '')}</td>
                 <td style="font-size: 0.84rem;">${Lms.esc(this.scopeLabel(r.scope))}</td>

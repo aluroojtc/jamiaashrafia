@@ -265,6 +265,109 @@ textarea.form-control {
     gap: 10px;
 }
 
+/* SHARED TABLE FILTER BAR (Lms.filterBar) */
+.lms-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+}
+
+.lms-filter-bar.lf-active {
+    border-color: var(--gold-400);
+}
+
+.lms-filter-field {
+    flex: 0 1 190px;
+    min-width: 150px;
+}
+
+.lms-filter-field.lf-grow {
+    flex: 1 1 240px;
+}
+
+.lms-filter-bar .search-input-wrap {
+    min-width: 0;
+}
+
+.lms-filter-bar .form-control {
+    padding-block: 7px;
+    font-size: 0.84rem;
+    width: 100%;
+}
+
+.lms-filter-bar .search-input-wrap input {
+    padding-inline-start: 36px;
+}
+
+.lms-filter-bar .search-input-wrap i {
+    inset-inline-start: 12px;
+}
+
+.lms-filter-field:has(.lf-dates) {
+    flex: 0 1 320px;
+}
+
+.lf-dates {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+}
+
+.lf-dates input {
+    min-width: 0;
+}
+
+.lms-filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.lms-filter-actions .lf-apply.lf-pending {
+    box-shadow: 0 0 0 2px var(--gold-400);
+}
+
+.lf-count {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+tr.lf-norows td,
+div.lf-norows {
+    text-align: center;
+    padding: 28px 12px;
+    color: var(--text-muted);
+}
+
+div.lf-norows {
+    grid-column: 1 / -1;
+}
+
+.lf-norows .btn {
+    margin-inline-start: 10px;
+}
+
+@media (max-width: 600px) {
+    .lms-filter-field,
+    .lms-filter-field.lf-grow,
+    .lms-filter-field:has(.lf-dates) {
+        flex: 1 1 100%;
+    }
+}
+
 /* STEPPER WIZARD (ADMISSIONS) */
 .wizard-steps {
     display: flex;

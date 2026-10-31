@@ -33,7 +33,6 @@ const PermissionGroupsModule = {
     data: {},          // domain -> { groups, defaultGroup, overrides }
     loading: {},
     editing: null,     // { domain, group } while the type modal is open (group null for a new type)
-    memberSearch: '',
 
     info(domain) {
         return GROUP_DOMAINS[domain];
@@ -175,8 +174,9 @@ const PermissionGroupsModule = {
 
             <div class="card" style="margin-bottom: 24px;">
                 <div class="card-header"><h3 class="card-title"><i class="fas fa-list-ul"></i> ${I18n.t('Types')}</h3></div>
+                ${groups.length > 1 ? Lms.filterBar(`types-table-${domain}`, { search: 'Search type name, id or description...' }) : ''}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="types-table-${domain}">
                         <thead><tr><th>Type</th><th>Description</th><th>Permissions</th><th style="text-align: center;">${I18n.t(info.people)}</th><th style="text-align: end;">Actions</th></tr></thead>
                         <tbody>${groups.length ? groups.map(g => this.renderGroupRow(domain, g)).join('') : `<tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">${I18n.t('Loading…')}</td></tr>`}</tbody>
                     </table>
@@ -214,8 +214,7 @@ const PermissionGroupsModule = {
 
     renderMembers(domain, members) {
         const info = this.info(domain);
-        const q = this.memberSearch.toLowerCase();
-        const shown = members.filter(u => !q || [u.name, u.urduName, u.rollNo, u.email, u.designation].some(v => v && String(v).toLowerCase().includes(q)));
+        const shown = members;
         const canAssign = this.canAssign(domain);
         const manage = this.canManage();
         const groups = this.groups(domain);
@@ -223,20 +222,26 @@ const PermissionGroupsModule = {
             <div class="card">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
                     <h3 class="card-title"><i class="fas fa-user-check"></i> ${I18n.t(domain === 'STUDENT' ? 'Students and their types' : 'Teachers and their types')}</h3>
-                    <div class="search-input-wrap" style="min-width: 220px; max-width: 320px;">
-                        <i class="fas fa-search"></i>
-                        <input type="text" class="form-control" placeholder="${Lms.esc(I18n.t('Search by name, roll number or email'))}" value="${Lms.esc(this.memberSearch)}" oninput="PermissionGroupsModule.searchMembers('${domain}', this.value)">
-                    </div>
                 </div>
+                ${Lms.filterBar(`type-members-table-${domain}`, {
+                    search: 'Search by name, roll number or email',
+                    selects: [
+                        { key: 'type', label: 'All types', options: groups.map(g => [g.id, Lms.localName(g.name, g.urduTitle, true)]) },
+                        { key: 'custom', label: 'With or without individual permissions', options: [['YES', 'Has individual permissions'], ['NO', 'As the type']] },
+                        domain === 'STUDENT' ? Lms.classFilter() : null,
+                        Lms.campusFilter()
+                    ]
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="type-members-table-${domain}">
                         <thead><tr><th>${I18n.t(domain === 'STUDENT' ? 'Student' : 'Teacher')}</th><th>${I18n.t('Type')}</th><th>${I18n.t('Individual permissions')}</th><th style="text-align: end;">Actions</th></tr></thead>
                         <tbody>
                             ${shown.length ? shown.map(u => {
                                 const o = this.overridesOf(domain, u.id);
                                 const current = this.groupOf(domain, u);
                                 return `
-                                <tr>
+                                <tr data-f-type="${Lms.esc(current || '')}" data-f-custom="${o.allow.length || o.deny.length ? 'YES' : 'NO'}" data-f-class="${Lms.esc(u.classId || '')}"
+                                    data-f-campus="${Lms.campusValues(u)}" data-f-search="${Lms.esc([u.email, u.rollNo].filter(Boolean).join(' '))}">
                                     <td>
                                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(u.name, u.urduName))}</div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(domain === 'STUDENT' ? [u.rollNo, (Lms.getClass(u.classId) || {}).name].filter(Boolean).join(' • ') : (u.designation || u.email || ''))}</div>
@@ -253,21 +258,11 @@ const PermissionGroupsModule = {
                                         ${manage ? `<button class="btn btn-secondary btn-sm" onclick="PermissionGroupsModule.openMemberModal('${domain}', '${Lms.esc(u.id)}')"><i class="fas fa-sliders-h"></i> ${I18n.t('Permissions')}</button>` : ''}
                                     </td>
                                 </tr>`;
-                            }).join('') : `<tr><td colspan="4" style="text-align: center; padding: 30px; color: var(--text-muted);">${I18n.t(members.length ? 'Nobody matches the search.' : (domain === 'STUDENT' ? 'No students registered yet.' : 'No teachers registered yet.'))}</td></tr>`}
+                            }).join('') : `<tr><td colspan="4" style="text-align: center; padding: 30px; color: var(--text-muted);">${I18n.t((domain === 'STUDENT' ? 'No students registered yet.' : 'No teachers registered yet.'))}</td></tr>`}
                         </tbody>
                     </table>
                 </div>
             </div>`;
-    },
-
-    searchMembers(domain, value) {
-        this.memberSearch = String(value || '');
-        clearTimeout(this.searchTimer);
-        this.searchTimer = setTimeout(() => {
-            this.rerender(domain);
-            const input = document.querySelector('.search-input-wrap input');
-            if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
-        }, 250);
     },
 
     // ---------------------------------------------------------------------
@@ -303,7 +298,7 @@ const PermissionGroupsModule = {
                            <small style="color: var(--text-muted); font-size: 0.72rem;">Capital letters, digits and _ only. Cannot be changed later.</small>`
                         : `<input type="text" class="form-control" value="${Lms.esc(group.id)}" disabled style="opacity: 0.7;">`}</div>
                     <div>${label('Urdu Title')}<input type="text" id="role-urdu-input" class="form-control" value="${Lms.esc(group.urduTitle || '')}" style="font-family: 'Amiri', serif;"></div>
-                    <div>${label('Visual Badge Style')}<select id="role-badge-input" class="form-control">${BADGE_STYLES.map(([v, t]) => `<option value="${v}" ${group.badgeClass === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+                    ${domain === 'STUDENT' ? '' : `<div>${label('Visual Badge Style')}<select id="role-badge-input" class="form-control">${BADGE_STYLES.map(([v, t]) => `<option value="${v}" ${group.badgeClass === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`}
                 </div>
                 <div style="margin: 12px 0 16px;">${label('Description')}<textarea id="role-desc-input" class="form-control" rows="2">${Lms.esc(group.description || '')}</textarea></div>
                 ${RolesModule.renderPermissionChecklist(group, isNew, { ceiling: this.ceiling(domain), defaults, ceilingNote: I18n.t(info.ceilingNote) })}
@@ -323,7 +318,7 @@ const PermissionGroupsModule = {
         const body = {
             name: Lms.val('role-name-input'),
             urduTitle: Lms.val('role-urdu-input'),
-            badgeClass: Lms.val('role-badge-input'),
+            badgeClass: Lms.val('role-badge-input') || (group && group.badgeClass) || 'info',
             description: document.getElementById('role-desc-input').value.trim()
         };
         if (!body.name) return App.showToast('Give the type a name.', 'danger');

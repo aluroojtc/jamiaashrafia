@@ -8,7 +8,6 @@ const VirtualClassModule = {
     // Current Active View State
     currentTab: 'lobby', // 'lobby' | 'studio' | 'recordings' | 'attendance' | 'retention'
     lobbyFilter: 'ALL',   // 'ALL' | 'LIVE' | 'UPCOMING' | 'COMPLETED'
-    lobbySearch: '',
     activeSessionId: null,
     activeSession: null,
     isHost: false,
@@ -16,9 +15,6 @@ const VirtualClassModule = {
     accessBlockedReason: '',
 
     // Filters for Vault and Attendance
-    recordingFilterClass: 'ALL',
-    recordingSearch: '',
-    attendanceFilterClass: 'ALL',
 
     // Recording retention and storage (server: /api/settings/recordings)
     recordingSettings: { retentionDays: 90, allowStudentDownload: false, autoCleanupEnabled: false, storageQuotaGB: 50, usedBytes: 0, recordingCount: 0, lastCleanupDate: null },
@@ -202,13 +198,6 @@ const VirtualClassModule = {
             if (this.lobbyFilter === 'UPCOMING' && session.status !== 'UPCOMING') return false;
             if (this.lobbyFilter === 'COMPLETED' && session.status !== 'COMPLETED') return false;
 
-            if (this.lobbySearch) {
-                const q = this.lobbySearch.toLowerCase();
-                const matchTitle = session.title?.toLowerCase().includes(q);
-                const matchClass = session.className?.toLowerCase().includes(q);
-                const matchTeacher = session.hostTeacher?.toLowerCase().includes(q);
-                if (!matchTitle && !matchClass && !matchTeacher) return false;
-            }
             return true;
         });
 
@@ -293,19 +282,16 @@ const VirtualClassModule = {
                     </button>
                 </div>
 
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <div style="position: relative;">
-                        <input type="text" placeholder="Search class, course or Sheikh..." value="${this.lobbySearch}" 
-                               oninput="VirtualClassModule.handleLobbySearch(this.value)"
-                               class="form-control"
-                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding-block: 7px; padding-inline: 32px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 270px;">
-                        <i class="fas fa-search" style="position: absolute; inset-inline-start: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
-                    </div>
-                </div>
             </div>
 
+            ${filteredSessions.length ? Lms.filterBar('vc-lobby-grid', {
+                search: 'Search class, course or Sheikh...',
+                selects: [isStudent ? null : Lms.classFilter(Array.from(new Set(allSessions.map(s => s.classId).filter(Boolean))))],
+                date: { key: 'date', label: 'Scheduled' }
+            }) : ''}
+
             <!-- CLASSROOM CARDS GRID -->
-            <div class="vc-lobby-grid">
+            <div class="vc-lobby-grid" id="vc-lobby-grid">
                 ${filteredSessions.length === 0 ? `
                     <div style="grid-column: 1 / -1; text-align: center; padding: 50px 20px; color: var(--text-muted);">
                         <i class="fas fa-video-slash" style="font-size: 3rem; margin-bottom: 12px; opacity: 0.5;"></i>
@@ -340,7 +326,8 @@ const VirtualClassModule = {
         }
 
         return `
-            <div class="vc-card ${isLive ? 'is-live' : ''}">
+            <div class="vc-card ${isLive ? 'is-live' : ''}" data-f-class="${Lms.esc(session.classId || '')}" data-f-date="${Lms.isoDate(session.scheduledStart || session.date)}"
+                data-f-search="${Lms.esc([session.className, session.hostTeacher].filter(Boolean).join(' '))}">
                 <div class="vc-card-header">
                     <div style="display: flex; flex-direction: column; gap: 4px;">
                         <span style="font-size: 0.74rem; font-family: monospace; font-weight: 700; color: var(--primary-800);">
@@ -424,12 +411,6 @@ const VirtualClassModule = {
 
     setLobbyFilter(filter) {
         this.lobbyFilter = filter;
-        const area = document.getElementById('vc-tab-content-area');
-        if (area) area.innerHTML = this.renderLobby();
-    },
-
-    handleLobbySearch(query) {
-        this.lobbySearch = query;
         const area = document.getElementById('vc-tab-content-area');
         if (area) area.innerHTML = this.renderLobby();
     },
@@ -669,15 +650,6 @@ const VirtualClassModule = {
             // Students can only see their enrolled class recordings!
             if (isStudent && rec.classId !== studentClass) return false;
 
-            if (this.recordingFilterClass !== 'ALL' && rec.classId !== this.recordingFilterClass) return false;
-
-            if (this.recordingSearch) {
-                const q = this.recordingSearch.toLowerCase();
-                const matchTitle = rec.title?.toLowerCase().includes(q);
-                const matchTeacher = rec.teacherName?.toLowerCase().includes(q);
-                const matchCourse = rec.courseName?.toLowerCase().includes(q);
-                if (!matchTitle && !matchTeacher && !matchCourse) return false;
-            }
             return true;
         });
 
@@ -707,41 +679,27 @@ const VirtualClassModule = {
                 </div>
             </div>
 
-            <!-- SEARCH & CLASS FILTER BAR -->
-            <div class="vc-filter-toolbar">
-                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <div style="position: relative;">
-                        <input type="text" placeholder="Search lectures, teachers, topics..." value="${this.recordingSearch}" 
-                               oninput="VirtualClassModule.handleRecordingSearch(this.value)"
-                               class="form-control"
-                               style="background: #ffffff; border: 1px solid var(--border-prominent); padding-block: 7px; padding-inline: 32px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 280px;">
-                        <i class="fas fa-search" style="position: absolute; inset-inline-start: 10px; top: 10px; color: var(--text-muted); font-size: 0.8rem;"></i>
-                    </div>
-
-                    ${!isStudent ? `
-                        <select onchange="VirtualClassModule.handleRecordingClassFilter(this.value)"
-                                class="form-control"
-                                style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem;">
-                            ${this.classFilterOptions(this.recordingFilterClass)}
-                        </select>
-                    ` : ''}
-                </div>
-
-                <div style="font-size: 0.85rem; color: var(--text-muted);">
-                    ${I18n.t('Showing {n} recorded lecture(s)', { n: `<strong>${filtered.length}</strong>` })}
-                </div>
-            </div>
+            <!-- SEARCH & FILTERS -->
+            ${filtered.length ? Lms.filterBar('vc-recordings-list', {
+                search: 'Search lectures, teachers, topics...',
+                selects: [
+                    isStudent ? null : Lms.classFilter(Array.from(new Set(filtered.map(r => r.classId).filter(Boolean)))),
+                    { key: 'keep', label: 'All recordings', options: [['KEPT', 'Kept permanently'], ['EXPIRING', 'Removed by the clean-up']] }
+                ],
+                date: { key: 'date', label: 'Recorded on' }
+            }) : ''}
 
             <!-- RECORDINGS LIST / CARDS -->
-            <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div id="vc-recordings-list" style="display: flex; flex-direction: column; gap: 14px;">
                 ${filtered.length === 0 ? `
                     <div style="text-align: center; padding: 50px 20px; background: var(--bg-surface); border-radius: 8px; color: var(--text-muted);">
                         <i class="fas fa-film" style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5;"></i>
                         <h4>No Cloud Recordings Found</h4>
-                        <p>No recorded sessions match the selected class or search filter.</p>
+                        <p>No lectures have been recorded yet.</p>
                     </div>
                 ` : filtered.map(rec => `
-                    <div class="vc-vault-card">
+                    <div class="vc-vault-card" data-f-class="${Lms.esc(rec.classId || '')}" data-f-keep="${this.daysRemaining(rec) === null ? 'KEPT' : 'EXPIRING'}"
+                        data-f-date="${Lms.isoDate(rec.recordedDate)}" data-f-search="${Lms.esc(rec.courseName || '')}">
                         <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
                             <div style="width: 50px; height: 50px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); color: var(--primary-400); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
                                 <i class="fas fa-play-circle"></i>
@@ -792,18 +750,6 @@ const VirtualClassModule = {
         `;
     },
 
-    handleRecordingSearch(q) {
-        this.recordingSearch = q;
-        const area = document.getElementById('vc-tab-content-area');
-        if (area) area.innerHTML = this.renderRecordings();
-    },
-
-    handleRecordingClassFilter(cls) {
-        this.recordingFilterClass = cls;
-        const area = document.getElementById('vc-tab-content-area');
-        if (area) area.innerHTML = this.renderRecordings();
-    },
-
     // =========================================================================
     // 4. ATTENDANCE & SESSION REPORTS VIEW
     // =========================================================================
@@ -821,8 +767,6 @@ const VirtualClassModule = {
 
         if (isStudent) {
             virtualAtt = virtualAtt.filter(a => a.userId === currentUser.id);
-        } else if (this.attendanceFilterClass !== 'ALL') {
-            virtualAtt = virtualAtt.filter(a => a.classId === this.attendanceFilterClass);
         }
 
         return `
@@ -848,25 +792,19 @@ const VirtualClassModule = {
             </div>
 
             <!-- FILTER BAR -->
-            ${!isStudent ? `
-                <div class="vc-filter-toolbar">
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Filter by Class:</span>
-                        <select onchange="VirtualClassModule.handleAttendanceClassFilter(this.value)"
-                                class="form-control"
-                                style="background: #ffffff; border: 1px solid var(--border-prominent); padding: 7px 12px; border-radius: 6px; color: var(--text-primary); font-size: 0.85rem;">
-                            ${this.classFilterOptions(this.attendanceFilterClass)}
-                        </select>
-                    </div>
-                    <div style="font-size: 0.85rem; color: var(--text-secondary);">
-                        Total <strong>${virtualAtt.length}</strong> logged check-in entries
-                    </div>
-                </div>
-            ` : ''}
+            ${Lms.filterBar('vc-attendance-table', {
+                search: isStudent ? 'Search class or period...' : 'Search name, ID, class or period...',
+                selects: [
+                    isStudent ? null : Lms.classFilter(Array.from(new Set(virtualAtt.map(a => a.classId).filter(Boolean)))),
+                    isStudent ? null : { key: 'role', label: 'Students and teachers', options: [['STUDENT', 'Students'], ['TEACHER', 'Teachers']] },
+                    { key: 'status', label: 'All statuses', options: [['PRESENT', 'Present'], ['ABSENT', 'Absent'], ['LATE', 'Late']] }
+                ],
+                date: { key: 'date', label: 'Date' }
+            })}
 
             <!-- ATTENDANCE TABLE -->
             <div class="card" style="padding: 0; overflow: hidden;">
-                <table class="data-table">
+                <table class="data-table" id="vc-attendance-table">
                     <thead>
                         <tr>
                             <th>Scholar / Teacher</th>
@@ -883,11 +821,11 @@ const VirtualClassModule = {
                             <tr>
                                 <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
                                     <i class="fas fa-calendar-times" style="font-size: 2rem; margin-bottom: 8px; opacity: 0.5;"></i>
-                                    <div>No virtual attendance records logged for this selection.</div>
+                                    <div>No online class check-ins recorded yet.</div>
                                 </td>
                             </tr>
                         ` : virtualAtt.map(att => `
-                            <tr>
+                            <tr data-f-class="${Lms.esc(att.classId || '')}" data-f-role="${Lms.esc(att.role)}" data-f-status="${Lms.esc(att.status)}" data-f-date="${Lms.esc(att.date)}">
                                 <td>
                                     <div style="font-weight: 700; color: var(--text-primary);">${Lms.esc(att.userName)}</div>
                                 </td>
@@ -928,28 +866,12 @@ const VirtualClassModule = {
         `;
     },
 
-    handleAttendanceClassFilter(cls) {
-        this.attendanceFilterClass = cls;
-        const area = document.getElementById('vc-tab-content-area');
-        if (area) area.innerHTML = this.renderAttendance();
-    },
-
+    // Exports the check-ins the table shows (after its filters)
     exportAttendanceCSV() {
-        const allAttendance = window.LmsData?.attendance || [];
-        const virtualAtt = allAttendance.filter(a => a.session === 'VIRTUAL_CLASS'
-            && (this.attendanceFilterClass === 'ALL' || a.classId === this.attendanceFilterClass));
-        const cell = v => `"${String(v === undefined || v === null ? '' : v).replace(/"/g, '""')}"`;
-
-        let csv = 'Scholar Name,Role,Identifier,Class,Period,Date,Check-In Time,Status,Platform\n';
-        virtualAtt.forEach(a => {
-            csv += [a.userName, a.role, a.identifier, a.className || a.classId, a.periodName, a.date, a.checkInTime, a.status, this.platformOf(a.virtualSessionId)].map(cell).join(',') + '\n';
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `Jamia_Ashrafia_Virtual_Attendance_${Date.now()}.csv`;
-        link.click();
+        if (!Lms.exportTableCsv('vc-attendance-table', `Jamia_Ashrafia_Virtual_Attendance_${Lms.today()}.csv`)) {
+            window.App?.showToast('No check-ins to export. Clear the filters first.', 'warning');
+            return;
+        }
         window.App?.showToast("Attendance CSV report exported successfully", "success");
     },
 
@@ -1848,6 +1770,7 @@ const VirtualClassModule = {
             && (a.virtualSessionId === session.id || (!a.virtualSessionId && a.classId === session.classId && session.startedAt && a.date === session.startedAt.slice(0, 10))));
         const recording = (window.LmsData.virtualClassRecordings || []).find(r => r.sessionId === session.id);
         const roster = Lms.studentsInClass(session.classId);
+        Lms.resetFilter('vc-session-log-table');
         Lms.openModal(
             `<i class="fas fa-history" style="color: var(--gold-400);"></i> Session Log: ${Lms.esc(session.title)}`,
             `<div style="font-size: 0.85rem; line-height: 1.8; margin-bottom: 14px;">
@@ -1859,11 +1782,15 @@ const VirtualClassModule = {
             </div>
             ${session.dayRoom ? `<div style="margin-bottom: 14px;">${this.renderDaySchedule(session, false)}</div>` : ''}
             ${recording ? `<button class="btn btn-gold btn-sm" style="margin-bottom: 12px;" onclick="App.closeModal(); VirtualClassModule.openVideoPlayer('${Lms.esc(recording.id)}')"><i class="fas fa-play"></i> Watch Recording</button>` : ''}
+            ${attendees.length > 5 ? Lms.filterBar('vc-session-log-table', {
+                search: 'Search name or ID...',
+                selects: [{ key: 'role', label: 'Students and teachers', options: [['STUDENT', 'Students'], ['TEACHER', 'Teachers']] }]
+            }) : ''}
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table" id="vc-session-log-table">
                     <thead><tr><th>Participant</th><th>Joined</th></tr></thead>
                     <tbody>
-                        ${attendees.length ? attendees.map(a => `<tr><td>${Lms.esc(a.userName)} <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(a.identifier || '')}</span></td><td>${Lms.esc(a.date)} ${Lms.esc(a.checkInTime || '')}${a.periodName ? ` • ${Lms.esc(a.periodName)}` : ''}</td></tr>`).join('')
+                        ${attendees.length ? attendees.map(a => `<tr data-f-role="${Lms.esc(a.role)}"><td>${Lms.esc(a.userName)} <span style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(a.identifier || '')}</span></td><td>${Lms.esc(a.date)} ${Lms.esc(a.checkInTime || '')}${a.periodName ? ` • ${Lms.esc(a.periodName)}` : ''}</td></tr>`).join('')
                             : '<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No attendance recorded for this session.</td></tr>'}
                     </tbody>
                 </table>

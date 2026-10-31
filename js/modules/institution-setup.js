@@ -170,10 +170,12 @@ const InstitutionSetupModule = {
             <button class="btn btn-secondary btn-sm" title="Delete" onclick="InstitutionSetupModule.remove('${kind}', '${Lms.esc(id)}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>`;
     },
 
-    table(headers, rows, empty) {
+    // id + filters: the table's filter bar (shown once there is more than one row)
+    table(headers, rows, empty, id, filters) {
         return `
+            ${id && rows.length > 1 ? Lms.filterBar(id, filters || {}) : ''}
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table" ${id ? `id="${id}"` : ''}>
                     <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}<th style="text-align: end;">Actions</th></tr></thead>
                     <tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length + 1}" style="text-align: center; color: var(--text-muted); padding: 30px;">${empty}</td></tr>`}</tbody>
                 </table>
@@ -188,7 +190,7 @@ const InstitutionSetupModule = {
             <div class="card">
                 ${this.toolbar('branches', 'Campuses appear on the admission form and in student, teacher and class records.')}
                 ${this.table(['Code', 'Campus', 'Location', 'Type', 'Est.', 'In the portal'], this.lists.branches.map(b => `
-                    <tr>
+                    <tr data-f-type="${b.isWomens ? 'WOMEN' : 'GENERAL'}">
                         <td><strong>${Lms.esc(b.code)}</strong></td>
                         <td>
                             <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(b.name, b.urduName))}</div>
@@ -202,7 +204,10 @@ const InstitutionSetupModule = {
                             ${I18n.t('{n} classes', { n: classes.filter(c => c.branchId === b.id).length })}
                         </td>
                         <td style="text-align: end; white-space: nowrap;">${this.rowActions('branches', b.id)}</td>
-                    </tr>`), 'No campuses set up yet.')}
+                    </tr>`), 'No campuses set up yet.', 'setup-branches-table', {
+                    search: 'Search code, campus or location...',
+                    selects: [{ key: 'type', label: 'All campus types', options: [['GENERAL', 'Campus'], ['WOMEN', 'Women\'s campus']] }]
+                })}
             </div>`;
     },
 
@@ -212,7 +217,7 @@ const InstitutionSetupModule = {
             <div class="card">
                 ${this.toolbar('programs', 'Programmes are offered on the admission form and group classes, courses and fee structures.')}
                 ${this.table(['Code', 'Programme', 'Department', 'Duration', 'Equivalence', 'Classes'], this.lists.programs.map(p => `
-                    <tr>
+                    <tr data-f-dept="${Lms.esc(p.departmentId || '')}">
                         <td><strong>${Lms.esc(p.code)}</strong></td>
                         <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(p.name, p.urduName))}</td>
                         <td style="font-size: 0.82rem;">${Lms.esc(p.departmentName || '—')}</td>
@@ -220,7 +225,10 @@ const InstitutionSetupModule = {
                         <td style="font-size: 0.8rem; color: var(--text-secondary);">${Lms.esc(p.wifaqEquivalence || '—')}</td>
                         <td>${classes.filter(c => c.programId === p.id).length}</td>
                         <td style="text-align: end; white-space: nowrap;">${this.rowActions('programs', p.id)}</td>
-                    </tr>`), this.lists.departments.length ? 'No programmes set up yet.' : 'Add a department first, then its programmes.')}
+                    </tr>`), this.lists.departments.length ? 'No programmes set up yet.' : 'Add a department first, then its programmes.', 'setup-programs-table', {
+                    search: 'Search code, programme or equivalence...',
+                    selects: [{ key: 'dept', label: 'All departments', options: this.lists.departments.map(d => [d.id, d.name]) }]
+                })}
             </div>`;
     },
 
@@ -235,7 +243,7 @@ const InstitutionSetupModule = {
                         <td>${this.lists.programs.filter(p => p.departmentId === d.id).length}</td>
                         <td style="font-size: 0.8rem; color: var(--text-secondary);">${Lms.esc(d.description || '—')}</td>
                         <td style="text-align: end; white-space: nowrap;">${this.rowActions('departments', d.id)}</td>
-                    </tr>`), 'No departments set up yet.')}
+                    </tr>`), 'No departments set up yet.', 'setup-departments-table', { search: 'Search code, department or description...' })}
             </div>`;
     },
 
@@ -244,14 +252,18 @@ const InstitutionSetupModule = {
             <div class="card">
                 ${this.toolbar('sessions', 'The current session is the default for new exams and admissions.')}
                 ${this.table(['Session', 'Starts', 'Ends', 'Status'], this.lists.sessions.map(s => `
-                    <tr>
+                    <tr data-f-current="${s.isCurrent ? 'YES' : 'NO'}" data-f-date="${Lms.isoDate(s.startDate)}">
                         <td style="font-weight: 700; color: var(--primary-950);">${Lms.esc(s.name)}</td>
                         <td>${Lms.fmtDate(s.startDate)}</td>
                         <td>${Lms.fmtDate(s.endDate)}</td>
                         <td>${s.isCurrent ? '<span class="status-pill success"><i class="fas fa-check-circle"></i> Current</span>'
                             : (this.canManage() ? `<button class="btn btn-secondary btn-sm" onclick="InstitutionSetupModule.makeCurrent('${Lms.esc(s.id)}')">Make current</button>` : '')}</td>
                         <td style="text-align: end; white-space: nowrap;">${this.rowActions('sessions', s.id)}</td>
-                    </tr>`), 'No academic sessions set up yet.')}
+                    </tr>`), 'No academic sessions set up yet.', 'setup-sessions-table', {
+                    search: 'Search session name...',
+                    selects: [{ key: 'current', label: 'All sessions', options: [['YES', 'Current'], ['NO', 'Other sessions']] }],
+                    date: { key: 'date', label: 'Starts' }
+                })}
             </div>`;
     },
 

@@ -615,7 +615,284 @@ const Lms = {
     notifyClass(classId, title, message, category, linkRoute) {
         if (!classId) return Promise.resolve();
         return this.notify({ targetClassId: classId, targetRole: 'STUDENT', title, message, category, linkRoute });
+    },
+
+    // ---------------------------------------------------------------------
+    // Table filters
+    // One bar for every data table (or card grid): search, dropdowns, a date range, Apply and Clear.
+    // It only hides rows the page already rendered, so it can never show a record the
+    // signed-in person's role or campuses do not allow.
+    //
+    //   Lms.filterBar('students-table', {
+    //       search: 'Search name or roll no...',
+    //       selects: [{ key: 'status', label: 'All statuses', options: [['ACTIVE', 'Active'], ...] },
+    //                 { col: 2, label: 'All classes' }],           // options taken from the column's text
+    //       date: { key: 'date', label: 'Date' }                    // rows carry data-f-date="YYYY-MM-DD"
+    //   })
+    //
+    // Rows declare values as data-f-<key> ("a|b" for several); data-f-search adds hidden search words.
+    // A row with a single spanning cell (an empty-state row) or data-f-skip is never filtered.
+    // ---------------------------------------------------------------------
+    _filters: {},
+
+    // Ready-made dropdowns for filterBar (a campus dropdown only for people with more than one campus)
+    campusFilter(label = 'All my campuses') {
+        const mine = this.myBranches();
+        return mine.length < 2 ? null : { key: 'campus', label, options: mine.map(b => [b.id, b.name]) };
+    },
+
+    // data-f-campus for a person: a student's campus, or every campus a staff member or teacher works at
+    campusValues(user) {
+        if (!user) return '';
+        if (user.role !== 'STUDENT' && (user.role === 'SUPER_ADMIN' || user.allCampuses === true)) return this.esc(this.branches().map(b => b.id).join('|'));
+        const ids = user.role === 'STUDENT' ? [user.branchId] : [...(user.campusIds || []), user.branchId];
+        return this.esc(Array.from(new Set(ids.filter(Boolean))).join('|'));
+    },
+
+    classFilter(ids, label = 'All classes') {
+        const list = (window.LmsData.classes || []).filter(c => !ids || ids.includes(c.id));
+        return list.length < 2 ? null : { key: 'class', label, options: list.map(c => [c.id, this.className(c.id)]) };
+    },
+
+    genderFilter() {
+        return { key: 'gender', label: 'All genders', options: Object.entries(this.GENDERS).concat([['NONE', 'Not specified']]) };
+    },
+
+    // The date part of a date or timestamp, for data-f-date
+    isoDate(value) {
+        if (!value) return '';
+        const m = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+        if (m) return m[0];
+        const d = new Date(value);
+        return isNaN(d) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    },
+
+    // Forget a table's filters (for a modal that opens on a different record)
+    resetFilter(tableId) {
+        delete this._filters[tableId];
+    },
+
+    filterState(tableId) {
+        return this._filters[tableId] || (this._filters[tableId] = { q: '', sel: {}, from: '', to: '' });
+    },
+
+    filterBar(tableId, opts = {}) {
+        const st = this.filterState(tableId);
+        const selects = (opts.selects || []).filter(Boolean);
+        const config = { selects: selects.map(s => ({ id: s.key || `col${s.col}`, key: s.key || null, col: s.col !== undefined ? s.col : null })), date: opts.date ? { key: opts.date.key || null, col: opts.date.col !== undefined ? opts.date.col : null } : null };
+        const field = (html, cls = '') => `<div class="lms-filter-field ${cls}">${html}</div>`;
+        return `
+            <div class="lms-filter-bar" data-lms-filter="${this.esc(tableId)}" data-config="${this.esc(JSON.stringify(config))}">
+                ${opts.search === false ? '' : field(`<div class="search-input-wrap"><i class="fas fa-search"></i>
+                    <input type="search" class="form-control lf-q" placeholder="${this.esc(I18n.t(opts.search || 'Search...'))}" value="${this.esc(st.q)}" aria-label="${this.esc(I18n.t('Search'))}"></div>`, 'lf-grow')}
+                ${selects.map((s, i) => field(`<select class="form-control lf-sel" data-i="${this.esc(config.selects[i].id)}" aria-label="${this.esc(I18n.t(s.label || 'Filter'))}">
+                    <option value="">${this.esc(I18n.t(s.label || 'All'))}</option>
+                    ${(s.options || []).map(([v, t]) => `<option value="${this.esc(v)}" ${st.sel[config.selects[i].id] === String(v) ? 'selected' : ''}>${this.esc(I18n.t(t))}</option>`).join('')}
+                </select>`)).join('')}
+                ${opts.date ? field(`<div class="lf-dates" title="${this.esc(I18n.t(opts.date.label || 'Date'))}">
+                    <i class="fas fa-calendar-alt"></i>
+                    <input type="date" class="form-control lf-from" value="${this.esc(st.from)}" aria-label="${this.esc(I18n.t('From date'))}">
+                    <span>–</span>
+                    <input type="date" class="form-control lf-to" value="${this.esc(st.to)}" aria-label="${this.esc(I18n.t('To date'))}">
+                </div>`) : ''}
+                <div class="lms-filter-actions">
+                    <button type="button" class="btn btn-primary btn-sm lf-apply"><i class="fas fa-filter"></i> ${I18n.t('Apply')}</button>
+                    <button type="button" class="btn btn-secondary btn-sm lf-clear"><i class="fas fa-times"></i> ${I18n.t('Clear')}</button>
+                    <span class="lf-count" aria-live="polite"></span>
+                </div>
+            </div>`;
+    },
+
+    // The filterable items: a table's body rows, or the children of a card grid / list
+    _filterRows(table) {
+        if (table.tagName !== 'TABLE') {
+            return Array.from(table.children).filter(c => !c.classList.contains('lf-norows') && !c.hasAttribute('data-f-skip'));
+        }
+        const body = table.tBodies[0];
+        if (!body) return [];
+        return Array.from(body.rows).filter(r => !r.classList.contains('lf-norows') && !r.hasAttribute('data-f-skip')
+            && !(r.cells.length === 1 && r.cells[0].colSpan > 1));
+    },
+
+    // What a person reads in a row: its text, leaving out dropdown choices and button captions
+    _searchText(row) {
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, {
+            acceptNode: n => n.parentElement && n.parentElement.closest('select, button, script, style') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+        });
+        let text = '';
+        while (walker.nextNode()) text += ' ' + walker.currentNode.nodeValue;
+        row.querySelectorAll('select').forEach(sel => { if (sel.selectedOptions[0]) text += ' ' + sel.selectedOptions[0].textContent; });
+        return text;
+    },
+
+    _cellText(row, col) {
+        const cell = row.cells && row.cells[col];
+        return cell ? cell.textContent.replace(/\s+/g, ' ').trim() : '';
+    },
+
+    _rowValues(row, spec) {
+        if (spec.key) {
+            const raw = row.getAttribute(`data-f-${spec.key}`);
+            return raw === null ? [''] : String(raw).split('|');
+        }
+        return [this._cellText(row, spec.col)];
+    },
+
+    _rowDate(row, spec) {
+        const raw = spec.key ? (row.getAttribute(`data-f-${spec.key}`) || '') : this._cellText(row, spec.col);
+        const iso = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) return iso[0];
+        const months = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+        const m = raw.match(/(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/);
+        if (m && months[m[2].toLowerCase()]) return `${m[3]}-${String(months[m[2].toLowerCase()]).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+        return '';
+    },
+
+    _filterInit(bar) {
+        bar._lf = true;
+        const id = bar.getAttribute('data-lms-filter');
+        const read = () => ({
+            q: (bar.querySelector('.lf-q') || {}).value || '',
+            sel: Object.fromEntries(Array.from(bar.querySelectorAll('.lf-sel')).filter(s => s.value).map(s => [s.dataset.i, s.value])),
+            from: (bar.querySelector('.lf-from') || {}).value || '',
+            to: (bar.querySelector('.lf-to') || {}).value || ''
+        });
+        const same = (a, b) => a.q.trim() === b.q.trim() && a.from === b.from && a.to === b.to && JSON.stringify(a.sel) === JSON.stringify(b.sel);
+        const markPending = () => bar.querySelector('.lf-apply').classList.toggle('lf-pending', !same(read(), this.filterState(id)));
+        const apply = () => {
+            const next = read();
+            if (next.from && next.to && next.from > next.to) [next.from, next.to] = [next.to, next.from];
+            next.q = next.q.trim();
+            this._filters[id] = next;
+            if (bar.querySelector('.lf-from')) { bar.querySelector('.lf-from').value = next.from; bar.querySelector('.lf-to').value = next.to; }
+            this._filterApply(bar);
+            markPending();
+        };
+        bar.querySelector('.lf-apply').addEventListener('click', apply);
+        bar.querySelector('.lf-clear').addEventListener('click', () => {
+            bar.querySelectorAll('.lf-q, .lf-from, .lf-to').forEach(i => { i.value = ''; });
+            bar.querySelectorAll('.lf-sel').forEach(s => { s.value = ''; });
+            apply();
+        });
+        bar.addEventListener('input', markPending);
+        bar.addEventListener('change', markPending);
+        bar.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); apply(); } });
+    },
+
+    // Fill dropdowns whose options come from a column, keeping the chosen value
+    _filterOptions(bar, table, config) {
+        const rows = this._filterRows(table);
+        config.selects.forEach(spec => {
+            if (spec.key) return;
+            const select = Array.from(bar.querySelectorAll('.lf-sel')).find(el => el.dataset.i === spec.id);
+            if (!select) return;
+            const values = Array.from(new Set(rows.map(r => this._cellText(r, spec.col)).filter(v => v && v !== '—'))).sort((a, b) => a.localeCompare(b));
+            const sig = values.join('\u0001');
+            if (select._sig === sig) return;
+            select._sig = sig;
+            const chosen = this.filterState(bar.getAttribute('data-lms-filter')).sel[spec.id] || '';
+            const first = select.options[0].outerHTML;
+            const list = chosen && !values.includes(chosen) ? values.concat([chosen]) : values;
+            select.innerHTML = first + list.map(v => `<option value="${this.esc(v)}" ${v === chosen ? 'selected' : ''}>${this.esc(v)}</option>`).join('');
+        });
+    },
+
+    _filterApply(bar) {
+        const id = bar.getAttribute('data-lms-filter');
+        const table = document.getElementById(id);
+        if (!table) return;
+        let config;
+        try { config = JSON.parse(bar.getAttribute('data-config') || '{}'); } catch (e) { config = { selects: [] }; }
+        this._filterOptions(bar, table, config);
+        const st = this.filterState(id);
+        const words = st.q.toLowerCase().split(/\s+/).filter(Boolean);
+        const rows = this._filterRows(table);
+        let shown = 0;
+        rows.forEach(row => {
+            let ok = true;
+            if (words.length) {
+                const hay = `${this._searchText(row)} ${row.getAttribute('data-f-search') || ''}`.toLowerCase();
+                ok = words.every(w => hay.includes(w));
+            }
+            if (ok) ok = config.selects.every(spec => !st.sel[spec.id] || this._rowValues(row, spec).includes(st.sel[spec.id]));
+            if (ok && config.date && (st.from || st.to)) {
+                const d = this._rowDate(row, config.date);
+                ok = !!d && (!st.from || d >= st.from) && (!st.to || d <= st.to);
+            }
+            if (row.hidden !== !ok) row.hidden = !ok;
+            if (ok) shown++;
+        });
+        const active = !!(words.length || config.selects.some(spec => st.sel[spec.id]) || st.from || st.to);
+        bar.classList.toggle('lf-active', active);
+        const count = bar.querySelector('.lf-count');
+        const text = active ? I18n.t('{shown} of {total} shown', { shown, total: rows.length }) : (rows.length ? I18n.t('{total} records', { total: rows.length }) : '');
+        if (count.textContent !== text) count.textContent = text;
+        // A visible "nothing matches" line, so a filtered-out list is never just blank
+        const isTable = table.tagName === 'TABLE';
+        const body = isTable ? table.tBodies[0] : table;
+        let none = body && body.querySelector(':scope > .lf-norows');
+        const needNone = active && rows.length > 0 && shown === 0;
+        if (needNone && !none && body) {
+            const message = `<i class="fas fa-filter"></i> ${this.esc(I18n.t('No records match these filters.'))} <button type="button" class="btn btn-secondary btn-sm">${this.esc(I18n.t('Clear filters'))}</button>`;
+            if (isTable) {
+                const cols = table.tHead && table.tHead.rows[0] ? Array.from(table.tHead.rows[0].cells).reduce((n, c) => n + (c.colSpan || 1), 0) : 1;
+                none = document.createElement('tr');
+                none.innerHTML = `<td colspan="${cols}">${message}</td>`;
+            } else {
+                none = document.createElement('div');
+                none.innerHTML = message;
+            }
+            none.className = 'lf-norows';
+            none.querySelector('button').addEventListener('click', () => bar.querySelector('.lf-clear').click());
+            body.appendChild(none);
+        } else if (!needNone && none) {
+            none.remove();
+        }
+    },
+
+    // Download a table as CSV: its header and the rows the filters leave visible. Returns false when nothing is shown.
+    exportTableCsv(tableId, filename) {
+        const table = document.getElementById(tableId);
+        if (!table) return false;
+        const rows = this._filterRows(table).filter(r => !r.hidden);
+        if (!rows.length) return false;
+        const clean = el => (el.innerText || el.textContent).replace(/\s+/g, ' ').trim();
+        const quote = v => `"${String(v).replace(/"/g, '""')}"`;
+        const head = table.tHead && table.tHead.rows[0] ? Array.from(table.tHead.rows[0].cells).map(clean) : [];
+        const lines = [head].concat(rows.map(r => Array.from(r.cells).map(clean))).map(cells => cells.map(quote).join(','));
+        const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        return true;
+    },
+
+    // Finds filter bars as pages and modals render, and keeps their filters applied when a table redraws
+    _filterRefresh() {
+        this._filterQueued = false;
+        document.querySelectorAll('.lms-filter-bar[data-lms-filter]').forEach(bar => {
+            if (!bar._lf) this._filterInit(bar);
+            this._filterApply(bar);
+        });
+    },
+
+    _filterWatch() {
+        if (this._filterObserver || typeof MutationObserver === 'undefined') return;
+        const queue = () => {
+            if (this._filterQueued) return;
+            this._filterQueued = true;
+            setTimeout(() => this._filterRefresh(), 0);
+        };
+        this._filterObserver = new MutationObserver(queue);
+        this._filterObserver.observe(document.documentElement, { childList: true, subtree: true });
+        queue();
     }
 };
 
 window.Lms = Lms;
+Lms._filterWatch();

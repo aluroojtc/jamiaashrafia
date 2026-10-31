@@ -7,8 +7,6 @@
 const AdmissionsModule = {
     currentStep: 1,
     activeStatusFilter: 'ALL',
-    activeCategoryFilter: 'ALL',
-    searchQuery: '',
     liveAdmissions: null,
     isLoading: false,
     hasInitialFetched: false,
@@ -154,17 +152,8 @@ const AdmissionsModule = {
         if (this.isLoading) return;
         this.isLoading = true;
         try {
+            // Always the full list (within the person's campuses); the page filters it, so counts stay right
             const params = new URLSearchParams();
-            if (this.activeCategoryFilter && this.activeCategoryFilter !== 'ALL') {
-                params.set('studentType', this.activeCategoryFilter);
-            }
-            if (this.activeStatusFilter && this.activeStatusFilter !== 'ALL') {
-                params.set('status', this.activeStatusFilter);
-            }
-            if (this.searchQuery && this.searchQuery.trim()) {
-                params.set('search', this.searchQuery.trim());
-            }
-
             const res = await fetch('/api/admissions?' + params.toString(), {
                 cache: 'no-store'
             });
@@ -234,27 +223,6 @@ const AdmissionsModule = {
         let filtered = admissions;
         if (this.activeStatusFilter !== 'ALL') {
             filtered = filtered.filter(a => a.status === this.activeStatusFilter);
-        }
-
-        if (this.activeCategoryFilter && this.activeCategoryFilter !== 'ALL') {
-            if (this.activeCategoryFilter === 'LOCAL') {
-                filtered = filtered.filter(a => a.studentType === 'LOCAL' || (!a.studentType && !a.passport));
-            } else if (this.activeCategoryFilter === 'INTERNATIONAL') {
-                filtered = filtered.filter(a => a.studentType === 'INTERNATIONAL' || a.passport);
-            }
-        }
-
-        if (this.searchQuery) {
-            const q = this.searchQuery.toLowerCase();
-            filtered = filtered.filter(a => 
-                (a.name && a.name.toLowerCase().includes(q)) ||
-                (a.applicationNo && a.applicationNo.toLowerCase().includes(q)) ||
-                (a.fatherName && a.fatherName.toLowerCase().includes(q)) ||
-                (a.cnic && a.cnic.toLowerCase().includes(q)) ||
-                (a.passport && a.passport.toLowerCase().includes(q)) ||
-                (a.country && a.country.toLowerCase().includes(q)) ||
-                (a.phone && a.phone.includes(q))
-            );
         }
 
         // Metrics calculations
@@ -360,27 +328,15 @@ const AdmissionsModule = {
                 </div>
 
                 <!-- SEARCH AND FILTER CONTROLS -->
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
-                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                        <div class="search-input-wrap" style="width: 290px; position: relative;">
-                            <i class="fas fa-search" style="position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                            <input type="text" class="form-control" placeholder="Search applicant, CNIC, passport..." 
-                                   value="${this.searchQuery}" oninput="AdmissionsModule.setSearch(this.value)" 
-                                   style="padding-block: 8px; padding-inline: 36px 12px; width: 100%;">
-                        </div>
-
-                        <!-- STUDENT TYPE / CATEGORY FILTER -->
-                        <select class="form-control" style="width: 175px; font-size: 0.82rem;" onchange="AdmissionsModule.setCategoryFilter(this.value)">
-                            <option value="ALL" ${this.activeCategoryFilter === 'ALL' ? 'selected' : ''}>All Categories</option>
-                            <option value="LOCAL" ${this.activeCategoryFilter === 'LOCAL' ? 'selected' : ''}>Local (CNIC)</option>
-                            <option value="INTERNATIONAL" ${this.activeCategoryFilter === 'INTERNATIONAL' ? 'selected' : ''}>International (Passport)</option>
-                        </select>
-                    </div>
-
-                    <div style="font-size: 0.82rem; color: var(--text-muted);">
-                        Showing ${filtered.length} of ${admissions.length} applications
-                    </div>
-                </div>
+                ${Lms.filterBar('admissions-table', {
+                    search: 'Search applicant, CNIC, passport...',
+                    selects: [
+                        { key: 'category', label: 'All Categories', options: [['LOCAL', 'Local (CNIC)'], ['INTERNATIONAL', 'International (Passport)']] },
+                        { key: 'program', label: 'All programs', options: (window.LmsData.programs || []).map(p => [p.id, p.name]) },
+                        Lms.campusFilter('All campuses')
+                    ],
+                    date: { key: 'date', label: 'Applied on' }
+                })}
 
                 <!-- ADMISSIONS TABLE -->
                 <div class="table-responsive">
@@ -412,21 +368,6 @@ const AdmissionsModule = {
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) viewport.innerHTML = this.render();
     },
-
-    setCategoryFilter(cat) {
-        this.activeCategoryFilter = cat;
-        this.fetchLiveAdmissions();
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setSearch(q) {
-        this.searchQuery = q;
-        this.fetchLiveAdmissions();
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
 
     renderAdmissionsRows(list) {
         if (!list || list.length === 0) {
@@ -464,7 +405,8 @@ const AdmissionsModule = {
 
             const isIntl = (item.studentType === 'INTERNATIONAL' || (!item.cnic && item.passport));
             return `
-                <tr>
+                <tr data-f-category="${isIntl ? 'INTERNATIONAL' : 'LOCAL'}" data-f-program="${Lms.esc(item.programId || '')}" data-f-campus="${Lms.esc(item.branchId || '')}"
+                    data-f-date="${Lms.isoDate(item.appliedAt || item.createdAt)}" data-f-search="${Lms.esc([item.fatherName, item.cnic, item.passport, item.country, item.phone].filter(Boolean).join(' '))}">
                     <td>
                         <div style="font-weight: 700; color: var(--primary-950);">
                             <a href="javascript:void(0)" onclick="AdmissionsModule.viewApplication('${Lms.esc(item.id)}')" style="color: var(--primary-950); text-decoration: none;" onmouseover="this.style.color='var(--gold-600)'" onmouseout="this.style.color='var(--primary-950)'">

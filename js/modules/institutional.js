@@ -105,8 +105,12 @@ const InstitutionalModule = {
                         <i class="fas fa-network-wired"></i> ${I18n.t('Branch Network ({n} Campuses)', { n: (inst.branches || []).length })}
                     </h3>
                 </div>
+                ${(inst.branches || []).length > 1 ? Lms.filterBar('branch-network-table', {
+                    search: 'Search branch name, code or location...',
+                    selects: [{ key: 'type', label: 'All campus types', options: [['GENERAL', 'Campus'], ['WOMEN', 'Women\'s Campus']] }]
+                }) : ''}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="branch-network-table">
                         <thead>
                             <tr>
                                 <th>Branch Name</th>
@@ -119,7 +123,7 @@ const InstitutionalModule = {
                         </thead>
                         <tbody>
                             ${(inst.branches || []).map(b => `
-                                <tr>
+                                <tr data-f-type="${b.isWomens ? 'WOMEN' : 'GENERAL'}">
                                     <td>
                                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(b.name)}</div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">${Lms.esc(b.code)}</div>

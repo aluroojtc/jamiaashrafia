@@ -7,7 +7,6 @@
 const ClassesCoursesModule = {
     selectedClassId: null,
     activeTab: 'classes', // 'classes' | 'courses'
-    courseSearch: '',
     campusFilter: '', // '' = every campus of the signed-in person
 
     // Office view: every class and course (whole-institution scope)
@@ -98,13 +97,18 @@ const ClassesCoursesModule = {
         if (!classes.some(c => c.id === this.selectedClassId)) this.selectedClassId = classes[0].id;
         const cls = Lms.getClass(this.selectedClassId);
 
+        const programs = (window.LmsData.programs || []).filter(p => classes.some(c => c.programId === p.id));
         return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px;">
+            ${classes.length > 1 ? Lms.filterBar('classes-grid', {
+                search: 'Search class, section or teacher...',
+                selects: [programs.length > 1 ? { key: 'program', label: 'All programs', options: programs.map(p => [p.id, p.name]) } : null]
+            }) : ''}
+            <div id="classes-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px;">
                 ${classes.map(c => {
                     const isSelected = c.id === this.selectedClassId;
                     const count = Lms.studentsInClass(c.id).length;
                     return `
-                        <div class="card" style="padding: 16px; margin: 0; cursor: pointer; border: ${isSelected ? '2px solid var(--primary-600)' : '1px solid var(--border-subtle)'}; background: ${isSelected ? 'var(--primary-50)' : 'var(--bg-surface)'};" onclick="ClassesCoursesModule.selectClass('${c.id}')">
+                        <div class="card" data-f-program="${Lms.esc(c.programId || '')}" style="padding: 16px; margin: 0; cursor: pointer; border: ${isSelected ? '2px solid var(--primary-600)' : '1px solid var(--border-subtle)'}; background: ${isSelected ? 'var(--primary-50)' : 'var(--bg-surface)'};" onclick="ClassesCoursesModule.selectClass('${c.id}')">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                                 <span class="status-pill ${isSelected ? 'gold' : 'info'}" style="font-size: 0.65rem;">${Lms.esc((Lms.program(c.programId) || {}).code || 'Class')}</span>
                                 <span style="font-size: 0.75rem; color: var(--gold-700);"><i class="fas fa-user-friends"></i> ${count}${c.capacity ? ' / ' + c.capacity : ''}</span>
@@ -152,8 +156,12 @@ const ClassesCoursesModule = {
                         <h3 class="card-title"><i class="fas fa-book"></i> Kitabs & Assigned Teachers</h3>
                         ${Lms.can('classes.assign_teachers') ? `<button class="btn btn-gold btn-sm" onclick="ClassesCoursesModule.openAllocateModal('${cls.id}')"><i class="fas fa-user-tag"></i> Add Kitab / Assign Teacher</button>` : ''}
                     </div>
+                    ${(cls.courseTeachers || []).length > 1 ? Lms.filterBar('class-kitabs-table', {
+                        search: 'Search kitab, code or teacher...',
+                        selects: [{ key: 'teacher', label: 'All kitabs', options: [['ASSIGNED', 'Teacher assigned'], ['NONE', 'No teacher yet']] }]
+                    }) : ''}
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table" id="class-kitabs-table">
                             <thead><tr><th>Kitab</th><th>Teacher (Ustad)</th><th>Credits</th><th>Actions</th></tr></thead>
                             <tbody>
                                 ${(cls.courseTeachers || []).length ? cls.courseTeachers.map(ct => {
@@ -161,7 +169,7 @@ const ClassesCoursesModule = {
                                     if (!course) return '';
                                     const materials = (window.LmsData.courseMaterials || []).filter(m => m.courseId === course.id && (!m.classId || m.classId === cls.id));
                                     return `
-                                        <tr>
+                                        <tr data-f-teacher="${ct.teacherId ? 'ASSIGNED' : 'NONE'}">
                                             <td>
                                                 <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(course.title, course.urduTitle))}</div>
                                                 <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(course.code)} • ${materials.length} material file(s)</div>
@@ -195,9 +203,10 @@ const ClassesCoursesModule = {
                         </div>
                     </div>
                     ${isStudent ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">${students.length} classmates in your section.</div>` : ''}
-                    <div style="display: flex; flex-direction: column; gap: 8px; max-height: 460px; overflow-y: auto;">
+                    ${students.length > 5 ? Lms.filterBar('class-students-list', { search: 'Search name or roll no...', selects: [Lms.genderFilter()] }) : ''}
+                    <div id="class-students-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 460px; overflow-y: auto;">
                         ${students.length ? students.map(s => `
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                            <div data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}" style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
                                 <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
                                     <div class="user-avatar" style="width: 34px; height: 34px; flex-shrink: 0;">${Lms.esc(s.avatar || Lms.initials(s.name))}</div>
                                     <div style="min-width: 0;">
@@ -445,27 +454,30 @@ const ClassesCoursesModule = {
     // ---------------------------------------------------------------------
     renderCoursesTab() {
         const canManage = this.canManage();
-        const q = this.courseSearch.toLowerCase();
-        const courses = this.visibleCourses().filter(c => !q || [c.title, c.code, c.urduTitle, c.kitabAuthor].join(' ').toLowerCase().includes(q));
+        const courses = this.visibleCourses();
+        const programs = (window.LmsData.programs || []).filter(p => courses.some(c => c.programId === p.id));
+        const years = Array.from(new Set(courses.map(c => String(c.year || '')).filter(Boolean))).sort();
 
         return `
-            <div class="filter-bar">
-                <div class="search-input-wrap">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="form-control" placeholder="Search kitab, code or author..." value="${Lms.esc(this.courseSearch)}"
-                        oninput="ClassesCoursesModule.courseSearch = this.value; clearTimeout(this._t); this._t = setTimeout(() => { App.navigate('classes'); const i = document.querySelector('.filter-bar input'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250)">
-                </div>
-            </div>
+            ${Lms.filterBar('courses-table', {
+                search: 'Search kitab, code or author...',
+                selects: [
+                    { key: 'program', label: 'All programs', options: programs.map(p => [p.id, p.name]) },
+                    { key: 'year', label: 'All years', options: years.map(y => [y, I18n.t('Year {n}', { n: y })]) },
+                    { key: 'alloc', label: 'Allocated or not', options: [['YES', 'Taught in a class'], ['NO', 'Not allocated']] }
+                ]
+            })}
             <div class="card">
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="courses-table">
                         <thead><tr><th>Kitab & Code</th><th>Program / Year</th><th>Taught In</th><th>Credits</th><th>Actions</th></tr></thead>
                         <tbody>
                             ${courses.length ? courses.map(c => {
                                 const program = Lms.program(c.programId);
                                 const inClasses = (window.LmsData.classes || []).filter(cl => (cl.courseTeachers || []).some(ct => ct.courseId === c.id));
                                 return `
-                                    <tr>
+                                    <tr data-f-program="${Lms.esc(c.programId || '')}" data-f-year="${Lms.esc(c.year || '')}" data-f-alloc="${inClasses.length ? 'YES' : 'NO'}"
+                                        data-f-search="${Lms.esc([c.urduTitle, c.kitabAuthor].filter(Boolean).join(' '))}">
                                         <td>
                                             <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(c.title, c.urduTitle))}</div>
                                             <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(c.code)} • ${Lms.esc(c.kitabAuthor || '')}</div>

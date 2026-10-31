@@ -7,8 +7,6 @@
 
 const FeesDonationsModule = {
     tab: 'challans',          // challans | structure | donations
-    statusFilter: 'ALL',
-    search: '',
 
     FEE_TYPES: {
         MONTHLY: 'Monthly Fee',
@@ -132,7 +130,7 @@ const FeesDonationsModule = {
                 <div class="metric-card danger"><div class="metric-icon-box"><i class="fas fa-file-invoice"></i></div><div class="metric-content">
                     <span class="metric-label">Outstanding</span><span class="metric-value">${Lms.money(sum(ch.filter(c => c.status !== 'PAID')))}</span>
                     <span class="metric-hint">${ch.filter(c => this.isOverdue(c)).length} overdue</span></div></div>
-                <div class="metric-card info" style="cursor: pointer;" onclick="FeesDonationsModule.statusFilter = 'VERIFICATION_PENDING'; FeesDonationsModule.switchSubTab('challans')"><div class="metric-icon-box"><i class="fas fa-user-check"></i></div><div class="metric-content">
+                <div class="metric-card info" style="cursor: pointer;" onclick="Lms.filterState('challans-table').sel.status = 'VERIFICATION_PENDING'; FeesDonationsModule.switchSubTab('challans')"><div class="metric-icon-box"><i class="fas fa-user-check"></i></div><div class="metric-content">
                     <span class="metric-label">Payments to Verify</span><span class="metric-value">${ch.filter(c => c.status === 'VERIFICATION_PENDING').length}</span>
                     <span class="metric-hint">Uploaded receipts</span></div></div>
             </div>`;
@@ -151,25 +149,22 @@ const FeesDonationsModule = {
     renderChallans() {
         const isStudent = Lms.portal() === 'student';
         const me = Lms.me();
-        const q = this.search.toLowerCase();
-        let list = this.challans().filter(c => !isStudent || c.studentId === me.id);
-        list = list.filter(c => {
-            if (this.statusFilter === 'OVERDUE') return this.isOverdue(c);
-            if (this.statusFilter === 'UNPAID') return c.status === 'PENDING';
-            if (this.statusFilter !== 'ALL' && c.status !== this.statusFilter) return false;
-            return true;
-        }).filter(c => !q || [c.studentName, c.rollNo, c.challanNumber, c.class].join(' ').toLowerCase().includes(q))
+        const list = this.challans().filter(c => !isStudent || c.studentId === me.id)
             .sort((a, b) => (a.status === 'VERIFICATION_PENDING' ? -1 : 0) - (b.status === 'VERIFICATION_PENDING' ? -1 : 0) || String(b.dueDate).localeCompare(String(a.dueDate)));
+        const statusTags = c => [c.status, c.status === 'PENDING' ? 'UNPAID' : '', this.isOverdue(c) ? 'OVERDUE' : ''].filter(Boolean).join('|');
+        const studentOf = c => Lms.user(c.studentId) || {};
 
         return `
-            <div class="filter-bar" style="flex-wrap: wrap; gap: 10px;">
-                ${!isStudent ? `<div class="search-input-wrap"><i class="fas fa-search"></i><input type="text" class="form-control" placeholder="Search student, roll no or challan no..." value="${Lms.esc(this.search)}"
-                    oninput="FeesDonationsModule.search = this.value; clearTimeout(this._t); this._t = setTimeout(() => { App.navigate('fees'); const i = document.querySelector('.filter-bar input'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 300)"></div>` : ''}
-                <select class="form-control" style="width: auto;" onchange="FeesDonationsModule.statusFilter = this.value; App.navigate('fees')">
-                    ${[['ALL', 'All challans'], ['UNPAID', 'Unpaid'], ['OVERDUE', 'Overdue'], ['VERIFICATION_PENDING', 'Awaiting verification'], ['PAID', 'Paid']]
-                        .map(([v, l]) => `<option value="${v}" ${this.statusFilter === v ? 'selected' : ''}>${l}</option>`).join('')}
-                </select>
-            </div>
+            ${Lms.filterBar('challans-table', {
+                search: isStudent ? 'Search challan no or month...' : 'Search student, roll no or challan no...',
+                selects: [
+                    { key: 'status', label: 'All challans', options: [['UNPAID', 'Unpaid'], ['OVERDUE', 'Overdue'], ['VERIFICATION_PENDING', 'Awaiting verification'], ['PAID', 'Paid']] },
+                    { key: 'type', label: 'All fee types', options: Object.entries(this.FEE_TYPES) },
+                    isStudent ? null : Lms.classFilter(),
+                    isStudent ? null : Lms.campusFilter()
+                ],
+                date: { key: 'date', label: 'Due date' }
+            })}
 
             ${isStudent ? `
                 <div class="card" style="background: var(--gold-50); border-inline-start: 4px solid var(--gold-500); font-size: 0.85rem;">
@@ -182,11 +177,12 @@ const FeesDonationsModule = {
 
             <div class="card">
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="challans-table">
                         <thead><tr><th>Challan & Student</th><th>Type & Period</th><th>Amount</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
                         <tbody>
                             ${list.length ? list.map(ch => `
-                                <tr>
+                                <tr data-f-status="${Lms.esc(statusTags(ch))}" data-f-type="${Lms.esc(ch.feeType || '')}" data-f-class="${Lms.esc(ch.classId || studentOf(ch).classId || '')}"
+                                    data-f-campus="${Lms.esc(studentOf(ch).branchId || '')}" data-f-date="${Lms.isoDate(ch.dueDate)}">
                                     <td>
                                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(ch.studentName)}</div>
                                         <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-700);">${Lms.esc(ch.challanNumber)}</div>
@@ -610,8 +606,9 @@ const FeesDonationsModule = {
                     <h3 class="card-title"><i class="fas fa-list-alt"></i> ${myProgram ? 'My Program Fee Structure' : 'Fee Structure by Program'}</h3>
                     <span class="status-pill gold">Dars-e-Nizami tuition is free (Waqf)</span>
                 </div>
+                ${programs.length > 1 ? Lms.filterBar('fee-structure-table', { search: 'Search program or notes...' }) : ''}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="fee-structure-table">
                         <thead><tr><th>Program</th><th style="text-align: end;">Registration</th><th style="text-align: end;">Admission</th><th style="text-align: end;">Monthly Tuition</th><th style="text-align: end;">Hostel / mo</th><th style="text-align: end;">Mess / mo</th><th style="text-align: end;">Exam</th>${canManage ? '<th></th>' : ''}</tr></thead>
                         <tbody>
                             ${programs.map(p => {
@@ -683,12 +680,22 @@ const FeesDonationsModule = {
                     <h3 class="card-title"><i class="fas fa-donate"></i> ${canManage ? 'Donations & Zakat Ledger' : 'My Donations'}</h3>
                     <span class="status-pill success"><i class="fas fa-certificate"></i> Zakat kept separate from general funds</span>
                 </div>
+                ${Lms.filterBar('donations-table', {
+                    search: canManage ? 'Search donor, receipt no, purpose or reference...' : 'Search receipt no, purpose or reference...',
+                    selects: [
+                        { key: 'type', label: 'All categories', options: Object.entries(this.DONATION_TYPES).map(([v, l]) => [v, l.split(' (')[0]]) },
+                        { key: 'status', label: 'All statuses', options: [['PENDING_CONFIRMATION', 'Awaiting confirmation'], ['RECEIVED', 'Received']] },
+                        { key: 'channel', label: 'All channels', options: Array.from(new Set(list.map(d => d.paymentChannel).filter(Boolean))).sort().map(c => [c, c]) }
+                    ],
+                    date: { key: 'date', label: 'Date received' }
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="donations-table">
                         <thead><tr><th>Receipt & Donor</th><th>Category</th><th>Purpose</th><th>Amount</th><th>Date & Channel</th><th>Status</th><th></th></tr></thead>
                         <tbody>
                             ${list.length ? list.map(d => `
-                                <tr>
+                                <tr data-f-type="${Lms.esc(d.donationType || '')}" data-f-status="${d.status === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : 'RECEIVED'}"
+                                    data-f-channel="${Lms.esc(d.paymentChannel || '')}" data-f-date="${Lms.isoDate(d.receivedAt)}">
                                     <td>
                                         <div style="font-weight: 700;">${d.isAnonymous && !canManage ? 'Anonymous' : Lms.esc(d.donorName)}${d.isAnonymous ? ' <i class="fas fa-user-secret" title="Anonymous in public ledger" style="color: var(--text-muted);"></i>' : ''}</div>
                                         <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-700);">${Lms.esc(d.receiptNo)}</div>

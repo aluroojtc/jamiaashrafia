@@ -276,7 +276,7 @@ const DEFAULT_PERMISSIONS = {
         'library.catalog.view', 'library.request',
         'notifications.send_individual',
         'virtual_classes.view', 'virtual_classes.join', 'recordings.view',
-        'donations.give', 'heritage.view'
+        'heritage.view'
     ],
     // Not system roles, but these ids had powers written into the code; they keep them
     ACCOUNTANT: [

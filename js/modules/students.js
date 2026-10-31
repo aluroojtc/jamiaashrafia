@@ -5,11 +5,6 @@
  */
 
 const StudentsModule = {
-    searchQuery: '',
-    filterProgram: 'ALL',
-    filterBranch: '', // '' = every campus of the signed-in person, else one campus
-    filterStatus: 'ALL',
-    filterGender: 'ALL', // 'ALL' | 'MALE' | 'FEMALE' | 'NONE' (not recorded)
     activeTab: 'ALL', // 'ALL', 'ACTIVE', 'HOSTEL', 'SUSPENDED', 'GRADUATED'
     activeProfileTab: 'overview', // 'overview', 'account', 'academic', 'personal', 'attendance'
 
@@ -43,38 +38,6 @@ const StudentsModule = {
             filtered = filtered.filter(s => s.status === 'SUSPENDED' || s.status === 'INACTIVE');
         } else if (this.activeTab === 'GRADUATED') {
             filtered = filtered.filter(s => s.status === 'GRADUATED');
-        }
-
-        // Program filter
-        if (this.filterProgram !== 'ALL') {
-            filtered = filtered.filter(s => (s.classId || '') === (this.filterProgram === 'NONE' ? '' : this.filterProgram));
-        }
-
-        // Campus filter (each student has one campus: the campus of their class)
-        if (this.filterBranch) {
-            filtered = filtered.filter(s => s.branchId === this.filterBranch);
-        }
-
-        // Status filter
-        if (this.filterStatus !== 'ALL') {
-            filtered = filtered.filter(s => (s.status || 'ACTIVE') === this.filterStatus);
-        }
-
-        // Gender filter
-        if (this.filterGender !== 'ALL') {
-            filtered = filtered.filter(s => (Lms.GENDERS[s.gender] ? s.gender : 'NONE') === this.filterGender);
-        }
-
-        // Search query
-        if (this.searchQuery) {
-            const q = this.searchQuery.toLowerCase();
-            filtered = filtered.filter(s => 
-                (s.name && s.name.toLowerCase().includes(q)) ||
-                (s.urduName && s.urduName.includes(q)) ||
-                (s.rollNo && s.rollNo.toLowerCase().includes(q)) ||
-                (s.email && s.email.toLowerCase().includes(q)) ||
-                (s.phone && s.phone.includes(q))
-            );
         }
 
         // Metrics calculations
@@ -155,42 +118,20 @@ const StudentsModule = {
                 </div>
 
                 <!-- SEARCH AND FILTERS -->
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
-                    <div class="search-input-wrap" style="width: 320px; position: relative;">
-                        <i class="fas fa-search" style="position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                        <input type="text" class="form-control" placeholder="Search by name, roll no, email, phone..." 
-                               value="${this.searchQuery}" oninput="StudentsModule.setSearch(this.value)" 
-                               style="padding-block: 8px; padding-inline: 36px 12px; width: 100%;">
-                    </div>
-
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <select class="form-control" onchange="StudentsModule.setProgram(this.value)" style="padding: 8px 12px; font-size: 0.85rem;">
-                            <option value="ALL" ${this.filterProgram === 'ALL' ? 'selected' : ''}>All Classes</option>
-                            ${(window.LmsData.classes || []).map(c => `<option value="${Lms.esc(c.id)}" ${this.filterProgram === c.id ? 'selected' : ''}>${Lms.esc(Lms.className(c.id))}</option>`).join('')}
-                            <option value="NONE" ${this.filterProgram === 'NONE' ? 'selected' : ''}>Not assigned to a class</option>
-                        </select>
-
-                        <select class="form-control" onchange="StudentsModule.setStatus(this.value)" style="padding: 8px 12px; font-size: 0.85rem;">
-                            <option value="ALL" ${this.filterStatus === 'ALL' ? 'selected' : ''}>All Account Statuses</option>
-                            <option value="ACTIVE" ${this.filterStatus === 'ACTIVE' ? 'selected' : ''}>Active</option>
-                            <option value="SUSPENDED" ${this.filterStatus === 'SUSPENDED' ? 'selected' : ''}>Suspended</option>
-                            <option value="INACTIVE" ${this.filterStatus === 'INACTIVE' ? 'selected' : ''}>Inactive</option>
-                            <option value="GRADUATED" ${this.filterStatus === 'GRADUATED' ? 'selected' : ''}>Graduated</option>
-                        </select>
-
-                        <select class="form-control" onchange="StudentsModule.setGender(this.value)" aria-label="Filter by gender" style="padding: 8px 12px; font-size: 0.85rem;">
-                            <option value="ALL" ${this.filterGender === 'ALL' ? 'selected' : ''}>All Genders</option>
-                            <option value="MALE" ${this.filterGender === 'MALE' ? 'selected' : ''}>Male</option>
-                            <option value="FEMALE" ${this.filterGender === 'FEMALE' ? 'selected' : ''}>Female</option>
-                            <option value="NONE" ${this.filterGender === 'NONE' ? 'selected' : ''}>Not specified</option>
-                        </select>
-                        ${Lms.campusFilterSelect('st-campus-filter', this.filterBranch, 'StudentsModule.setBranch(this.value)')}
-                    </div>
-                </div>
+                ${Lms.filterBar('students-table', {
+                    search: 'Search by name, roll no, email, phone...',
+                    selects: [
+                        { key: 'class', label: 'All Classes', options: (window.LmsData.classes || []).map(c => [c.id, Lms.className(c.id)]).concat([['NONE', 'Not assigned to a class']]) },
+                        { key: 'status', label: 'All Account Statuses', options: [['ACTIVE', 'Active'], ['SUSPENDED', 'Suspended'], ['INACTIVE', 'Inactive'], ['GRADUATED', 'Graduated']] },
+                        Lms.genderFilter(),
+                        Lms.campusFilter()
+                    ],
+                    date: { key: 'date', label: 'Enrollment date' }
+                })}
 
                 <!-- STUDENTS TABLE -->
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="students-table">
                         <thead>
                             <tr>
                                 <th>Scholar / Name</th>
@@ -209,7 +150,8 @@ const StudentsModule = {
                                 const badgeClass = status === 'ACTIVE' ? 'success' : (isSuspended ? 'danger' : 'gold');
                                 
                                 return `
-                                    <tr>
+                                    <tr data-f-class="${Lms.esc(s.classId || 'NONE')}" data-f-status="${Lms.esc(status)}" data-f-gender="${Lms.GENDERS[s.gender] ? s.gender : 'NONE'}"
+                                        data-f-campus="${Lms.esc(s.branchId || '')}" data-f-date="${Lms.isoDate(s.enrollmentDate)}" data-f-search="${Lms.esc([s.urduName, s.phone, s.cnic, s.fatherName].filter(Boolean).join(' '))}">
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 10px;">
                                                 <div class="user-avatar" style="width: 38px; height: 38px; font-size: 0.85rem; background: var(--primary-700); border: 2px solid ${status === 'ACTIVE' ? 'var(--primary-400)' : 'var(--danger)'};">
@@ -313,36 +255,6 @@ const StudentsModule = {
 
     setActiveTab(tab) {
         this.activeTab = tab;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setSearch(q) {
-        this.searchQuery = q;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setProgram(p) {
-        this.filterProgram = p;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setStatus(s) {
-        this.filterStatus = s;
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setBranch(b) {
-        this.filterBranch = b || '';
-        const viewport = document.getElementById('main-content-viewport');
-        if (viewport) viewport.innerHTML = this.render();
-    },
-
-    setGender(g) {
-        this.filterGender = g || 'ALL';
         const viewport = document.getElementById('main-content-viewport');
         if (viewport) viewport.innerHTML = this.render();
     },
@@ -670,8 +582,13 @@ const StudentsModule = {
                         <span style="font-size: 0.82rem; color: var(--gold-300);">Overall Attendance: <strong>${this.attendanceLabel(student)}</strong></span>
                     </div>
 
+                    ${Lms.filterBar('profile-attendance-table', {
+                    search: 'Search session or notes...',
+                    selects: [{ key: 'status', label: 'All statuses', options: [['PRESENT', 'Present'], ['LATE', 'Late'], ['ABSENT', 'Absent']] }],
+                    date: { key: 'date', label: 'Date' }
+                })}
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table" id="profile-attendance-table">
                             <thead>
                                 <tr>
                                     <th>Date</th>
@@ -684,7 +601,7 @@ const StudentsModule = {
                             </thead>
                             <tbody>
                                 ${studentAttendance.length > 0 ? studentAttendance.map(r => `
-                                    <tr>
+                                    <tr data-f-status="${Lms.esc(r.status)}" data-f-date="${Lms.esc(r.date)}">
                                         <td><strong>${r.date}</strong></td>
                                         <td style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-300)'};">${r.checkInTime || '—'}</td>
                                         <td style="color: var(--text-muted);">${r.checkOutTime || '—'}</td>
@@ -1461,8 +1378,13 @@ const StudentsModule = {
                 <div style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-secondary);">
                     ${I18n.t('Viewing attendance timestamps, check-in/out hours, and session notes for {name}.', { name: `<strong>${Lms.esc(student.name)}</strong>` })}
                 </div>
+                ${Lms.filterBar('student-attendance-modal-table', {
+                    search: 'Search session or notes...',
+                    selects: [{ key: 'status', label: 'All statuses', options: [['PRESENT', 'Present'], ['LATE', 'Late'], ['ABSENT', 'Absent']] }],
+                    date: { key: 'date', label: 'Date' }
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="student-attendance-modal-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -1475,7 +1397,7 @@ const StudentsModule = {
                         </thead>
                         <tbody>
                             ${records.length > 0 ? records.map(r => `
-                                <tr>
+                                <tr data-f-status="${Lms.esc(r.status)}" data-f-date="${Lms.esc(r.date)}">
                                     <td><strong>${r.date}</strong></td>
                                     <td style="color: ${r.status === 'LATE' ? 'var(--warning)' : 'var(--primary-300)'};">${r.checkInTime || '—'}</td>
                                     <td style="color: var(--text-muted);">${r.checkOutTime || '—'}</td>

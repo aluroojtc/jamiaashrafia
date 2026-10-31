@@ -6,10 +6,6 @@
  */
 
 const UsersModule = {
-    searchTerm: '',
-    roleFilter: 'ALL',
-    statusFilter: 'ALL',
-
     // Helper: Returns only system users (excludes Students and Teachers)
     getSystemUsers() {
         return (window.LmsData?.users || []).filter(u => u.role !== 'STUDENT' && u.role !== 'TEACHER');
@@ -56,20 +52,6 @@ const UsersModule = {
 
         const systemUsers = this.getSystemUsers();
         const systemRoles = this.getSystemRoles();
-
-        // Filter system users based on search and filters
-        const filtered = systemUsers.filter(u => {
-            const matchesSearch = !this.searchTerm || 
-                (u.name && u.name.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
-                (u.urduName && u.urduName.includes(this.searchTerm)) ||
-                (u.email && u.email.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
-                (u.id && u.id.toLowerCase().includes(this.searchTerm.toLowerCase()));
-
-            const matchesRole = this.roleFilter === 'ALL' || u.role === this.roleFilter;
-            const matchesStatus = this.statusFilter === 'ALL' || (u.status || 'ACTIVE') === this.statusFilter;
-
-            return matchesSearch && matchesRole && matchesStatus;
-        });
 
         // Compute KPIs for system users
         const totalSystemUsers = systemUsers.length;
@@ -123,7 +105,7 @@ const UsersModule = {
                     <div class="metric-content">
                         <span class="metric-label">System Users</span>
                         <span class="metric-value">${totalSystemUsers} Accounts</span>
-                        <span class="metric-hint" style="color: var(--gold-600);">${filtered.length} Displayed</span>
+                        <span class="metric-hint" style="color: var(--gold-600);">${systemUsers.filter(u => (u.status || 'ACTIVE') === 'ACTIVE').length} Active</span>
                     </div>
                 </div>
 
@@ -155,57 +137,21 @@ const UsersModule = {
                 </div>
             </div>
 
-            <!-- SEARCH & FILTERS TOOLBAR -->
-            <div class="card" style="padding: 16px 20px; margin-bottom: 20px;">
-                <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between;">
-                    <div class="search-input-wrap" style="flex: 1; min-width: 260px; max-width: 450px;">
-                        <i class="fas fa-search"></i>
-                        <input type="text" class="form-control" placeholder="Search by name, Urdu, email, or user ID..." 
-                               value="${Lms.esc(this.searchTerm)}" 
-                               oninput="UsersModule.handleSearch(this.value)">
-                    </div>
-
-                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                        <label style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
-                            <i class="fas fa-filter"></i> System Role:
-                        </label>
-                        <select class="form-control" style="width: auto; min-width: 170px;" onchange="UsersModule.handleRoleFilter(this.value)">
-                            <option value="ALL" ${this.roleFilter === 'ALL' ? 'selected' : ''}>All Roles (${systemRoles.length})</option>
-                            ${systemRoles.map(r => `
-                                <option value="${Lms.esc(r.id)}" ${this.roleFilter === r.id ? 'selected' : ''}>
-                                    ${Lms.esc(r.name || r.title)}
-                                </option>
-                            `).join('')}
-                        </select>
-
-                        <label style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; margin-inline-start: 6px;">
-                            Status:
-                        </label>
-                        <select class="form-control" style="width: auto; min-width: 130px;" onchange="UsersModule.handleStatusFilter(this.value)">
-                            <option value="ALL" ${this.statusFilter === 'ALL' ? 'selected' : ''}>All Statuses</option>
-                            <option value="ACTIVE" ${this.statusFilter === 'ACTIVE' ? 'selected' : ''}>Active</option>
-                            <option value="INACTIVE" ${this.statusFilter === 'INACTIVE' ? 'selected' : ''}>Inactive</option>
-                        </select>
-
-                        ${(this.searchTerm || this.roleFilter !== 'ALL' || this.statusFilter !== 'ALL') ? `
-                            <button class="btn btn-secondary btn-sm" onclick="UsersModule.resetFilters()">
-                                <i class="fas fa-times"></i> Clear Filters
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-
             <!-- SYSTEM USERS TABLE -->
             <div class="card">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h3 class="card-title"><i class="fas fa-address-book"></i> Application Users Registry</h3>
-                    <span style="font-size: 0.82rem; color: var(--text-muted);">
-                        Showing ${filtered.length} of ${systemUsers.length} system users
-                    </span>
                 </div>
+                ${Lms.filterBar('users-table', {
+                    search: 'Search by name, Urdu, email, or user ID...',
+                    selects: [
+                        { key: 'role', label: 'All Roles', options: systemRoles.map(r => [r.id, r.name || r.title]).concat([['SUPER_ADMIN', 'Super Admin']]) },
+                        { key: 'status', label: 'All Statuses', options: [['ACTIVE', 'Active'], ['INACTIVE', 'Inactive'], ['SUSPENDED', 'Suspended']] },
+                        Lms.campusFilter()
+                    ]
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="users-table">
                         <thead>
                             <tr>
                                 <th>System User</th>
@@ -217,14 +163,14 @@ const UsersModule = {
                             </tr>
                         </thead>
                         <tbody>
-                            ${filtered.length === 0 ? `
+                            ${systemUsers.length === 0 ? `
                                 <tr>
                                     <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
                                         <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
-                                        No system users matching the active search or filters.
+                                        No system users yet.
                                     </td>
                                 </tr>
-                            ` : filtered.map(u => {
+                            ` : systemUsers.map(u => {
                                 const roleObj = this.roleInfo(u.role);
                                 const badgeClass = roleObj.badgeClass || 'gold';
                                 const roleName = roleObj.name || roleObj.title || u.role;
@@ -236,7 +182,8 @@ const UsersModule = {
                                 const status = u.status || 'ACTIVE';
 
                                 return `
-                                    <tr>
+                                    <tr data-f-role="${Lms.esc(u.role)}" data-f-status="${Lms.esc(status)}" data-f-campus="${Lms.campusValues(u)}"
+                                        data-f-search="${Lms.esc([u.urduName, u.id].filter(Boolean).join(' '))}">
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 12px;">
                                                 <div class="user-avatar" style="width: 38px; height: 38px; font-size: 0.82rem; background: linear-gradient(135deg, var(--primary-600), var(--gold-600));">
@@ -305,28 +252,6 @@ const UsersModule = {
                 </div>
             </div>
         `;
-    },
-
-    handleSearch(query) {
-        this.searchTerm = query.trim();
-        document.getElementById('main-viewport').innerHTML = this.render();
-    },
-
-    handleRoleFilter(roleKey) {
-        this.roleFilter = roleKey;
-        document.getElementById('main-viewport').innerHTML = this.render();
-    },
-
-    handleStatusFilter(status) {
-        this.statusFilter = status;
-        document.getElementById('main-viewport').innerHTML = this.render();
-    },
-
-    resetFilters() {
-        this.searchTerm = '';
-        this.roleFilter = 'ALL';
-        this.statusFilter = 'ALL';
-        document.getElementById('main-viewport').innerHTML = this.render();
     },
 
     // ADD USER MODAL

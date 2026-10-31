@@ -6,10 +6,6 @@
 
 const LibraryModule = {
     tab: 'catalog',          // catalog | myloans | loans
-    search: '',
-    category: 'ALL',
-    onlyAvailable: false,
-    onlyDigital: false,
     LOAN_DAYS: 14,
     MAX_ACTIVE_LOANS: 3,
     FINE_PER_DAY: 10,
@@ -104,66 +100,36 @@ const LibraryModule = {
         const books = window.LmsData.libraryBooks || [];
         const categories = Array.from(new Set(books.map(b => b.category).filter(Boolean))).sort();
         return `
-            <div class="filter-bar" style="flex-wrap: wrap; gap: 10px;">
-                <div class="search-input-wrap">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="lib-search" class="form-control" placeholder="Search title (English / Arabic / Urdu), author, ISBN or accession no..." value="${Lms.esc(this.search)}" oninput="LibraryModule.searchBooks(this.value)">
-                </div>
-                <div class="filter-actions" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <select class="form-control" style="width: auto;" onchange="LibraryModule.filterCategory(this.value)">
-                        <option value="ALL">All categories</option>
-                        ${categories.map(c => `<option value="${Lms.esc(c)}" ${this.category === c ? 'selected' : ''}>${Lms.esc(c)}</option>`).join('')}
-                    </select>
-                    <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem; cursor: pointer;"><input type="checkbox" ${this.onlyAvailable ? 'checked' : ''} onchange="LibraryModule.onlyAvailable = this.checked; LibraryModule.refreshGrid()"> Available now</label>
-                    <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem; cursor: pointer;"><input type="checkbox" ${this.onlyDigital ? 'checked' : ''} onchange="LibraryModule.onlyDigital = this.checked; LibraryModule.refreshGrid()"> e-Books only</label>
-                </div>
-            </div>
+            ${books.length ? Lms.filterBar('books-grid-container', {
+                search: 'Search title (English / Arabic / Urdu), author, ISBN or accession no...',
+                selects: [
+                    { key: 'category', label: 'All categories', options: categories.map(c => [c, c]) },
+                    { key: 'avail', label: 'All books', options: [['AVAILABLE', 'Available now'], ['DIGITAL', 'e-Books only']] }
+                ]
+            }) : ''}
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-bottom: 28px;" id="books-grid-container">
-                ${this.renderBookCards(this.filteredBooks())}
+                ${this.renderBookCards(books)}
             </div>
         `;
     },
 
-    filteredBooks() {
-        const q = this.search.toLowerCase().trim();
-        return (window.LmsData.libraryBooks || []).filter(b => {
-            if (this.category !== 'ALL' && b.category !== this.category) return false;
-            if (this.onlyAvailable && this.available(b) <= 0) return false;
-            if (this.onlyDigital && !b.digitalUrl) return false;
-            if (!q) return true;
-            return [b.title, b.arabicTitle, b.author, b.accessionNo, b.isbn, b.publisher].some(v => String(v || '').toLowerCase().includes(q));
-        });
-    },
-
-    refreshGrid() {
-        const grid = document.getElementById('books-grid-container');
-        if (grid) grid.innerHTML = this.renderBookCards(this.filteredBooks());
-    },
-
+    // The header search box sends book searches here
     searchBooks(query) {
-        this.search = query || '';
-        if (this.tab !== 'catalog' || !document.getElementById('books-grid-container')) {
-            this.tab = 'catalog';
-            window.App.navigate('library');
-            return;
-        }
-        this.refreshGrid();
-    },
-
-    filterCategory(cat) {
-        this.category = cat;
-        this.refreshGrid();
+        Lms.filterState('books-grid-container').q = String(query || '').trim();
+        this.tab = 'catalog';
+        window.App.navigate('library');
     },
 
     renderBookCards(list) {
-        if (!list.length) return `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No books match your search.</div>`;
+        if (!list.length) return `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No books in the catalog yet.</div>`;
         const me = Lms.me();
         const canManage = this.canManage();
         return list.map(b => {
             const avail = this.available(b);
             const myLoan = this.loans().find(l => l.bookId === b.id && l.userId === me.id && ['REQUESTED', 'ISSUED'].includes(l.status));
             return `
-                <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; margin: 0;">
+                <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; margin: 0;" data-f-category="${Lms.esc(b.category || '')}"
+                    data-f-avail="${[avail > 0 ? 'AVAILABLE' : '', b.digitalUrl ? 'DIGITAL' : ''].filter(Boolean).join('|')}" data-f-search="${Lms.esc([b.title, b.isbn, b.publisher].filter(Boolean).join(' '))}">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 8px;">
                             <span class="status-pill gold" style="font-size: 0.68rem;">${Lms.esc(b.category || 'General')}</span>
@@ -206,17 +172,28 @@ const LibraryModule = {
             : ({ REQUESTED: '<span class="status-pill warning">Requested</span>', ISSUED: '<span class="status-pill success">Issued</span>',
                 RETURNED: '<span class="status-pill info">Returned</span>', REJECTED: '<span class="status-pill danger">Rejected</span>',
                 CANCELLED: '<span class="status-pill">Cancelled</span>' })[l.status] || Lms.esc(l.status);
+        const tableId = manage ? 'loans-table' : 'my-loans-table';
         return `
             <div class="card">
+                ${Lms.filterBar(tableId, {
+                    search: manage ? 'Search book, accession no or borrower...' : 'Search book or accession no...',
+                    selects: [
+                        { key: 'status', label: 'All statuses', options: [['REQUESTED', 'Requested'], ['ISSUED', 'Issued'], ['OVERDUE', 'Overdue'], ['RETURNED', 'Returned'], ['REJECTED', 'Rejected'], ['CANCELLED', 'Cancelled']] },
+                        manage ? { key: 'role', label: 'All borrowers', options: [['STUDENT', 'Students'], ['TEACHER', 'Teachers'], ['STAFF', 'Staff']] } : null
+                    ],
+                    date: { key: 'date', label: 'Requested on' }
+                })}
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="${tableId}">
                         <thead><tr><th>Book</th>${manage ? '<th>Borrower</th>' : ''}<th>Status</th><th>Requested / Issued</th><th>Due</th><th>Fine</th><th></th></tr></thead>
                         <tbody>
                             ${rows.length ? rows.map(l => {
                                 const b = this.book(l.bookId) || { title: '(removed book)', accessionNo: '' };
                                 const fine = this.fineFor(l);
+                                const role = (Lms.user(l.userId) || {}).role;
                                 return `
-                                    <tr>
+                                    <tr data-f-status="${Lms.esc(l.status)}${this.isOverdue(l) ? '|OVERDUE' : ''}" data-f-date="${Lms.isoDate(l.requestedAt || l.issuedAt)}"
+                                        data-f-role="${role === 'STUDENT' || role === 'TEACHER' ? role : 'STAFF'}">
                                         <td><div style="font-weight: 700;">${Lms.esc(b.title)}</div><div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(b.accessionNo)}</div></td>
                                         ${manage ? `<td><div style="font-weight: 600;">${Lms.esc(l.userName || Lms.userName(l.userId))}</div><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc((Lms.user(l.userId) || {}).rollNo || (Lms.user(l.userId) || {}).role || '')}</div></td>` : ''}
                                         <td>${pill(l)}</td>

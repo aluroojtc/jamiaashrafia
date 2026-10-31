@@ -75,6 +75,12 @@ const AssignmentsModule = {
         window.App.navigate('assignments');
     },
 
+    // Kitab dropdown for the filter bar, from the assignments listed
+    courseFilter(list) {
+        const ids = Array.from(new Set(list.map(a => a.courseId).filter(Boolean)));
+        return ids.length < 2 ? null : { key: 'course', label: 'All kitabs', options: ids.map(id => [id, Lms.courseTitle(id)]) };
+    },
+
     filterTabs(tabs) {
         return `
             <div class="tabs-nav">
@@ -109,9 +115,14 @@ const AssignmentsModule = {
 
         return `
             ${this.filterTabs([['ALL', 'All', count('ALL')], ['PENDING', 'To Do', count('PENDING')], ['SUBMITTED', 'Submitted', count('SUBMITTED')], ['GRADED', 'Checked', count('GRADED')]])}
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+            ${shown.length ? Lms.filterBar('my-assignments-grid', {
+                search: 'Search title, description or teacher...',
+                selects: [this.courseFilter(shown.map(x => x.a))],
+                date: { key: 'date', label: 'Due date' }
+            }) : ''}
+            <div id="my-assignments-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
                 ${shown.length ? shown.map(({ a, st }) => `
-                    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; margin: 0; border-top: 3px solid var(--${st.pill === 'success' ? 'success' : st.pill === 'danger' ? 'danger' : st.pill === 'info' ? 'info' : 'warning'});">
+                    <div class="card" data-f-course="${Lms.esc(a.courseId || '')}" data-f-date="${Lms.isoDate(a.dueDate)}" style="display: flex; flex-direction: column; justify-content: space-between; margin: 0; border-top: 3px solid var(--${st.pill === 'success' ? 'success' : st.pill === 'danger' ? 'danger' : st.pill === 'info' ? 'info' : 'warning'});">
                         <div>
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px;">
                                 <span class="status-pill gold" style="font-size: 0.7rem;">${Lms.esc((Lms.getCourse(a.courseId) || {}).code || 'Kitab')}</span>
@@ -162,14 +173,22 @@ const AssignmentsModule = {
             ${this.filterTabs([['ALL', 'Assignments', list.length], ['TO_CHECK', 'Waiting for Checking', toCheck.length]])}
             ${this.filter === 'TO_CHECK' ? `
                 <div class="card">
+                    ${Lms.filterBar('to-check-table', {
+                        search: 'Search student, roll no or assignment...',
+                        selects: [
+                            Lms.classFilter(Array.from(new Set(list.map(a => a.classId)))),
+                            { key: 'late', label: 'On time and late', options: [['ONTIME', 'On time'], ['LATE', 'Late']] }
+                        ],
+                        date: { key: 'date', label: 'Submitted on' }
+                    })}
                     <div class="table-responsive">
-                        <table class="data-table">
+                        <table class="data-table" id="to-check-table">
                             <thead><tr><th>Student</th><th>Assignment</th><th>Submitted</th><th>Files</th><th></th></tr></thead>
                             <tbody>
                                 ${toCheck.length ? toCheck.map(s => {
                                     const a = list.find(x => x.id === s.assignmentId) || {};
                                     return `
-                                        <tr>
+                                        <tr data-f-class="${Lms.esc(a.classId || '')}" data-f-late="${s.isLate ? 'LATE' : 'ONTIME'}" data-f-date="${Lms.isoDate(s.submittedAt)}">
                                             <td><div style="font-weight: 700;">${Lms.esc(s.studentName)}</div><div style="font-size: 0.75rem; color: var(--gold-700);">${Lms.esc(s.rollNo || '')}</div></td>
                                             <td><div style="font-weight: 600;">${Lms.esc(a.title || '')}</div><div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(Lms.className(a.classId))}</div></td>
                                             <td style="font-size: 0.8rem;">${Lms.fmtDateTime(s.submittedAt)} ${s.isLate ? '<span class="status-pill danger" style="font-size: 0.65rem;">Late</span>' : ''}</td>
@@ -182,14 +201,25 @@ const AssignmentsModule = {
                     </div>
                 </div>
             ` : `
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+                ${list.length ? Lms.filterBar('assignments-grid', {
+                    search: 'Search title, description or teacher...',
+                    selects: [
+                        Lms.classFilter(Array.from(new Set(list.map(a => a.classId)))),
+                        this.courseFilter(list),
+                        { key: 'state', label: 'All assignments', options: [['OPEN', 'Open (not yet due)'], ['PAST', 'Past due date'], ['TO_CHECK', 'Has work to check']] }
+                    ],
+                    date: { key: 'date', label: 'Due date' }
+                }) : ''}
+                <div id="assignments-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
                     ${list.length ? list.map(a => {
                         const subs = this.submissionsFor(a.id);
                         const classSize = Lms.studentsInClass(a.classId).length;
                         const graded = subs.filter(s => s.isGraded).length;
                         const pending = subs.filter(s => !s.isGraded && !s.resubmitRequested).length;
+                        const state = [a.dueDate < Lms.today() ? 'PAST' : 'OPEN', pending ? 'TO_CHECK' : ''].filter(Boolean).join('|');
                         return `
-                            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; margin: 0;">
+                            <div class="card" data-f-class="${Lms.esc(a.classId || '')}" data-f-course="${Lms.esc(a.courseId || '')}" data-f-state="${state}" data-f-date="${Lms.isoDate(a.dueDate)}"
+                                style="display: flex; flex-direction: column; justify-content: space-between; margin: 0;">
                                 <div>
                                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                                         <span class="status-pill gold" style="font-size: 0.7rem;">${Lms.esc((Lms.getCourse(a.courseId) || {}).code || 'Kitab')}</span>
@@ -461,6 +491,7 @@ const AssignmentsModule = {
         const subs = this.submissionsFor(asgId);
         const students = Lms.studentsInClass(asg.classId);
         const rows = students.map(st => ({ st, sub: subs.find(s => s.studentId === st.id) }));
+        Lms.resetFilter('asg-review-table');
         // Submissions from students who later moved class
         subs.filter(s => !students.some(st => st.id === s.studentId)).forEach(sub => rows.push({ st: { id: sub.studentId, name: sub.studentName, rollNo: sub.rollNo }, sub }));
 
@@ -470,12 +501,17 @@ const AssignmentsModule = {
                 ${Lms.esc(Lms.className(asg.classId))} • Due ${Lms.fmtDate(asg.dueDate)} • Max ${asg.maxMarks} marks •
                 <strong>${subs.length}</strong> of ${students.length} submitted
             </div>
+            ${rows.length > 1 ? Lms.filterBar('asg-review-table', {
+                search: 'Search name or roll no...',
+                selects: [{ key: 'status', label: 'All students', options: [['NONE', 'Not submitted'], ['TO_CHECK', 'To check'], ['RETURNED', 'Returned for resubmission'], ['CHECKED', 'Checked'], ['LATE', 'Late']] }],
+                date: { key: 'date', label: 'Submitted on' }
+            }) : ''}
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table" id="asg-review-table">
                     <thead><tr><th>Student</th><th>Status</th><th>Submitted</th><th>Marks</th><th></th></tr></thead>
                     <tbody>
                         ${rows.length ? rows.map(({ st, sub }) => `
-                            <tr>
+                            <tr data-f-status="${!sub ? 'NONE' : [sub.isGraded ? 'CHECKED' : sub.resubmitRequested ? 'RETURNED' : 'TO_CHECK', sub.isLate ? 'LATE' : ''].filter(Boolean).join('|')}" data-f-date="${sub ? Lms.isoDate(sub.submittedAt) : ''}">
                                 <td><strong>${Lms.esc(st.name)}</strong><div style="font-size: 0.72rem; color: var(--gold-700);">${Lms.esc(st.rollNo || '')}</div></td>
                                 <td>${!sub ? '<span class="status-pill danger">Not submitted</span>'
                                     : sub.isGraded ? '<span class="status-pill success">Checked</span>'
