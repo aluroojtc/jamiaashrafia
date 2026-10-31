@@ -231,8 +231,8 @@ const UsersModule = {
                                 const isCurrentLoggedIn = (window.AuthRBAC.currentUser && window.AuthRBAC.currentUser.id === u.id);
                                 const isSuperAdmin = u.role === 'SUPER_ADMIN';
                                 // Only a Super Admin may change a Super Admin account
-                                const touchable = !isSuperAdmin || window.AuthRBAC.isSuperAdmin();
-                                const canToggle = !isSuperAdmin && !isCurrentLoggedIn && window.AuthRBAC.can('users.deactivate');
+                                const touchable = (!isSuperAdmin || window.AuthRBAC.isSuperAdmin()) && (isCurrentLoggedIn || Lms.managesCampusesOf(u));
+                                const canToggle = !isSuperAdmin && !isCurrentLoggedIn && window.AuthRBAC.can('users.deactivate') && Lms.managesCampusesOf(u);
                                 const status = u.status || 'ACTIVE';
 
                                 return `
@@ -270,6 +270,7 @@ const UsersModule = {
                                         </td>
                                         <td style="font-size: 0.85rem; color: var(--text-secondary); max-width: 220px;">
                                             ${Lms.esc(u.designation || 'Institutional Officer')}
+                                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 3px;"><i class="fas fa-map-marker-alt"></i> ${Lms.esc(Lms.campusSummary(u))}</div>
                                         </td>
                                         <td style="text-align: center;">
                                             <span ${canToggle ? `onclick="UsersModule.toggleStatus('${Lms.esc(u.id)}')"` : ''}
@@ -413,6 +414,8 @@ const UsersModule = {
                     </div>
                 </div>
 
+                ${Lms.campusAccessFields('add-user', null)}
+
                 <div style="margin-bottom: 16px;">
                     <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;">
                         Initial Password *
@@ -482,7 +485,7 @@ const UsersModule = {
             status: status,
             password: password,
             avatar: avatar,
-            branchId: Lms.defaultBranchId() || null,
+            ...Lms.readCampusAccess('add-user'),
             createdAt: new Date().toISOString()
         };
 
@@ -607,6 +610,7 @@ const UsersModule = {
                         </select>
                     </div>
                 </div>
+                ${isSuperAdmin || user.id === (window.AuthRBAC.currentUser || {}).id ? '' : Lms.campusAccessFields('edit-user', user)}
                 ${isSuperAdmin ? '' : this.rolePicker(user)}
             </form>
         `;
@@ -656,6 +660,8 @@ const UsersModule = {
         user.role = role;
         user.designation = designation;
         user.status = status;
+        // Campus access (not for the Super Admin, who has every campus, nor for one's own account)
+        if (!isSuperAdmin && document.getElementById('edit-user-home-campus')) Object.assign(user, Lms.readCampusAccess('edit-user'));
         const extra = this.readRolePicker();
         if (extra) user.additionalRoles = extra.filter(r => r !== role);
 

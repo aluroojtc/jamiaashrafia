@@ -101,7 +101,7 @@ const LEGACY_PERMISSION_ALIASES = {
 const AuthRBAC = {
     currentUser: null,
     // { role, roles: [...], scope, permissions: Set, scopes: { permission: scope }, isSuperAdmin, preview }
-    session: { role: null, roles: [], scope: 'SELF', permissions: new Set(), scopes: {}, isSuperAdmin: false, preview: null },
+    session: { role: null, roles: [], scope: 'SELF', permissions: new Set(), scopes: {}, isSuperAdmin: false, preview: null, campuses: { all: false, ids: [] } },
 
     /**
      * Asks the server who is signed in (the session cookie is the only proof of identity) and what they may do.
@@ -153,7 +153,9 @@ const AuthRBAC = {
             permissions: new Set(data.permissions || []),
             scopes: data.scopes || {},
             isSuperAdmin: !!data.isSuperAdmin,
-            preview: data.preview || null
+            preview: data.preview || null,
+            // Campuses this person works with ({ all, ids }); the server applies the same to every record
+            campuses: data.campuses || { all: !!data.isSuperAdmin, ids: [] }
         };
         // Previewing a role is read-only: the browser keeps nothing to send later
         if (window.DataStore && window.DataStore.setReadOnly) window.DataStore.setReadOnly(!!this.session.preview);
@@ -213,7 +215,7 @@ const AuthRBAC = {
                 window.location.replace('login.html#change-password');
                 return;
             }
-            const sig = s => `${(s.roles || []).map(r => r.id).join('+')}|${s.scope}|${JSON.stringify(s.scopes || {})}|${s.preview ? s.preview.roleId : ''}`;
+            const sig = s => `${(s.roles || []).map(r => r.id).join('+')}|${s.scope}|${JSON.stringify(s.scopes || {})}|${s.preview ? s.preview.roleId : ''}|${JSON.stringify(s.campuses || {})}`;
             const before = sig(this.session);
             this.applySession(data);
             const after = sig(this.session);
@@ -333,6 +335,15 @@ const AuthRBAC = {
     portal() {
         const s = this.scope();
         return s === 'ALL' ? 'staff' : (s === 'TEACHING' ? 'teacher' : 'student');
+    },
+
+    // Campuses: every campus for the Super Admin and all-campus accounts, else the ones on the account
+    hasAllCampuses() {
+        return !!this.session.isSuperAdmin || !!(this.session.campuses && this.session.campuses.all);
+    },
+
+    hasCampus(branchId) {
+        return this.hasAllCampuses() || ((this.session.campuses && this.session.campuses.ids) || []).includes(branchId);
     },
 
     canAccessModule(moduleKey) {

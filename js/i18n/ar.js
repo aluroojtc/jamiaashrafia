@@ -3495,5 +3495,27 @@ I18n.register('ar', {
     "Choose a class": "اختر الفصل",
     "There are no classes to print.": "لا توجد فصول للطباعة.",
     "Only the selected class's timetable is included.": "يُضمَّن جدول الفصل المحدد فقط.",
-    "Weekday": "اليوم"
+    "Weekday": "اليوم",
+
+    "No timetable periods are set for {day} for your classes. Add them in Schedules & Timetable, or schedule a single lecture instead.": "لا توجد حصص محددة لفصولك يوم {day}. أضفها في الجداول والمواعيد، أو جدول درسًا واحدًا بدلًا من ذلك.",
+
+    // ---- campus access ----
+    "All campuses": "جميع الفروع",
+    "All my campuses": "جميع فروعي",
+    "Campus access": "صلاحية الوصول إلى الفروع",
+    "Home campus": "الفرع الأساسي",
+    "Works at these campuses": "يعمل في هذه الفروع",
+    "No campuses are set up yet.": "لم يُنشأ أي فرع بعد.",
+    "Taught at campuses": "الفروع التي يُدرَّس فيها",
+    "Leave all unticked for a kitab taught at every campus.": "اترك الكل دون تحديد إذا كان الكتاب يُدرَّس في جميع الفروع.",
+    "Campus not set": "الفرع غير محدد",
+    "Choose at least one campus where this kitab is taught": "اختر فرعًا واحدًا على الأقل يُدرَّس فيه هذا الكتاب",
+    "This record belongs to a campus you do not have access to.": "هذا السجل تابع لفرع لا تملك صلاحية الوصول إليه.",
+    "This record belongs to every campus. Only someone with access to all campuses can change it.": "هذا السجل تابع لجميع الفروع، ولا يغيّره إلا من له صلاحية على جميع الفروع.",
+    "This account belongs to a campus you do not have access to.": "هذا الحساب تابع لفرع لا تملك صلاحية الوصول إليه.",
+    "This account has every campus. Only someone with access to all campuses can change it.": "لهذا الحساب صلاحية على جميع الفروع، ولا يغيّره إلا من له صلاحية على جميع الفروع.",
+    "This class belongs to a campus you do not have access to.": "هذا الفصل تابع لفرع لا تملك صلاحية الوصول إليه.",
+    "This person belongs to a campus you do not have access to.": "هذا الشخص تابع لفرع لا تملك صلاحية الوصول إليه.",
+    "Access Denied: This online class belongs to a campus you do not have access to.": "الوصول مرفوض: هذا الدرس المباشر تابع لفرع لا تملك صلاحية الوصول إليه.",
+    "You can only move an application to a campus you have access to.": "لا يمكنك نقل الطلب إلا إلى فرع لك صلاحية الوصول إليه."
 });

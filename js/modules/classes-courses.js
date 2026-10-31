@@ -8,6 +8,7 @@ const ClassesCoursesModule = {
     selectedClassId: null,
     activeTab: 'classes', // 'classes' | 'courses'
     courseSearch: '',
+    campusFilter: '', // '' = every campus of the signed-in person
 
     // Office view: every class and course (whole-institution scope)
     canManage() {
@@ -25,14 +26,14 @@ const ClassesCoursesModule = {
 
     visibleClasses() {
         const ids = Lms.myClassIds();
-        return (window.LmsData.classes || []).filter(c => ids.includes(c.id));
+        return (window.LmsData.classes || []).filter(c => ids.includes(c.id) && (!this.campusFilter || c.branchId === this.campusFilter));
     },
 
     visibleCourses() {
         const me = Lms.me();
         const all = window.LmsData.courses || [];
         const portal = Lms.portal();
-        if (portal === 'staff') return all;
+        if (portal === 'staff') return all.filter(c => Lms.courseAtCampus(c, this.campusFilter));
         if (portal === 'teacher') {
             const ids = Lms.teacherCourseIds(me.id);
             return all.filter(c => ids.includes(c.id));
@@ -73,6 +74,7 @@ const ClassesCoursesModule = {
                     <i class="fas fa-book"></i> Courses / Kitabs (${this.visibleCourses().length})
                 </button>
             </div>
+            ${Lms.portal() === 'student' ? '' : Lms.campusFilterSelect('cls-campus-filter', this.campusFilter, "ClassesCoursesModule.campusFilter = this.value; App.navigate('classes')")}
 
             ${this.activeTab === 'classes' ? this.renderClassesTab() : this.renderCoursesTab()}
         `;
@@ -108,7 +110,7 @@ const ClassesCoursesModule = {
                                 <span style="font-size: 0.75rem; color: var(--gold-700);"><i class="fas fa-user-friends"></i> ${count}${c.capacity ? ' / ' + c.capacity : ''}</span>
                             </div>
                             <h4 style="font-size: 0.95rem; color: var(--primary-950); margin-bottom: 4px;">${Lms.esc(c.name)}</h4>
-                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">${Lms.esc(c.section || '')}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">${Lms.esc(c.section || '')}${c.branchId && Lms.branches().length > 1 ? ` • <i class="fas fa-map-marker-alt"></i> ${Lms.esc(Lms.branchName(c.branchId))}` : ''}</div>
                             <div style="font-size: 0.78rem; color: var(--primary-700);"><i class="fas fa-chalkboard-teacher"></i> ${Lms.esc(Lms.userName(c.teacherId, 'No class teacher'))}</div>
                         </div>`;
                 }).join('')}
@@ -221,7 +223,7 @@ const ClassesCoursesModule = {
     openClassModal(classId) {
         const cls = classId ? Lms.getClass(classId) : null;
         const programs = window.LmsData.programs || [];
-        const branches = ((window.LmsData.institution || {}).branches || []);
+        const branchId = cls ? cls.branchId : (this.campusFilter || Lms.defaultBranchId());
         Lms.openModal(
             `<i class="fas fa-school" style="color: var(--gold-400);"></i> ${cls ? 'Edit Class' : 'Create New Class'}`,
             `<div class="form-grid">
@@ -241,13 +243,13 @@ const ClassesCoursesModule = {
                 </div>
                 <div class="form-group">
                     <label>Campus / Branch *</label>
-                    <select id="cls-branch" class="form-control">
-                        ${branches.map(b => `<option value="${Lms.esc(b.id)}" ${(cls ? cls.branchId : Lms.defaultBranchId()) === b.id ? 'selected' : ''}>${Lms.esc(b.name)}</option>`).join('')}
+                    <select id="cls-branch" class="form-control" onchange="document.getElementById('cls-teacher').innerHTML = Lms.teacherOptions(Lms.val('cls-teacher'), true, this.value)">
+                        ${Lms.branchOptions(branchId)}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Class Teacher</label>
-                    <select id="cls-teacher" class="form-control">${Lms.teacherOptions(cls ? cls.teacherId : '', true)}</select>
+                    <select id="cls-teacher" class="form-control">${Lms.teacherOptions(cls ? cls.teacherId : '', true, branchId)}</select>
                 </div>
                 <div class="form-group">
                     <label>Room / Hall</label>
@@ -318,7 +320,8 @@ const ClassesCoursesModule = {
         if (!cls) return;
         const current = courseId ? (cls.courseTeachers || []).find(ct => ct.courseId === courseId) : null;
         const allocated = (cls.courseTeachers || []).map(ct => ct.courseId);
-        const courseIds = courseId ? [courseId] : (window.LmsData.courses || []).map(c => c.id).filter(id => !allocated.includes(id));
+        // Only kitabs taught at the class's campus
+        const courseIds = courseId ? [courseId] : (window.LmsData.courses || []).filter(c => Lms.courseAtCampus(c, cls.branchId)).map(c => c.id).filter(id => !allocated.includes(id));
         if (!courseIds.length) {
             window.App.showToast('All courses are already allocated to this class. Create a new course first.', 'info');
             return;
@@ -332,7 +335,7 @@ const ClassesCoursesModule = {
                 </div>
                 <div class="form-group">
                     <label>Teacher (Ustad) *</label>
-                    <select id="alloc-teacher" class="form-control">${Lms.teacherOptions(current ? current.teacherId : cls.teacherId, true)}</select>
+                    <select id="alloc-teacher" class="form-control">${Lms.teacherOptions(current ? current.teacherId : cls.teacherId, true, cls.branchId)}</select>
                 </div>
             </div>
             <p style="font-size: 0.8rem; color: var(--text-muted);">The teacher will see this class in their portal and can publish assignments, exams and online classes for it.</p>`,
@@ -467,13 +470,13 @@ const ClassesCoursesModule = {
                                             <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(Lms.localName(c.title, c.urduTitle))}</div>
                                             <div style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(c.code)} • ${Lms.esc(c.kitabAuthor || '')}</div>
                                         </td>
-                                        <td style="font-size: 0.82rem;">${Lms.esc(program ? program.name : '—')}<div style="font-size: 0.72rem; color: var(--text-muted);">Year ${Lms.esc(c.year || '—')}</div></td>
+                                        <td style="font-size: 0.82rem;">${Lms.esc(program ? program.name : '—')}<div style="font-size: 0.72rem; color: var(--text-muted);">Year ${Lms.esc(c.year || '—')}</div>${Lms.branches().length > 1 ? `<div style="font-size: 0.72rem; color: var(--text-muted);"><i class="fas fa-map-marker-alt"></i> ${Lms.esc(this.courseCampusLabel(c))}</div>` : ''}</td>
                                         <td style="font-size: 0.78rem;">${inClasses.length ? inClasses.map(cl => `<div>${Lms.esc(cl.name)} <span style="color: var(--text-muted);">(${Lms.esc(Lms.userName(Lms.courseTeacherId(cl.id, c.id), 'no teacher'))})</span></div>`).join('') : '<span style="color: var(--text-muted);">Not allocated</span>'}</td>
                                         <td><strong>${Lms.esc(c.credits)}</strong></td>
                                         <td>
                                             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                                 <button class="btn btn-secondary btn-sm" onclick="ClassesCoursesModule.viewCourseModal('${c.id}')"><i class="fas fa-folder-open"></i> Syllabus & Material</button>
-                                                ${Lms.can('courses.manage') ? `
+                                                ${Lms.can('courses.manage') && this.managesCourse(c) ? `
                                                     <button class="btn btn-secondary btn-sm" title="Edit" onclick="ClassesCoursesModule.openCourseModal('${c.id}')"><i class="fas fa-edit"></i></button>
                                                     <button class="btn btn-secondary btn-sm" title="Delete" onclick="ClassesCoursesModule.deleteCourse('${c.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>
                                                 ` : ''}
@@ -532,10 +535,39 @@ const ClassesCoursesModule = {
             <div class="form-group">
                 <label>Syllabus / Term Breakdown</label>
                 <textarea id="crs-syllabus" class="form-control" style="min-height: 120px;" placeholder="Term 1 (Shashmahi): ...&#10;Term 2 (Salana): ...">${Lms.esc(c ? c.syllabus || '' : '')}</textarea>
-            </div>`,
+            </div>
+            ${this.courseCampusFields(c)}`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-primary" onclick="ClassesCoursesModule.saveCourse('${c ? c.id : ''}')"><i class="fas fa-save"></i> ${c ? 'Save Changes' : 'Add to Curriculum'}</button>`
         );
+    },
+
+    // Campuses where a kitab is taught; none ticked = every campus (only for someone who has every campus)
+    courseCampusFields(c) {
+        const held = new Set((c && c.campusIds) || []);
+        const all = window.AuthRBAC.hasAllCampuses();
+        const fresh = !c && !all;
+        return `<div class="form-group">
+                <label><i class="fas fa-map-marker-alt"></i> ${I18n.t('Taught at campuses')}</label>
+                <div>${Lms.myBranches().map(b => `<label style="display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 6px 0; font-size: 0.85rem;">
+                    <input type="checkbox" class="crs-campus" value="${Lms.esc(b.id)}" ${held.has(b.id) || (fresh && b.id === Lms.defaultBranchId()) ? 'checked' : ''}> ${Lms.esc(b.name)}</label>`).join('')}</div>
+                ${all ? `<small style="color: var(--text-muted);">${I18n.t('Leave all unticked for a kitab taught at every campus.')}</small>` : ''}
+            </div>`;
+    },
+
+    readCourseCampuses() {
+        return Array.from(document.querySelectorAll('.crs-campus')).filter(x => x.checked).map(x => x.value);
+    },
+
+    courseCampusLabel(c) {
+        const ids = (c && c.campusIds) || [];
+        return ids.length ? ids.map(id => Lms.branchName(id) || id).join(', ') : I18n.t('All campuses');
+    },
+
+    // A kitab of every campus is changed only by someone with every campus
+    managesCourse(c) {
+        const ids = (c && c.campusIds) || [];
+        return window.AuthRBAC.hasAllCampuses() || (ids.length > 0 && ids.every(id => window.AuthRBAC.hasCampus(id)));
     },
 
     saveCourse(courseId) {
@@ -557,8 +589,13 @@ const ClassesCoursesModule = {
             year: parseInt(Lms.val('crs-year'), 10) || 1,
             credits: parseInt(Lms.val('crs-credits'), 10) || 4,
             recommendedPub: Lms.val('crs-pub'),
-            syllabus: document.getElementById('crs-syllabus').value.trim()
+            syllabus: document.getElementById('crs-syllabus').value.trim(),
+            campusIds: this.readCourseCampuses()
         };
+        if (!fields.campusIds.length && !window.AuthRBAC.hasAllCampuses()) {
+            window.App.showToast('Choose at least one campus where this kitab is taught', 'warning');
+            return;
+        }
         const existing = courseId ? Lms.getCourse(courseId) : null;
         if (existing) Object.assign(existing, fields);
         else window.LmsData.courses.push({ id: Lms.uid('c'), ...fields });

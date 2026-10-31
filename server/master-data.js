@@ -133,8 +133,9 @@ async function usageOf(kind, id, loadCollection) {
     if (kind === 'branches') {
         const users = await loadCollection('users');
         count(users.filter(u => u.branchId === id && u.role === 'STUDENT').length, 'student(s)');
-        count(users.filter(u => u.branchId === id && u.role !== 'STUDENT').length, 'staff / teacher account(s)');
+        count(users.filter(u => u.role !== 'STUDENT' && (u.branchId === id || (Array.isArray(u.campusIds) && u.campusIds.includes(id)))).length, 'staff / teacher account(s)');
         count((await loadCollection('classes')).filter(c => c.branchId === id).length, 'class(es)');
+        count((await loadCollection('courses')).filter(c => Array.isArray(c.campusIds) && c.campusIds.includes(id)).length, 'course(s)');
         const [[a]] = await db.query(`SELECT COUNT(*) AS n FROM student_admissions WHERE branch_id = ?`, [id]);
         count(Number(a.n), 'admission application(s)');
     } else if (kind === 'departments') {

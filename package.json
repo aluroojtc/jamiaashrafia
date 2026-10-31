@@ -10,7 +10,9 @@
     "dbcheck": "node database/dbcheck.js",
     "bootstrap-admin": "node database/bootstrap-admin.js",
     "issue-temp-passwords": "node database/issue-temp-passwords.js",
+    "migrate:campuses": "node database/migrate-campuses.js",
     "test:security": "node test_auth_security.js",
+    "test:campus": "node test_campus_access.js",
     "i18n:check": "node tools/i18n-check.js"
   },
   "keywords": [

@@ -3495,5 +3495,27 @@ I18n.register('ur', {
     "Choose a class": "کلاس منتخب کریں",
     "There are no classes to print.": "پرنٹ کرنے کے لیے کوئی کلاس نہیں۔",
     "Only the selected class's timetable is included.": "صرف منتخب کلاس کا ٹائم ٹیبل شامل ہوگا۔",
-    "Weekday": "دن"
+    "Weekday": "دن",
+
+    "No timetable periods are set for {day} for your classes. Add them in Schedules & Timetable, or schedule a single lecture instead.": "{day} کے لیے آپ کی کلاسوں کے کوئی پیریڈ مقرر نہیں۔ انہیں نظام الاوقات اور ٹائم ٹیبل میں شامل کریں، یا اس کے بجائے ایک الگ سبق شیڈول کریں۔",
+
+    // ---- campus access ----
+    "All campuses": "تمام کیمپس",
+    "All my campuses": "میرے تمام کیمپس",
+    "Campus access": "کیمپس تک رسائی",
+    "Home campus": "بنیادی کیمپس",
+    "Works at these campuses": "ان کیمپسوں میں خدمات انجام دیتے ہیں",
+    "No campuses are set up yet.": "ابھی کوئی کیمپس قائم نہیں کیا گیا۔",
+    "Taught at campuses": "جن کیمپسوں میں پڑھائی جاتی ہے",
+    "Leave all unticked for a kitab taught at every campus.": "اگر یہ کتاب ہر کیمپس میں پڑھائی جاتی ہے تو کوئی نشان نہ لگائیں۔",
+    "Campus not set": "کیمپس مقرر نہیں",
+    "Choose at least one campus where this kitab is taught": "کم از کم ایک کیمپس منتخب کریں جہاں یہ کتاب پڑھائی جاتی ہے",
+    "This record belongs to a campus you do not have access to.": "یہ ریکارڈ ایسے کیمپس کا ہے جس تک آپ کو رسائی حاصل نہیں۔",
+    "This record belongs to every campus. Only someone with access to all campuses can change it.": "یہ ریکارڈ تمام کیمپسوں کا ہے۔ اسے صرف وہی بدل سکتا ہے جسے تمام کیمپسوں تک رسائی ہو۔",
+    "This account belongs to a campus you do not have access to.": "یہ اکاؤنٹ ایسے کیمپس کا ہے جس تک آپ کو رسائی حاصل نہیں۔",
+    "This account has every campus. Only someone with access to all campuses can change it.": "اس اکاؤنٹ کو تمام کیمپسوں تک رسائی ہے۔ اسے صرف وہی بدل سکتا ہے جسے تمام کیمپسوں تک رسائی ہو۔",
+    "This class belongs to a campus you do not have access to.": "یہ کلاس ایسے کیمپس کی ہے جس تک آپ کو رسائی حاصل نہیں۔",
+    "This person belongs to a campus you do not have access to.": "یہ شخص ایسے کیمپس سے متعلق ہے جس تک آپ کو رسائی حاصل نہیں۔",
+    "Access Denied: This online class belongs to a campus you do not have access to.": "رسائی ممنوع: یہ آن لائن کلاس ایسے کیمپس کی ہے جس تک آپ کو رسائی حاصل نہیں۔",
+    "You can only move an application to a campus you have access to.": "آپ درخواست صرف اسی کیمپس میں منتقل کر سکتے ہیں جس تک آپ کو رسائی حاصل ہو۔"
 });

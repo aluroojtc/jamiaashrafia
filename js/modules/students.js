@@ -7,7 +7,7 @@
 const StudentsModule = {
     searchQuery: '',
     filterProgram: 'ALL',
-    filterBranch: 'ALL',
+    filterBranch: '', // '' = every campus of the signed-in person, else one campus
     filterStatus: 'ALL',
     filterGender: 'ALL', // 'ALL' | 'MALE' | 'FEMALE' | 'NONE' (not recorded)
     activeTab: 'ALL', // 'ALL', 'ACTIVE', 'HOSTEL', 'SUSPENDED', 'GRADUATED'
@@ -48,6 +48,11 @@ const StudentsModule = {
         // Program filter
         if (this.filterProgram !== 'ALL') {
             filtered = filtered.filter(s => (s.classId || '') === (this.filterProgram === 'NONE' ? '' : this.filterProgram));
+        }
+
+        // Campus filter (each student has one campus: the campus of their class)
+        if (this.filterBranch) {
+            filtered = filtered.filter(s => s.branchId === this.filterBranch);
         }
 
         // Status filter
@@ -179,6 +184,7 @@ const StudentsModule = {
                             <option value="FEMALE" ${this.filterGender === 'FEMALE' ? 'selected' : ''}>Female</option>
                             <option value="NONE" ${this.filterGender === 'NONE' ? 'selected' : ''}>Not specified</option>
                         </select>
+                        ${Lms.campusFilterSelect('st-campus-filter', this.filterBranch, 'StudentsModule.setBranch(this.value)')}
                     </div>
                 </div>
 
@@ -228,6 +234,7 @@ const StudentsModule = {
                                         </td>
                                         <td style="color: var(--text-secondary); font-size: 0.85rem;">
                                             <div style="font-weight: 600; color: var(--primary-950);">${this.classLabel(s)}</div>
+                                            ${s.branchId ? `<div style="font-size: 0.72rem; color: var(--text-muted);"><i class="fas fa-map-marker-alt"></i> ${Lms.esc(Lms.branchName(s.branchId) || s.branchId)}</div>` : ''}
                                             ${this.programLabel(s) ? `<span style="font-size: 0.72rem; color: var(--text-muted);">${this.programLabel(s)}</span>` : ''}
                                         </td>
                                         <td style="font-size: 0.82rem;">
@@ -328,6 +335,12 @@ const StudentsModule = {
         if (viewport) viewport.innerHTML = this.render();
     },
 
+    setBranch(b) {
+        this.filterBranch = b || '';
+        const viewport = document.getElementById('main-content-viewport');
+        if (viewport) viewport.innerHTML = this.render();
+    },
+
     setGender(g) {
         this.filterGender = g || 'ALL';
         const viewport = document.getElementById('main-content-viewport');
@@ -398,8 +411,10 @@ const StudentsModule = {
     classOptions(selectedId) {
         const classes = window.LmsData.classes || [];
         const known = classes.some(c => c.id === selectedId);
+        // With several campuses, each class names its campus (a student's campus is the campus of their class)
+        const multi = Lms.myBranches().length > 1;
         return `<option value="" ${known ? '' : 'selected'}>${classes.length ? 'Not assigned yet' : 'Not assigned (no classes set up yet)'}</option>`
-            + classes.map(c => `<option value="${Lms.esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${Lms.esc(Lms.className(c.id))}</option>`).join('');
+            + classes.map(c => `<option value="${Lms.esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${Lms.esc(Lms.className(c.id))}${multi && c.branchId ? ` — ${Lms.esc(Lms.branchName(c.branchId))}` : ''}</option>`).join('');
     },
 
     // Program name stored on the student record, taken from the chosen class
@@ -1124,6 +1139,7 @@ const StudentsModule = {
         student.country = country;
         student.program = this.programForClass(classId);
         student.classId = classId;
+        student.branchId = (Lms.getClass(classId) || {}).branchId || student.branchId || Lms.defaultBranchId() || null;
         student.phone = phone;
         student.hostel = hostel;
         // Student type (permission group): only sent when the editor may choose it; the server checks again

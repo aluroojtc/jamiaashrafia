@@ -268,6 +268,14 @@ function legacyHandler(req, res) {
                     const term = `%${search.trim()}%`;
                     params.push(term, term, term, term, term);
                 }
+                // Only applications to the campuses this person works with
+                const reach = await lmsApi.campusScope(req);
+                if (reach) {
+                    const ids = Array.from(reach);
+                    if (!ids.length) ids.push('__none__');
+                    sql += ` AND branch_id IN (${ids.map(() => '?').join(',')})`;
+                    params.push(...ids);
+                }
 
                 sql += ' ORDER BY created_at DESC';
 
@@ -323,7 +331,7 @@ function legacyHandler(req, res) {
                     [appId, appId]
                 );
 
-                if (!rows || rows.length === 0) {
+                if (!rows || rows.length === 0 || !(await lmsApi.admissionInCampus(req, rows[0].branchId))) {
                     res.writeHead(404, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'Admission application not found in database' }));
                     return;
@@ -585,7 +593,7 @@ function legacyHandler(req, res) {
                         [appId, appId]
                     );
 
-                    if (!rows || rows.length === 0) {
+                    if (!rows || rows.length === 0 || !(await lmsApi.admissionInCampus(req, rows[0].branch_id))) {
                         res.writeHead(404, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: 'Admission application not found in database.' }));
                         return;
@@ -647,6 +655,10 @@ function legacyHandler(req, res) {
                     const missing = Array.from(needed).filter(p => !can(req, p));
                     if (missing.length) {
                         forbidden(res, `You are not allowed to make this change (${missing.join(', ')}).`);
+                        return;
+                    }
+                    if (String(branchId || '') !== String(existing.branch_id || '') && !(await lmsApi.admissionInCampus(req, branchId))) {
+                        forbidden(res, 'You can only move an application to a campus you have access to.');
                         return;
                     }
 

@@ -18,15 +18,19 @@
  * teacher type plus, optionally, additional system roles given by someone allowed to assign roles. An account never
  * moves between the three kinds. Choosing a student's or teacher's type needs students.assign_group /
  * teachers.assign_group (or the Super Admin).
+ *
+ * Campuses (server/campus.js) are checked on top of all this for everyone but the Super Admin: a record is read
+ * only when it is at one of the person's campuses, and written or deleted only when all of its campuses are theirs.
  */
 
 const roles = require('./roles');
+const campus = require('./campus');
 
 const SECRET_USER_FIELDS = ['password'];
 const SENSITIVE_USER_FIELDS = ['cnic', 'cnicBform', 'bForm', 'passport', 'passportNumber', 'guardianCnic',
     'dateOfBirth', 'dob', 'address', 'permanentAddress', 'bloodGroup'];
 const STAFF_DIRECTORY_FIELDS = ['id', 'name', 'urduName', 'role', 'designation', 'avatar', 'status', 'email',
-    'branchId', 'assignedCourses', 'specialization', 'sanad', 'bio', 'gender'];
+    'branchId', 'allCampuses', 'campusIds', 'assignedCourses', 'specialization', 'sanad', 'bio', 'gender'];
 
 // Fields a person may never set on their own records
 const OWN_PROTECTED = {
@@ -38,9 +42,9 @@ const OWN_PROTECTED = {
     donations: ['confirmedBy', 'confirmedAt', 'verifiedBy', 'verifiedAt']
 };
 const SELF_SCOPE_PROTECTED = ['role', 'additionalRoles', 'permissionGroup', 'status', 'classId', 'rollNo', 'branchId', 'program', 'assignedCourses',
-    'designation', 'email', 'username'];
+    'designation', 'email', 'username', 'allCampuses', 'campusIds'];
 const STAFF_SELF_PROTECTED = ['role', 'additionalRoles', 'permissionGroup', 'status', 'assignedCourses', 'branchId', 'designation', 'classId', 'rollNo',
-    'email', 'username'];
+    'email', 'username', 'allCampuses', 'campusIds'];
 const IMMUTABLE_LINKS = ['assignmentId', 'examId', 'bookId', 'studentId', 'userId', 'donorUserId'];
 const ENROLMENT_FIELDS = ['classId', 'branchId', 'program'];
 const IGNORED_DIFF_FIELDS = ['password', 'updatedAt', 'lastSeenAt'];
@@ -62,6 +66,16 @@ const STUDENT_DIRECTORY_PERMISSIONS = ['fees.challans.view', 'fees.challans.gene
     'attendance.view', 'classes.enroll', 'reports.academic', 'reports.attendance', 'reports.finance'];
 const ATTENDANCE_EDIT_WINDOW_DAYS = 7;
 
+// Records of the whole institution, not of a campus
+const INSTITUTION_WIDE = ['libraryBooks', 'feeStructures', 'donations'];
+// Records that follow the campus of their class
+const CLASS_BOUND = ['timetables', 'virtualClasses', 'virtualClassRecordings', 'assignments', 'exams', 'courseMaterials'];
+// Records about one person: they follow that person's campus
+const PERSON_FIELD = {
+    attendance: 'userId', feeChallans: 'studentId', libraryLoans: 'userId',
+    assignmentSubmissions: 'studentId', examSubmissions: 'studentId', examResults: 'studentId'
+};
+
 // ---------------------------------------------------------------------------
 // Context
 // ---------------------------------------------------------------------------
@@ -70,7 +84,7 @@ const ATTENDANCE_EDIT_WINDOW_DAYS = 7;
  * Everything the rules need about the caller, built once per request.
  * who: { id, role, user, auth }; load(collection) returns all live records of a collection.
  */
-async function buildContext(who, load) {
+async function buildContext(who, load, opts = {}) {
     const user = who.user || { id: who.id, role: who.role };
     const eff = who.auth ? roles.effectiveForAuth(who.auth) : roles.effectiveFor(user);
     const ctx = {
@@ -92,20 +106,33 @@ async function buildContext(who, load) {
     };
     ctx.can = p => ctx.perms.has(p);
     ctx.scopeFor = p => (eff.scopes && eff.scopes.get(p)) || null;
-    // Held for the whole institution
+    // Held for the whole institution (within the person's campuses)
     ctx.wide = p => ctx.scopeFor(p) === 'ALL';
+
+    // Campuses: null = every campus, else the Set of branch ids this person works at
+    ctx.defaultCampus = opts.defaultCampus !== undefined ? opts.defaultCampus : await campus.defaultCampusId();
+    ctx.campuses = campus.allowedSet(user, eff.isSuperAdmin, ctx.defaultCampus);
+    ctx.classBranch = new Map();
+    ctx.people = new Map();
+    ctx.courseCampuses = new Map();
+    const classes = await load('classes');
+    classes.forEach(c => ctx.classBranch.set(c.id, c.branchId || ctx.defaultCampus));
+    (await load('users')).forEach(u => ctx.people.set(u.id, u));
+    (await load('courses')).forEach(c => ctx.courseCampuses.set(c.id, courseCampuses(c)));
 
     const scopes = new Set(eff.scopes ? eff.scopes.values() : []);
     if (eff.isSuperAdmin || (!scopes.has('TEACHING') && !scopes.has('SELF'))) return ctx;
 
     if (scopes.has('TEACHING')) {
-        (await load('classes')).forEach(c => {
+        classes.forEach(c => {
+            // A class at a campus the teacher no longer works at is not theirs to teach
+            if (!campus.overlaps(ctx.campuses, [c.branchId || ctx.defaultCampus])) return;
             const teaches = (c.courseTeachers || []).filter(ct => ct.teacherId === ctx.id);
             if (c.teacherId === ctx.id || teaches.length) ctx.teachingClassIds.add(c.id);
             teaches.forEach(ct => ctx.courseIds.add(ct.courseId));
         });
         (user.assignedCourses || []).forEach(id => ctx.courseIds.add(id));
-        (await load('users')).forEach(u => {
+        ctx.people.forEach(u => {
             if (u.role !== 'STUDENT') return;
             ctx.studentClass.set(u.id, u.classId);
             if (ctx.teachingClassIds.has(u.classId)) ctx.teachingStudentIds.add(u.id);
@@ -126,6 +153,83 @@ async function notificationClassIds(who, load) {
 function deny(ctx, reason) {
     if (reason) ctx.reason = reason;
     return false;
+}
+
+// ---------------------------------------------------------------------------
+// Campus helpers
+// ---------------------------------------------------------------------------
+
+function courseCampuses(c) {
+    const ids = campus.uniq(c && c.campusIds);
+    return ids.length ? ids : campus.ALL;
+}
+
+function classCampuses(ctx, classId, rec) {
+    if (classId && classId !== 'all') return [ctx.classBranch.get(classId) || (rec && rec.branchId) || ctx.defaultCampus];
+    return rec && rec.branchId ? [rec.branchId] : campus.ALL;
+}
+
+/** The campuses a record belongs to: null (whole institution), 'ALL' (every campus) or a list of branch ids. */
+function recordCampuses(ctx, collection, rec) {
+    if (!rec || INSTITUTION_WIDE.includes(collection)) return null;
+    if (collection === 'users') return campus.accountCampuses(rec, ctx.defaultCampus);
+    if (collection === 'classes') return [rec.branchId || ctx.defaultCampus];
+    if (collection === 'courses') return courseCampuses(rec);
+    if (PERSON_FIELD[collection]) {
+        const person = ctx.people.get(rec[PERSON_FIELD[collection]]);
+        if (person) return campus.accountCampuses(person, ctx.defaultCampus);
+        return classCampuses(ctx, rec.classId, rec);
+    }
+    if (collection === 'courseMaterials' && !rec.classId && rec.courseId) return ctx.courseCampuses.get(rec.courseId) || campus.ALL;
+    if (CLASS_BOUND.includes(collection)) return classCampuses(ctx, rec.classId, rec);
+    return [rec.branchId || ctx.defaultCampus];
+}
+
+/** The record is at one of the caller's campuses (reading). */
+function campusReadable(ctx, collection, rec) {
+    return campus.overlaps(ctx.campuses, recordCampuses(ctx, collection, rec));
+}
+
+/** Every campus of the record is the caller's (writing, deleting). */
+function campusWritable(ctx, collection, rec) {
+    if (!rec) return true;
+    const c = recordCampuses(ctx, collection, rec);
+    if (campus.within(ctx.campuses, c)) return true;
+    if (collection === 'users') return deny(ctx, c === campus.ALL ? 'This account has every campus. Only someone with access to all campuses can change it.'
+        : 'This account belongs to a campus you do not have access to.');
+    return deny(ctx, c === campus.ALL
+        ? 'This record belongs to every campus. Only someone with access to all campuses can change it.'
+        : 'This record belongs to a campus you do not have access to.');
+}
+
+/**
+ * Fills in campus fields before a write is checked: an account's campuses are put in shape (server/campus.js),
+ * and a new class-less record (a whole-day break, a general online session) made by someone limited to some
+ * campuses belongs to their home campus.
+ */
+function assignCampus(ctx, collection, incoming, existing) {
+    if (collection === 'users') return campus.normalizeAccount(incoming, id => ctx.classBranch.get(id), ctx.defaultCampus);
+    if (!existing && ctx.campuses && ctx.campuses.size && CLASS_BOUND.includes(collection)
+        && (!incoming.classId || incoming.classId === 'all') && !incoming.branchId && !(collection === 'courseMaterials' && incoming.courseId)) {
+        const home = ctx.user.branchId;
+        incoming.branchId = home && ctx.campuses.has(home) ? home : Array.from(ctx.campuses)[0];
+    }
+    return incoming;
+}
+
+// Every teacher newly placed on a class (or on a class moved to another campus) works at the class's campus
+function classTeachersAtCampus(ctx, incoming, existing) {
+    const teachers = rec => [rec.teacherId, ...(rec.courseTeachers || []).map(ct => ct && ct.teacherId)].filter(Boolean);
+    const branch = incoming.branchId || ctx.defaultCampus;
+    const moved = !existing || (existing.branchId || ctx.defaultCampus) !== branch;
+    const before = new Set(existing && !moved ? teachers(existing) : []);
+    for (const id of teachers(incoming)) {
+        const t = before.has(id) ? null : ctx.people.get(id);
+        if (t && !campus.overlaps(new Set([branch]), campus.accountCampuses(t, ctx.defaultCampus))) {
+            return deny(ctx, `${t.name || id} does not work at this class's campus. Add the campus to their account first.`);
+        }
+    }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +371,12 @@ function readableUser(ctx, u) {
 
 /** Returns the record as this user may see it, or null when it must not be sent at all. */
 function readable(ctx, collection, rec) {
+    const out = readableByScope(ctx, collection, rec);
+    if (!out || !ctx.campuses || owns(ctx, collection, rec)) return out;
+    return campusReadable(ctx, collection, rec) ? out : null;
+}
+
+function readableByScope(ctx, collection, rec) {
     if (!rec) return null;
     if (collection === 'users') return readableUser(ctx, rec);
     if (ctx.isSuperAdmin) return rec;
@@ -466,8 +576,19 @@ function canSetPassword(ctx, target, isNew) {
     return accountPermissionInScope(ctx, family, `${family}.reset_password`, target) && roles.canManagePerson(ctx.eff, target);
 }
 
-/** Whether the caller may create (existing = null) or change this record. Sets ctx.reason when there is something to explain. */
+/**
+ * Whether the caller may create (existing = null) or change this record. Sets ctx.reason when there is something to explain.
+ * Call assignCampus first so the record carries its campus.
+ */
 function canWrite(ctx, collection, incoming, existing) {
+    if (!canWriteByScope(ctx, collection, incoming, existing)) return false;
+    if (collection === 'classes' && !classTeachersAtCampus(ctx, incoming, existing)) return false;
+    // Own records follow the person's own campus; their protected fields are kept by prepareWrite
+    if (!ctx.campuses || owns(ctx, collection, existing || incoming)) return true;
+    return campusWritable(ctx, collection, existing) && campusWritable(ctx, collection, incoming);
+}
+
+function canWriteByScope(ctx, collection, incoming, existing) {
     ctx.reason = null;
     if (collection === 'users' && !accountStructureAllowed(ctx, incoming, existing)) return false;
     if (ctx.isSuperAdmin) return true;
@@ -677,12 +798,21 @@ function prepareWrite(ctx, collection, incoming, existing) {
 // Keeps scope maps current within one sync batch (an exam created a moment ago, then its results)
 function noteWrite(ctx, collection, rec) {
     if (!rec) return;
+    if (collection === 'classes') ctx.classBranch.set(rec.id, rec.branchId || ctx.defaultCampus);
+    if (collection === 'users') ctx.people.set(rec.id, rec);
+    if (collection === 'courses') ctx.courseCampuses.set(rec.id, courseCampuses(rec));
     if (collection === 'assignments') ctx.assignmentInfo.set(rec.id, { classId: rec.classId, teacherId: rec.teacherId });
     if (collection === 'exams') ctx.examInfo.set(rec.id, examInfoOf(rec));
 }
 
 /** Whether the caller may delete this stored record. */
 function canDelete(ctx, collection, existing) {
+    if (!canDeleteByScope(ctx, collection, existing)) return false;
+    if (!ctx.campuses || owns(ctx, collection, existing)) return true;
+    return campusWritable(ctx, collection, existing);
+}
+
+function canDeleteByScope(ctx, collection, existing) {
     ctx.reason = null;
     if (collection === 'users' && (existing.role === 'SUPER_ADMIN' || existing.id === ctx.id)) return false;
     if (ctx.isSuperAdmin) return true;
@@ -752,6 +882,10 @@ module.exports = {
     prepareWrite,
     noteWrite,
     canDelete,
+    assignCampus,
+    recordCampuses,
+    campusReadable,
+    campusWritable,
     accountFamily,
     requestedGroup
 };

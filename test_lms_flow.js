@@ -68,7 +68,7 @@ async function runTests() {
     const adminPassword = auth.temporaryPassword(12);
     await db.query(
         `INSERT INTO lms_records (collection, id, data, deleted, updated_by, updated_at) VALUES ('users', ?, ?, 0, 'test', NOW(3))`,
-        [adminId, JSON.stringify({ id: adminId, name: 'Test Admin', role: 'ACADEMIC_ADMIN', status: 'ACTIVE', email: `${adminId}@test.local` })]
+        [adminId, JSON.stringify({ id: adminId, name: 'Test Admin', role: 'ACADEMIC_ADMIN', status: 'ACTIVE', email: `${adminId}@test.local`, allCampuses: true, campusIds: [] })]
     );
     await auth.setPassword(null, adminId, adminPassword, false);
     const adminLogin = await makeRequest({

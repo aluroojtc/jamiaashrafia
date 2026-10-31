@@ -46,8 +46,7 @@ const VirtualClassModule = {
 
     // Class filter options built from the classes that exist
     classFilterOptions(selected) {
-        return `<option value="ALL">All Academic Classes</option>` + (window.LmsData.classes || [])
-            .map(c => `<option value="${Lms.esc(c.id)}" ${selected === c.id ? 'selected' : ''}>${Lms.esc(Lms.className(c.id))}</option>`).join('');
+        return `<option value="ALL">All Academic Classes</option>` + Lms.classOptions(selected);
     },
 
     // Students (and staff) who checked in to this online class

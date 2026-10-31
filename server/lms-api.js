@@ -23,6 +23,7 @@ const roles = require('./roles');
 const audit = require('./audit');
 const masterData = require('./master-data');
 const sampleData = require('./sample-data');
+const campus = require('./campus');
 
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -101,6 +102,18 @@ function effective(req) {
 
 function can(req, permission) {
     return !!req.auth && effective(req).permissions.has(permission);
+}
+
+// Campuses the caller may reach, for routes outside the record store (admissions): null = every campus
+async function campusScope(req) {
+    if (!req.auth) return new Set();
+    return campus.allowedSet(req.auth.user, effective(req).isSuperAdmin, await campus.defaultCampusId());
+}
+
+// Whether an admission application's campus (branch_id; empty = default campus) is one the caller may reach
+async function admissionInCampus(req, branchId) {
+    const reach = await campusScope(req);
+    return !reach || reach.has(branchId || await campus.defaultCampusId());
 }
 
 function newId(prefix) {
@@ -185,6 +198,8 @@ function ensureSchema() {
             await auth.ensureAuthSchema();
             await audit.ensureAuditSchema();
             await roles.ensureRolesSchema();
+            // Existing records get a campus (idempotent; see server/campus.js)
+            await campus.migrate(msg => console.log(msg));
         })().catch(err => {
             schemaPromise = null;
             throw err;
@@ -289,6 +304,8 @@ async function handleStorePull(req, res, url) {
         // Deny by default: only records this user may see, with fields they may not see removed
         const rec = policy.readable(ctx, r.collection, JSON.parse(r.data));
         if (rec) (collections[r.collection] = collections[r.collection] || []).push(rec);
+        // A record changed out of reach (e.g. a class moved to another campus) leaves the browser's copy too
+        else if (since) (deleted[r.collection] = deleted[r.collection] || []).push(r.id);
     });
 
     sendJson(res, 200, {
@@ -405,6 +422,7 @@ async function handleStoreSync(req, res) {
                         : 'Only the Super Admin can change a Super Admin account.');
                     continue;
                 }
+                policy.assignCampus(ctx, collection, incoming, existing);
                 if (!policy.canWrite(ctx, collection, incoming, existing)) {
                     reject(collection, id, ctx.reason);
                     continue;
@@ -606,9 +624,12 @@ async function handleMe(req, res) {
         const r = roles.getRole(id);
         return { id, name: r ? r.name : id, urduTitle: r ? r.urduTitle : '', badgeClass: r ? r.badgeClass : 'info', scope: r ? r.scope : 'SELF' };
     };
+    const reach = campus.allowedSet(req.auth.user, eff.isSuperAdmin, await campus.defaultCampusId());
     sendJson(res, 200, {
         success: true,
         user: { ...req.auth.user, additionalRoles: roles.additionalRolesOf(req.auth.user) },
+        // The campuses this person works with (all: every campus); the server checks them on every record
+        campuses: { all: !reach, ids: reach ? Array.from(reach) : [] },
         mustChangePassword: req.auth.mustChange,
         isSuperAdmin: eff.isSuperAdmin,
         role: eff.isSuperAdmin ? { id: roles.SUPER_ADMIN, name: 'Super Admin (Mohtamim)', scope: 'ALL' } : describe(eff.roleId),
@@ -806,6 +827,12 @@ async function handleNotificationsPost(req, res) {
                 sendJson(res, 403, { success: false, error: 'You are not allowed to send messages to individuals.' });
                 return;
             }
+            classScope = classScope || await policy.buildContext(who, loadCollection);
+            const target = classScope.people.get(String(n.targetUserId));
+            if (target && !isOfficeRole(targetRoleOfUser({ data: target })) && !policy.campusReadable(classScope, 'users', target)) {
+                sendJson(res, 403, { success: false, error: 'This person belongs to a campus you do not have access to.' });
+                return;
+            }
         } else if (n.targetClassId) {
             if (!can(req, 'notifications.send_class')) {
                 sendJson(res, 403, { success: false, error: 'You are not allowed to notify classes.' });
@@ -815,6 +842,10 @@ async function handleNotificationsPost(req, res) {
             // Class notices follow the scope the notify-class permission is held with
             if (!classScope.wide('notifications.send_class') && !classScope.teachingClassIds.has(n.targetClassId)) {
                 sendJson(res, 403, { success: false, error: 'You can only notify classes you teach.' });
+                return;
+            }
+            if (!policy.campusReadable(classScope, 'classes', { id: n.targetClassId, branchId: classScope.classBranch.get(n.targetClassId) })) {
+                sendJson(res, 403, { success: false, error: 'This class belongs to a campus you do not have access to.' });
                 return;
             }
         } else if (isOfficeRole(targetRole)) {
@@ -909,11 +940,19 @@ async function decideVirtualAccess(req, sessionId) {
     }
 
     const eff = effective(req);
+    // An online class of a campus this person does not work at is closed to them, whatever their role
+    const ctx = await policy.buildContext(who, loadCollection);
+    if (!policy.campusReadable(ctx, 'virtualClasses', session)) {
+        return { status: 403, message: 'Access Denied: This online class belongs to a campus you do not have access to.' };
+    }
     const host = { status: 200, isHost: true, session };
-    if (eff.permissions.has('virtual_classes.manage') && eff.scope === 'ALL') return host;
+    if (eff.permissions.has('virtual_classes.manage') && eff.scope === 'ALL') {
+        // Moderating needs every campus of the class; a whole-institution session needs every campus
+        if (!ctx.campuses || policy.campusWritable(ctx, 'virtualClasses', session)) return host;
+    }
 
     if (eff.permissions.has('virtual_classes.host') && eff.scope !== 'SELF') {
-        if (eff.scope === 'ALL' || session.hostId === who.id) return host;
+        if ((eff.scope === 'ALL' && (!ctx.campuses || policy.campusWritable(ctx, 'virtualClasses', session))) || session.hostId === who.id) return host;
         // A full-day room from the timetable: each period's teacher hosts in turn
         if (Array.isArray(session.periods) && session.periods.some(p => p && p.teacherId === who.id)) return host;
         const clsRec = session.classId ? await loadRecord('classes', session.classId) : null;
@@ -1341,7 +1380,7 @@ async function handleAdmissionDelete(req, res, url) {
     const appId = decodeURIComponent(url.pathname.replace('/api/admissions/', '')).trim();
     const [rows] = await db.query(`SELECT * FROM student_admissions WHERE id = ? OR application_no = ? LIMIT 1`, [appId, appId]);
     const existing = rows[0];
-    if (!existing) {
+    if (!existing || !(await admissionInCampus(req, existing.branch_id))) {
         sendJson(res, 404, { success: false, error: 'Admission application not found.' });
         return;
     }
@@ -1388,4 +1427,4 @@ async function handle(req, res) {
     }
 }
 
-module.exports = { handle, getSetting, saveSetting, ensureSchema, runDailyJobs, deleteAdmissionNotices, SYNC_COLLECTIONS };
+module.exports = { handle, getSetting, saveSetting, ensureSchema, runDailyJobs, deleteAdmissionNotices, campusScope, admissionInCampus, SYNC_COLLECTIONS };

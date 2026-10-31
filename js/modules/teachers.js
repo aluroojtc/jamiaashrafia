@@ -67,6 +67,8 @@ const TeachersModule = {
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
                 ${teachers.length ? teachers.map(t => {
                     const w = this.workload(t.id);
+                    // Accounts that also work at campuses this office does not manage are changed by someone who has them all
+                    const mine = Lms.managesCampusesOf(t);
                     return `
                         <div class="card" style="margin: 0; ${t.status === 'INACTIVE' ? 'opacity: 0.65;' : ''}">
                             <div style="display: flex; gap: 14px; margin-bottom: 14px;">
@@ -83,6 +85,7 @@ const TeachersModule = {
                                 <div><i class="fas fa-certificate" style="color: var(--gold-400); width: 18px;"></i> ${Lms.esc(t.sanad || '—')}</div>
                                 <div><i class="fas fa-star" style="color: var(--gold-400); width: 18px;"></i> ${Lms.esc(t.specialization || '—')}</div>
                                 <div><i class="fas fa-envelope" style="color: var(--gold-400); width: 18px;"></i> <span translate="no">${Lms.esc(t.email || '—')}</span>${Lms.copyBtn(t.email, 'Copy username')}</div>
+                                <div><i class="fas fa-map-marker-alt" style="color: var(--gold-400); width: 18px;"></i> ${Lms.esc(Lms.campusSummary(t))}</div>
                             </div>
                             <div style="display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0;">
                                 <span class="status-pill info">${w.classIds.length} class(es)</span>
@@ -92,13 +95,13 @@ const TeachersModule = {
                             </div>
                             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="TeachersModule.viewFacultyProfile('${t.id}')"><i class="fas fa-id-badge"></i> Profile</button>
-                                ${Lms.can('teachers.update') ? `
+                                ${mine && Lms.can('teachers.update') ? `
                                     <button class="btn btn-secondary btn-sm" title="Edit" onclick="TeachersModule.openRegisterTeacherModal('${t.id}')"><i class="fas fa-edit"></i></button>` : ''}
-                                ${Lms.can('teachers.reset_password') ? `
+                                ${mine && Lms.can('teachers.reset_password') ? `
                                     <button class="btn btn-secondary btn-sm" title="Reset password" onclick="TeachersModule.resetPassword('${t.id}')"><i class="fas fa-key"></i></button>` : ''}
-                                ${Lms.can('teachers.deactivate') ? `
+                                ${mine && Lms.can('teachers.deactivate') ? `
                                     <button class="btn btn-secondary btn-sm" title="${t.status === 'INACTIVE' ? 'Activate' : 'Deactivate'}" onclick="TeachersModule.toggleStatus('${t.id}')"><i class="fas ${t.status === 'INACTIVE' ? 'fa-user-check' : 'fa-user-slash'}"></i></button>` : ''}
-                                ${Lms.can('teachers.delete') ? `
+                                ${mine && Lms.can('teachers.delete') ? `
                                     <button class="btn btn-secondary btn-sm" title="Delete" onclick="TeachersModule.deleteTeacher('${t.id}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>` : ''}
                             </div>
                         </div>`;
@@ -124,13 +127,11 @@ const TeachersModule = {
                 <div class="form-group"><label>Highest Sanad / Degree</label><input type="text" id="reg-t-sanad" class="form-control" value="${Lms.esc(d.sanad || d.qualification || '')}"></div>
                 <div class="form-group"><label>Specialization</label><input type="text" id="reg-t-spec" class="form-control" value="${Lms.esc(d.specialization || '')}" placeholder="Hadith, Fiqh, Tajweed..."></div>
                 <div class="form-group"><label>Mobile</label><input type="tel" id="reg-t-phone" class="form-control" value="${Lms.esc(d.phone || '')}"></div>
-                <div class="form-group"><label>Campus</label>
-                    <select id="reg-t-branch" class="form-control">${Lms.branchOptions(d.branchId || Lms.defaultBranchId(), true)}</select>
-                </div>
                 <div class="form-group"><label>Login Email *</label><input type="email" id="reg-t-email" class="form-control" value="${Lms.esc(d.email || '')}" placeholder="name@jamiaashrafia.org"></div>
                 ${window.PermissionGroupsModule ? PermissionGroupsModule.typeSelect('TEACHER', 'reg-t-group', d.permissionGroup) : ''}
                 ${t ? '' : `<div class="form-group"><label>Initial Password *</label>${CopyButton.wrapInput(`<input type="text" id="reg-t-pwd" class="form-control" value="${Lms.esc(this.randomPassword())}">`, 'reg-t-pwd', 'Copy password')}</div>`}
             </div>
+            ${Lms.campusAccessFields('reg-t', t)}
             ${t ? '' : `<div style="font-size: 0.8rem; color: var(--text-muted);">${I18n.t('The teacher signs in with this email and password. Allocate classes and kitabs in {page}.', { page: `<strong>${I18n.t('Classes & Courses')}</strong>` })}</div>`}
             ${t && window.UsersModule ? window.UsersModule.rolePicker(t) : ''}`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -163,7 +164,7 @@ const TeachersModule = {
         const fields = {
             name, designation: desig, email, gender,
             urduName: Lms.val('reg-t-urdu') || name, sanad: Lms.val('reg-t-sanad'), specialization: Lms.val('reg-t-spec'),
-            phone: Lms.val('reg-t-phone'), branchId: Lms.val('reg-t-branch') || null
+            phone: Lms.val('reg-t-phone'), ...Lms.readCampusAccess('reg-t')
         };
         // Additional system roles (e.g. Librarian), when the picker was shown
         const extra = teacherId && window.UsersModule ? window.UsersModule.readRolePicker() : null;

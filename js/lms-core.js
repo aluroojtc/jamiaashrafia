@@ -348,9 +348,13 @@ const Lms = {
         return me.classId ? [me.classId] : [];
     },
 
+    // Grouped by campus for people who work at more than one (the server only sends classes of their campuses)
     classOptions(selectedId, ids) {
         const list = (window.LmsData.classes || []).filter(c => !ids || ids.includes(c.id));
-        return list.map(c => `<option value="${this.esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${this.esc(c.name)} — ${this.esc(c.section || '')}</option>`).join('');
+        const option = c => `<option value="${this.esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${this.esc(c.name)} — ${this.esc(c.section || '')}</option>`;
+        const campuses = Array.from(new Set(list.map(c => c.branchId || '')));
+        if (campuses.length < 2) return list.map(option).join('');
+        return campuses.map(b => `<optgroup label="${this.esc(this.branchName(b) || I18n.t('Campus not set'))}">${list.filter(c => (c.branchId || '') === b).map(option).join('')}</optgroup>`).join('');
     },
 
     courseOptions(selectedId, ids) {
@@ -358,8 +362,10 @@ const Lms = {
         return list.map(c => `<option value="${this.esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${this.esc(c.code)} — ${this.esc(c.title)}</option>`).join('');
     },
 
-    teacherOptions(selectedId, includeNone) {
+    // With a campus: only teachers who work there (the server refuses to place anyone else on a class)
+    teacherOptions(selectedId, includeNone, branchId) {
         return (includeNone ? `<option value="">— Not assigned —</option>` : '') + this.teachers()
+            .filter(t => !branchId || t.id === selectedId || this.worksAtCampus(t, branchId))
             .map(t => `<option value="${this.esc(t.id)}" ${t.id === selectedId ? 'selected' : ''}>${this.esc(t.name)}${t.designation ? ' (' + this.esc(t.designation) + ')' : ''}</option>`).join('');
     },
 
@@ -401,16 +407,105 @@ const Lms = {
     },
 
     // The campus new records start with: the main campus chosen in Institution Setup, else the first one listed
+    // (limited to the campuses of the signed-in person: their home campus first)
     defaultBranchId() {
-        const list = this.branches();
+        const list = this.myBranches().length ? this.myBranches() : this.branches();
+        const home = (window.AuthRBAC.currentUser || {}).branchId;
         const main = (window.LmsData.institution || {}).mainBranchId;
         if (main && list.some(b => b.id === main)) return main;
+        if (home && list.some(b => b.id === home)) return home;
         return list.length ? list[0].id : '';
     },
 
-    branchOptions(selectedId, includeNone) {
-        return (includeNone ? `<option value="">— Not set —</option>` : '') + this.branches()
+    // Campuses the signed-in person may choose (the server checks the same on every record)
+    myBranches() {
+        return this.branches().filter(b => window.AuthRBAC.hasCampus(b.id));
+    },
+
+    branchOptions(selectedId, includeNone, all) {
+        const list = all ? this.branches() : this.myBranches();
+        // A record already at a campus outside the list keeps showing it
+        const extra = selectedId && !list.some(b => b.id === selectedId) ? this.branches().filter(b => b.id === selectedId) : [];
+        return (includeNone ? `<option value="">— Not set —</option>` : '') + list.concat(extra)
             .map(b => `<option value="${this.esc(b.id)}" ${b.id === selectedId ? 'selected' : ''}>${this.esc(b.name)}</option>`).join('');
+    },
+
+    // "All campuses" or the names of an account's campuses (students: their one campus)
+    campusSummary(user) {
+        if (!user) return '';
+        if (user.role === 'SUPER_ADMIN' || (user.role !== 'STUDENT' && user.allCampuses === true)) return I18n.t('All campuses');
+        const ids = user.role === 'STUDENT' ? [user.branchId] : Array.from(new Set([...(user.campusIds || []), user.branchId].filter(Boolean)));
+        return ids.map(id => this.branchName(id) || id).filter(Boolean).join(', ') || '—';
+    },
+
+    /**
+     * Campus access for a staff or teacher account: home campus, "all campuses" and the campuses they work at.
+     * Only campuses the signed-in person has can be given, and "all campuses" only by someone who has all of them.
+     */
+    campusAccessFields(prefix, user) {
+        const u = user || {};
+        const mine = this.myBranches();
+        const canAll = window.AuthRBAC.hasAllCampuses();
+        const all = canAll && (user ? u.allCampuses === true : false);
+        const home = u.branchId && this.branches().some(b => b.id === u.branchId) ? u.branchId : this.defaultBranchId();
+        const held = new Set([...(u.campusIds || []), home].filter(Boolean));
+        const box = b => `<label style="display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 6px 0; font-size: 0.85rem;">
+                <input type="checkbox" class="${prefix}-campus" value="${this.esc(b.id)}" ${held.has(b.id) ? 'checked' : ''} ${all ? 'disabled' : ''}> ${this.esc(b.name)}</label>`;
+        return `
+            <div style="margin-bottom: 16px; padding: 12px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px;">
+                <label class="form-label" style="font-weight: 600; display: block; margin-bottom: 6px;"><i class="fas fa-map-marker-alt"></i> ${I18n.t('Campus access')}</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
+                    <div>
+                        <small style="color: var(--text-muted);">${I18n.t('Home campus')}</small>
+                        <select id="${prefix}-home-campus" class="form-control">${this.branchOptions(home)}</select>
+                    </div>
+                    <div style="display: flex; align-items: flex-end;">
+                        ${canAll ? `<label style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+                            <input type="checkbox" id="${prefix}-all-campuses" ${all ? 'checked' : ''}
+                                onchange="document.querySelectorAll('.${prefix}-campus').forEach(c => { c.disabled = this.checked; })"> ${I18n.t('All campuses')}</label>` : ''}
+                    </div>
+                </div>
+                <small style="color: var(--text-muted); display: block; margin-bottom: 4px;">${I18n.t('Works at these campuses')}</small>
+                <div>${mine.map(box).join('') || `<em>${I18n.t('No campuses are set up yet.')}</em>`}</div>
+            </div>`;
+    },
+
+    readCampusAccess(prefix) {
+        const allBox = document.getElementById(`${prefix}-all-campuses`);
+        const branchId = this.val(`${prefix}-home-campus`) || this.defaultBranchId() || null;
+        if (allBox && allBox.checked) return { branchId, allCampuses: true, campusIds: [] };
+        const ids = Array.from(document.querySelectorAll(`.${prefix}-campus`)).filter(c => c.checked).map(c => c.value);
+        return { branchId, allCampuses: false, campusIds: Array.from(new Set([...ids, branchId].filter(Boolean))) };
+    },
+
+    worksAtCampus(user, branchId) {
+        if (!user) return false;
+        if (user.role === 'SUPER_ADMIN' || (user.role !== 'STUDENT' && user.allCampuses === true)) return true;
+        return user.branchId === branchId || (user.role !== 'STUDENT' && (user.campusIds || []).includes(branchId));
+    },
+
+    // A course with no campuses listed is taught at every campus
+    courseAtCampus(course, branchId) {
+        const ids = (course && course.campusIds) || [];
+        return !ids.length || !branchId || ids.includes(branchId);
+    },
+
+    // Whether the signed-in person has every campus of this account (only then may they change it)
+    managesCampusesOf(user) {
+        if (window.AuthRBAC.hasAllCampuses()) return true;
+        if (!user || user.role === 'SUPER_ADMIN' || (user.role !== 'STUDENT' && user.allCampuses === true)) return false;
+        const ids = user.role === 'STUDENT' ? [user.branchId] : [...(user.campusIds || []), user.branchId];
+        return ids.filter(Boolean).every(id => window.AuthRBAC.hasCampus(id));
+    },
+
+    // Campus filter for lists (only shown to people with more than one campus)
+    campusFilterSelect(id, selected, onchange) {
+        const mine = this.myBranches();
+        if (mine.length < 2) return '';
+        return `<select id="${id}" class="form-control" style="max-width: 240px;" onchange="${onchange}">
+                <option value="">${I18n.t('All my campuses')}</option>
+                ${mine.map(b => `<option value="${this.esc(b.id)}" ${b.id === selected ? 'selected' : ''}>${this.esc(b.name)}</option>`).join('')}
+            </select>`;
     },
 
     // ---------------------------------------------------------------------
