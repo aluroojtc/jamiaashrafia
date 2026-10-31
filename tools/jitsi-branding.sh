@@ -86,7 +86,8 @@ mkdir -p /etc/nginx/snippets
 {
     echo "# Jamia Ashrafia branding for $DOMAIN (tools/jitsi-branding.sh)"
     echo "location = / { return 302 $LMS_URL; }"
-    echo "location /branding/ { alias $BRAND_DIR/; }"
+    # ^~ so Jitsi's /<tenant>/<room> regex location does not take these requests
+    echo "location ^~ /branding/ { alias $BRAND_DIR/; }"
     echo "location = /images/favicon.svg { types { } default_type image/png; alias $BRAND_DIR/favicon.png; }"
     echo "location = /favicon.ico { types { } default_type image/png; alias $BRAND_DIR/favicon.png; }"
     grep -q 'location = /interface_config.js' "$NGINX" || echo "location = /interface_config.js { alias $IFACE; }"
