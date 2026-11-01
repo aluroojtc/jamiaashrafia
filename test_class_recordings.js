@@ -311,6 +311,11 @@ async function run() {
         check('The live classroom sign-in still works for the host', r.status === 200 && typeof r.body.token === 'string' && r.body.isHost === true, r.body);
         r = await as('studentA', 'POST', '/api/virtual-class/join-token', { sessionId: ids.vcA });
         check('… and for an enrolled student', r.status === 200 && typeof r.body.token === 'string' && r.body.isHost === false, r.body);
+        // Jitsi makes moderators only from this flag (tools/prosody/mod_jamia_moderator.lua): hosts yes, students never
+        const claims = t => JSON.parse(Buffer.from(String(t).split('.')[1], 'base64url').toString());
+        check("A student's meeting token does not make them moderator", r.status === 200 && claims(r.body.token).context.user.moderator === false && claims(r.body.token).context.user.affiliation !== 'owner', r.status === 200 ? claims(r.body.token).context.user : r.body);
+        r = await as('teacherA', 'POST', '/api/virtual-class/join-token', { sessionId: ids.vcA });
+        check("The host's meeting token makes them moderator", r.status === 200 && claims(r.body.token).context.user.moderator === true, r.body);
         r = await as('studentB', 'POST', '/api/virtual-class/join-token', { sessionId: ids.vcA });
         check('… and still refuses students of other classes', r.status === 403, r.status);
 
