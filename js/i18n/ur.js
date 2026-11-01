@@ -3303,7 +3303,8 @@ I18n.register('ur', {
     "Create a class in Classes & Courses first.": "پہلے کلاسز و کتب میں کلاس بنائیں۔",
     "Campus and room": "کیمپس اور کمرہ",
     "Removing...": "ہٹایا جا رہا ہے...",
-    "Cleaning...": "صفائی ہو رہی ہے...",
+    "Cleaning...": "صفائی ہو رہی ہے..."
+,
     "Allow": "اجازت دیں",
     "As the type": "قسم کے مطابق",
     "Create Type": "قسم بنائیں",
@@ -3666,5 +3667,11 @@ I18n.register('ur', {
     "People with this role can reach every campus, including campuses added later.": "اس عہدے والے تمام کیمپسز تک رسائی رکھتے ہیں، بعد میں شامل ہونے والے کیمپسز سمیت۔",
     "People with this role can reach only the campuses assigned on their account.": "اس عہدے والے صرف انہی کیمپسز تک رسائی رکھتے ہیں جو ان کے اکاؤنٹ پر مقرر ہیں۔",
     "A role set to \"All locations\" reaches every campus; with \"Own locations only\" this person reaches only the campuses ticked here.": "\"تمام مقامات\" والا عہدہ ہر کیمپس تک رسائی دیتا ہے؛ \"صرف اپنے مقامات\" کی صورت میں یہ شخص صرف یہاں منتخب کیمپسز تک رسائی رکھتا ہے۔",
-    "{n} person(s) hold this role. From now on they reach only the campuses on their account (their home campus, if none are ticked). Continue?": "{n} افراد یہ عہدہ رکھتے ہیں۔ اب سے وہ صرف اپنے اکاؤنٹ پر مقرر کیمپسز تک رسائی رکھیں گے (کوئی منتخب نہ ہو تو صرف اپنا مرکزی کیمپس)۔ جاری رکھیں؟"
+    "{n} person(s) hold this role. From now on they reach only the campuses on their account (their home campus, if none are ticked). Continue?": "{n} افراد یہ عہدہ رکھتے ہیں۔ اب سے وہ صرف اپنے اکاؤنٹ پر مقرر کیمپسز تک رسائی رکھیں گے (کوئی منتخب نہ ہو تو صرف اپنا مرکزی کیمپس)۔ جاری رکھیں؟",
+    "Sign in to join the class": "کلاس میں شامل ہونے کے لیے سائن ان کریں",
+    "Use your portal ID and password. Only students of this class can join.": "اپنی پورٹل آئی ڈی اور پاس ورڈ استعمال کریں۔ صرف اسی کلاس کے طلبہ شامل ہو سکتے ہیں۔",
+    "Roll No, Email or Teacher ID": "رول نمبر، ای میل یا استاد آئی ڈی",
+    "Sign in and join": "سائن ان کریں اور شامل ہوں",
+    "Joining the class...": "کلاس میں شامل ہو رہے ہیں...",
+    "Sign-in failed. Please check your ID and password.": "سائن ان ناکام رہا۔ براہ کرم اپنی آئی ڈی اور پاس ورڈ چیک کریں۔"
 });

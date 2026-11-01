@@ -65,6 +65,81 @@ const LiveRoom = {
         try { sessionStorage.removeItem('JAMIA_AFTER_LOGIN'); } catch (e) { /* storage blocked */ }
     },
 
+    // Signed out (e.g. a student opening a shared class link): a small sign-in box in this tab, then straight into the class
+    async signedIn() {
+        let data = null;
+        try {
+            const res = await fetch('/api/auth/me', { cache: 'no-store' });
+            data = res.ok ? await res.json().catch(() => null) : (res.status === 401 ? {} : null);
+        } catch (e) { /* offline: verifySession reports it */ }
+        if (!data || data.user) return true;
+        localStorage.removeItem('JAMIA_CURRENT_USER_ID');
+        return new Promise(resolve => this.showSignIn(resolve));
+    },
+
+    showSignIn(done) {
+        const box = document.getElementById('jitsi-container');
+        box.innerHTML = `
+            <form class="live-signin" id="live-signin-form" autocomplete="on">
+                <div class="live-signin-head">
+                    <img src="assets/images/crest.png" alt="">
+                    <h2>${Lms.esc(I18n.t('Sign in to join the class'))}</h2>
+                    <p>${Lms.esc(I18n.t('Use your portal ID and password. Only students of this class can join.'))}</p>
+                </div>
+                <label for="live-signin-id">${Lms.esc(I18n.t('ID'))}</label>
+                <input type="text" id="live-signin-id" class="form-control" autocomplete="username" required placeholder="${Lms.esc(I18n.t('Roll No, Email or Teacher ID'))}">
+                <label for="live-signin-password">${Lms.esc(I18n.t('Password'))}</label>
+                <input type="password" id="live-signin-password" class="form-control" autocomplete="current-password" required>
+                <div class="live-signin-error" id="live-signin-error"></div>
+                <button type="submit" class="btn btn-primary" id="live-signin-btn"><i class="fas fa-sign-in-alt"></i> ${Lms.esc(I18n.t('Sign in and join'))}</button>
+            </form>`;
+        document.getElementById('live-actions').innerHTML = '';
+        document.getElementById('live-signin-id').focus();
+        const error = text => {
+            const el = document.getElementById('live-signin-error');
+            el.textContent = I18n.t(text);
+            el.style.display = text ? 'block' : 'none';
+        };
+        document.getElementById('live-signin-form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const btn = document.getElementById('live-signin-btn');
+            const pwd = document.getElementById('live-signin-password');
+            btn.disabled = true;
+            error('');
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: document.getElementById('live-signin-id').value.trim(), password: pwd.value })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success && data.user) {
+                    if (data.language) I18n.remember(data.language);
+                    // A temporary password is changed on the login page first, which then comes back to this class
+                    if (data.mustChangePassword) {
+                        this.rememberForLogin();
+                        location.replace('login.html#change-password');
+                        return;
+                    }
+                    // As login.html: start from a clean copy, nothing cached for a previous user of this browser stays
+                    window.DataStore.clearLocal();
+                    const list = window.LmsData.users = (window.LmsData.users || []).filter(u => u.id !== data.user.id);
+                    list.push(data.user);
+                    window.DataStore.save(window.LmsData);
+                    localStorage.setItem('JAMIA_CURRENT_USER_ID', data.user.id);
+                    box.innerHTML = `<div style="text-align: center;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><div style="margin-top: 10px;">${Lms.esc(I18n.t('Joining the class...'))}</div></div>`;
+                    done(true);
+                    return;
+                }
+                error(data.error || 'Sign-in failed. Please check your ID and password.');
+            } catch (err) {
+                error('The portal server cannot be reached. Please check your connection and try again.');
+            }
+            btn.disabled = false;
+            pwd.value = '';
+            pwd.focus();
+        });
+    },
+
     closeButton() {
         return `<button class="btn btn-secondary" onclick="LiveRoom.closeTab()"><i class="fas fa-times"></i> ${I18n.t('Close this tab')}</button>`;
     },
@@ -115,10 +190,11 @@ const LiveRoom = {
             this.message('fa-video-slash', 'No class chosen', 'Open the live class from Online Classes in the portal.', this.closeButton());
             return;
         }
-        LiveRoom.rememberForLogin();
+        await this.signedIn();
+        this.rememberForLogin();
         const user = await AuthRBAC.verifySession();
-        if (!user) return; // sent to the login page, which comes back here
-        LiveRoom.forgetForLogin();
+        if (!user) return; // sent to the login page (e.g. to change a temporary password), which comes back here
+        this.forgetForLogin();
         if (user === 'offline') {
             this.message('fa-plug', 'The portal server cannot be reached', 'Check your internet connection, then try again.',
                 `<button class="btn btn-gold" onclick="location.reload()"><i class="fas fa-redo"></i> ${I18n.t('Try again')}</button>`);

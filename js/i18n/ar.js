@@ -3303,7 +3303,8 @@ I18n.register('ar', {
     "Create a class in Classes & Courses first.": "أنشئ فصلًا أولًا في الفصول والمقررات.",
     "Campus and room": "الفرع والقاعة",
     "Removing...": "جارٍ الإزالة...",
-    "Cleaning...": "جارٍ التنظيف...",
+    "Cleaning...": "جارٍ التنظيف..."
+,
     "Allow": "سماح",
     "As the type": "حسب النوع",
     "Create Type": "إنشاء النوع",
@@ -3666,5 +3667,11 @@ I18n.register('ar', {
     "People with this role can reach every campus, including campuses added later.": "يصل أصحاب هذا الدور إلى جميع الفروع، بما فيها الفروع التي تُضاف لاحقًا.",
     "People with this role can reach only the campuses assigned on their account.": "لا يصل أصحاب هذا الدور إلا إلى الفروع المحددة في حساباتهم.",
     "A role set to \"All locations\" reaches every campus; with \"Own locations only\" this person reaches only the campuses ticked here.": "الدور المضبوط على \"جميع المواقع\" يصل إلى كل الفروع؛ ومع \"مواقعه فقط\" لا يصل هذا الشخص إلا إلى الفروع المحددة هنا.",
-    "{n} person(s) hold this role. From now on they reach only the campuses on their account (their home campus, if none are ticked). Continue?": "يحمل هذا الدور {n} شخص. من الآن لن يصلوا إلا إلى الفروع المحددة في حساباتهم (فرعهم الرئيسي إن لم يُحدَّد شيء). هل تريد المتابعة؟"
+    "{n} person(s) hold this role. From now on they reach only the campuses on their account (their home campus, if none are ticked). Continue?": "يحمل هذا الدور {n} شخص. من الآن لن يصلوا إلا إلى الفروع المحددة في حساباتهم (فرعهم الرئيسي إن لم يُحدَّد شيء). هل تريد المتابعة؟",
+    "Sign in to join the class": "سجّل الدخول للانضمام إلى الدرس",
+    "Use your portal ID and password. Only students of this class can join.": "استخدم معرّفك وكلمة المرور في البوابة. لا ينضم إلا طلاب هذا الصف.",
+    "Roll No, Email or Teacher ID": "رقم القيد أو البريد الإلكتروني أو معرّف المعلم",
+    "Sign in and join": "سجّل الدخول وانضم",
+    "Joining the class...": "جارٍ الانضمام إلى الدرس...",
+    "Sign-in failed. Please check your ID and password.": "فشل تسجيل الدخول. يرجى التحقق من المعرّف وكلمة المرور."
 });
