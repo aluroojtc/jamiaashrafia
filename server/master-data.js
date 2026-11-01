@@ -369,6 +369,8 @@ async function cleanupRecordings(deps, actorReq) {
             [actorReq && actorReq.auth ? actorReq.auth.id : 'retention', rec.id]
         );
         removeUploadedFile(rec.videoUrl);
+        // Recorded live classes keep their video in the private recordings folder
+        if (rec.source === 'LIVE_RECORDING') require('./class-recordings').removeRecordingFile(rec.id);
     }
     const stored = { ...((await deps.getSetting('recordings', null)) || {}), lastCleanupDate: today };
     await deps.saveSetting('recordings', stored);

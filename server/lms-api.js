@@ -24,6 +24,7 @@ const audit = require('./audit');
 const masterData = require('./master-data');
 const sampleData = require('./sample-data');
 const campus = require('./campus');
+const classRecordings = require('./class-recordings');
 
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -212,6 +213,7 @@ function ensureSchema() {
             await roles.ensureRolesSchema();
             // Existing records get a campus (idempotent; see server/campus.js)
             await campus.migrate(msg => console.log(msg));
+            await classRecordings.ensureSchema();
         })().catch(err => {
             schemaPromise = null;
             throw err;
@@ -524,6 +526,8 @@ async function handleStoreSync(req, res) {
                     `UPDATE lms_records SET deleted = 1, updated_by = ?, updated_at = NOW(3) WHERE collection = ? AND id = ?`,
                     [who.id, collection, id]
                 );
+                // A recorded class's video file goes with its record
+                if (collection === 'virtualClassRecordings') classRecordings.removeRecordingFile(id);
                 if (collection === 'users') {
                     revoke.add(id);
                     await roles.removeUserRoles(conn, id);
@@ -1372,6 +1376,8 @@ async function route(req, res) {
 
     if (p === '/api/virtual-class/verify-access' && m === 'POST') { await handleVirtualVerify(req, res); return true; }
     if (p === '/api/virtual-class/join-token' && m === 'POST') { await handleMeetingToken(req, res); return true; }
+    // Live class recording: start / stop / save or discard, and the protected video stream
+    if (await classRecordings.route(req, res, url, RECORDING_DEPS)) return true;
 
     // Institution setup (branches, programmes, sessions, profile), recording retention, sample data clean-up
     if (await masterData.route(req, res, url, DEPS)) return true;
@@ -1382,6 +1388,11 @@ async function route(req, res) {
 
 // Helpers handed to server/master-data.js and server/sample-data.js
 const DEPS = { sendJson, readJson, can, loadCollection, getSetting, saveSetting, deleteAdmissionNotices };
+// Helpers handed to server/class-recordings.js
+const RECORDING_DEPS = {
+    sendJson, readJson, can, caller, effective, loadCollection, loadRecord, getSetting, newId, insertNotification,
+    decideVirtualAccess, getMeetingSettings, meetingRoomName
+};
 
 // DELETE /api/admissions/:id  removes an application (duplicates, test entries); an enrolled student's account stays
 async function handleAdmissionDelete(req, res, url) {
@@ -1421,6 +1432,11 @@ async function runDailyJobs() {
     await masterData.nightlyCleanup(DEPS);
 }
 
+/** Picks up finished live class recordings from the recorder (started by server.js) */
+function startRecordingWatcher() {
+    return classRecordings.startWatcher(RECORDING_DEPS);
+}
+
 async function handle(req, res) {
     try {
         return await route(req, res);
@@ -1439,4 +1455,4 @@ async function handle(req, res) {
     }
 }
 
-module.exports = { handle, getSetting, saveSetting, ensureSchema, runDailyJobs, deleteAdmissionNotices, campusScope, admissionInCampus, SYNC_COLLECTIONS };
+module.exports = { handle, getSetting, saveSetting, ensureSchema, runDailyJobs, startRecordingWatcher, deleteAdmissionNotices, campusScope, admissionInCampus, SYNC_COLLECTIONS };

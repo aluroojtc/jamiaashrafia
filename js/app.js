@@ -54,6 +54,7 @@ const APP_NAV = [
             { route: 'attendance', icon: 'fas fa-calendar-check', iconColor: 'var(--gold-400)',
                 label: { staff: 'Attendance Monitoring', teacher: 'Faculty Attendance', student: 'My Attendance History' } },
             { route: 'virtual-class', icon: 'fas fa-video', label: 'Zoom Virtual Dars' },
+            { route: 'class-recordings', icon: 'fas fa-film', iconColor: 'var(--gold-400)', label: 'Class Recordings' },
             { route: 'assignments', icon: { staff: 'fas fa-edit', teacher: 'fas fa-clipboard-check', student: 'fas fa-file-upload' },
                 label: { staff: 'Assignments & Checking', teacher: 'Assignments & Grading', student: 'Assignments & Submissions' } },
             { route: 'exams', icon: 'fas fa-award', label: { staff: 'Exams & Wifaq Sanad', teacher: 'Exams & Online Marking', student: 'Exams & Sanad Results' } },
@@ -374,6 +375,15 @@ const App = {
             history.replaceState(null, '', '#roles');
         }
         const leavingRoute = this.currentRoute;
+        // Leaving the live class while recording: stop the recording first, while the meeting can still receive it
+        if (leavingRoute === 'virtual-class' && route !== 'virtual-class' && window.VirtualClassModule?.recording) {
+            history.replaceState(null, '', '#virtual-class');
+            window.VirtualClassModule.stopRecording().then(() => {
+                history.replaceState(null, '', `#${route}`);
+                this.navigate(route, opts);
+            });
+            return;
+        }
         this.currentRoute = route;
         if (leavingRoute === 'virtual-class' && route !== 'virtual-class' && window.VirtualClassModule && window.VirtualClassModule.onLeaveRoute) {
             window.VirtualClassModule.onLeaveRoute();
@@ -480,6 +490,9 @@ const App = {
             case 'virtual-class':
                 viewport.innerHTML = window.VirtualClassModule.render();
                 window.VirtualClassModule.initAfterRender();
+                break;
+            case 'class-recordings':
+                viewport.innerHTML = window.ClassRecordingsModule.render();
                 break;
             case 'notifications':
                 viewport.innerHTML = window.NotificationsModule.render();

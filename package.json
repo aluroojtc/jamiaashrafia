@@ -13,6 +13,7 @@
     "migrate:campuses": "node database/migrate-campuses.js",
     "test:security": "node test_auth_security.js",
     "test:campus": "node test_campus_access.js",
+    "test:recordings": "node test_class_recordings.js",
     "i18n:check": "node tools/i18n-check.js"
   },
   "keywords": [

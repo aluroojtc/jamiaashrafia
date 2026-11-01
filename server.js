@@ -814,7 +814,9 @@ const PUBLIC_API = new Set([
     'GET /api/branches',
     'GET /api/departments',
     'GET /api/programs',
-    'GET /api/sessions'
+    'GET /api/sessions',
+    // The recorder's finalize script on this server asks the LMS to pick up a finished recording
+    'POST /api/class-recordings/scan'
 ]);
 // While previewing a role, nothing can be changed; only these are reachable besides reading
 const PREVIEW_ALLOWED = new Set(['DELETE /api/preview', 'POST /api/auth/logout', 'POST /api/auth/language']);
@@ -940,5 +942,7 @@ server.listen(PORT, () => {
     const daily = () => lmsApi.runDailyJobs().catch(err => console.warn('[Jobs] Daily jobs failed:', err.message));
     setTimeout(daily, 60 * 1000).unref();
     setInterval(daily, 6 * 60 * 60 * 1000).unref();
+    // Finished live class recordings are collected from the recorder's folder
+    lmsApi.startRecordingWatcher();
 });
 

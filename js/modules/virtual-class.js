@@ -586,7 +586,8 @@ const VirtualClassModule = {
                         </div>
                         ${session.dayRoom ? `<div style="margin-top: 10px;">${this.renderDaySchedule(session, session.status === 'LIVE')}</div>` : ''}
                     </div>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                        ${this.canRecord(session) ? `<span id="vc-rec-controls" style="display: inline-flex; gap: 8px; align-items: center;">${this.recordingControlsHtml()}</span>` : ''}
                         <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()"><i class="fas fa-link"></i> Copy Link</button>
                         ${isHost && session.status === 'LIVE' ? `<button class="btn btn-danger btn-sm" onclick="VirtualClassModule.endSession('${Lms.esc(session.id)}')"><i class="fas fa-stop-circle"></i> End Class for Everyone</button>` : ''}
                         <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.leaveClass()"><i class="fas fa-sign-out-alt"></i> Leave</button>
@@ -1455,6 +1456,11 @@ const VirtualClassModule = {
     openVideoPlayer(recId) {
         const recording = (window.LmsData?.virtualClassRecordings || []).find(r => r.id === recId);
         if (!recording) return;
+        // Recorded live classes stream from the protected endpoint, in the Class Recordings player
+        if (recording.source === 'LIVE_RECORDING' && window.ClassRecordingsModule) {
+            window.ClassRecordingsModule.openPlayer(recId);
+            return;
+        }
         if (!recording.videoUrl && recording.externalUrl) {
             window.open(recording.externalUrl, '_blank', 'noopener');
             return;
@@ -1697,7 +1703,12 @@ const VirtualClassModule = {
                     prejoinConfig: { enabled: false },
                     startWithAudioMuted: !this.isHost,
                     startWithVideoMuted: !this.isHost,
-                    disableDeepLinking: true
+                    disableDeepLinking: true,
+                    // Jitsi's own record button runs the portal's Start / Stop Recording instead, and a host
+                    // hanging up stops the recording first (once out of the meeting it can no longer be stopped)
+                    buttonsWithNotifyClick: this.isHost
+                        ? [{ key: 'recording', preventExecution: true }, { key: 'hangup', preventExecution: true }]
+                        : []
                 },
                 interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
             });
@@ -1710,6 +1721,14 @@ const VirtualClassModule = {
                 if (session.passcode) api.executeCommand('password', session.passcode);
             });
             api.addListener('readyToClose', () => this.leaveClass());
+            api.addListener('recordingStatusChanged', e => this.onRecordingStatus(e));
+            api.addListener('toolbarButtonClicked', async e => {
+                if (e && e.key === 'recording') this.recording ? this.stopRecording() : this.startRecording();
+                if (e && e.key === 'hangup') {
+                    if (this.recording) await this.stopRecording();
+                    try { api.executeCommand('hangup'); } catch (err) { this.leaveClass(); }
+                }
+            });
         } catch (err) {
             container.innerHTML = `
                 <div style="text-align: center; padding: 20px; max-width: 520px;">
@@ -1727,8 +1746,158 @@ const VirtualClassModule = {
         }
     },
 
+    // =========================================================================
+    // 8a. RECORDING THE LIVE CLASS (Jibri on the school's Jitsi server; see server/class-recordings.js)
+    // Starts only when the host presses Start Recording; stops on Stop Recording or when the class ends,
+    // then asks Save Recording / Do Not Save (ClassRecordingsModule.openDecision).
+    // =========================================================================
+    recording: null, // { captureId, sessionId, state: 'starting' | 'on' | 'stopping', since }
+    _recTimer: null,
+
+    canRecord(session) {
+        return !!session && this.isHost && this.canEmbed() && this.meetingConfig.authMode !== 'JAAS'
+            && !(session.platform === 'EXTERNAL' && session.externalUrl) && window.AuthRBAC.can('recordings.manage');
+    },
+
+    recordingControlsHtml() {
+        const r = this.recording;
+        if (!r) {
+            return `<button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.startRecording()" title="Record this class on the school's server">
+                <i class="fas fa-circle" style="color: #dc2626;"></i> Start Recording</button>`;
+        }
+        if (r.state === 'starting') {
+            return `<button class="btn btn-secondary btn-sm" disabled><i class="fas fa-spinner fa-spin"></i> Starting recording...</button>
+                <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.stopRecording()" title="Cancel"><i class="fas fa-times"></i></button>`;
+        }
+        if (r.state === 'stopping') return `<button class="btn btn-secondary btn-sm" disabled><i class="fas fa-spinner fa-spin"></i> Stopping...</button>`;
+        const secs = Math.max(0, Math.floor((Date.now() - r.since) / 1000));
+        const clock = `${Math.floor(secs / 3600) ? Math.floor(secs / 3600) + ':' : ''}${String(Math.floor((secs % 3600) / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
+        return `<span class="status-pill danger" style="animation: pulse 2s infinite;"><i class="fas fa-circle"></i> REC <span id="vc-rec-clock">${clock}</span></span>
+            <button class="btn btn-danger btn-sm" onclick="VirtualClassModule.stopRecording()"><i class="fas fa-stop"></i> Stop Recording</button>`;
+    },
+
+    refreshRecordingControls() {
+        const el = document.getElementById('vc-rec-controls');
+        if (el) el.innerHTML = this.recordingControlsHtml();
+        clearInterval(this._recTimer);
+        if (this.recording && this.recording.state === 'on') {
+            this._recTimer = setInterval(() => {
+                const c = document.getElementById('vc-rec-controls');
+                if (!c || !this.recording) { clearInterval(this._recTimer); return; }
+                c.innerHTML = this.recordingControlsHtml();
+            }, 1000);
+        }
+    },
+
+    async startRecording() {
+        const session = this.activeSession;
+        if (!session || !this.jitsiApi) return;
+        if (!this.canRecord(session)) {
+            window.App?.showToast('Your role is not allowed to record classes.', 'warning');
+            return;
+        }
+        if (this.recording) return;
+        this.recording = { captureId: null, sessionId: session.id, state: 'starting', since: Date.now() };
+        this.refreshRecordingControls();
+        try {
+            const data = await Lms.api('POST', '/api/class-recordings/start', { sessionId: session.id });
+            if (!this.recording) return; // cancelled meanwhile
+            this.recording.captureId = data.capture.id;
+            this.jitsiApi.executeCommand('startRecording', { mode: 'file' });
+            // The recorder answers through recordingStatusChanged; no answer means it is not running
+            clearTimeout(this._recStartTimeout);
+            this._recStartTimeout = setTimeout(() => {
+                if (this.recording && this.recording.state === 'starting') this.recordingFailed('The recorder did not respond. Recording is not available right now.');
+            }, 90 * 1000);
+        } catch (e) {
+            this.recording = null;
+            this.refreshRecordingControls();
+            window.App?.showToast(e.message, 'error');
+        }
+    },
+
+    onRecordingStatus(e) {
+        if (!e || (e.mode && e.mode !== 'file')) return;
+        const r = this.recording;
+        if (e.on) {
+            if (r && r.state === 'starting') {
+                clearTimeout(this._recStartTimeout);
+                Object.assign(r, { state: 'on', since: Date.now() });
+                this.refreshRecordingControls();
+                window.App?.showToast('Recording started. Everyone in the class sees that it is being recorded.', 'success');
+            }
+            return;
+        }
+        if (!r) return;
+        if (r.state === 'starting') {
+            const reasons = {
+                busy: 'The recorder is busy with another class. Try again later.',
+                'service-unavailable': 'The recorder is not available on the server right now.',
+                unavailable: 'The recorder is not available on the server right now.'
+            };
+            this.recordingFailed(reasons[e.error] || (e.error ? I18n.t('Recording could not start ({error}).', { error: e.error }) : 'Recording could not start.'));
+        } else if (r.state === 'on') {
+            // Stopped from inside the meeting, or the recorder ended it
+            this.stopRecording({ alreadyStopped: true });
+        }
+    },
+
+    async recordingFailed(message) {
+        const r = this.recording;
+        clearTimeout(this._recStartTimeout);
+        this.recording = null;
+        this.refreshRecordingControls();
+        window.App?.showToast(message, 'error');
+        if (r && r.captureId) {
+            try { this.jitsiApi && this.jitsiApi.executeCommand('stopRecording', 'file'); } catch (err) { /* nothing running */ }
+            Lms.api('POST', `/api/class-recordings/${encodeURIComponent(r.captureId)}/fail`, { error: message }).catch(() => {});
+        }
+    },
+
+    /** Stops the recording (button, class ended, or the host leaving) and asks Save Recording / Do Not Save. */
+    async stopRecording(opts = {}) {
+        const r = this.recording;
+        if (!r || r.state === 'stopping') return;
+        clearTimeout(this._recStartTimeout);
+        if (r.state === 'starting' && !r.captureId) {
+            this.recording = null;
+            this.refreshRecordingControls();
+            return;
+        }
+        if (r.state === 'starting') {
+            // Never started: nothing to save
+            await this.recordingFailed('Recording cancelled.');
+            return;
+        }
+        r.state = 'stopping';
+        this.refreshRecordingControls();
+        if (!opts.alreadyStopped && this.jitsiApi) {
+            try { this.jitsiApi.executeCommand('stopRecording', 'file'); } catch (e) { /* the meeting already closed */ }
+        }
+        let capture = null;
+        try {
+            capture = (await Lms.api('POST', `/api/class-recordings/${encodeURIComponent(r.captureId)}/stop`)).capture;
+        } catch (e) {
+            window.App?.showToast(e.message, 'error');
+        }
+        this.recording = null;
+        this.refreshRecordingControls();
+        if (capture) window.ClassRecordingsModule?.openDecision(capture);
+    },
+
+    // Closing the browser tab while recording: stop it on the server; the decision waits in Class Recordings
+    onPageUnload(e) {
+        const r = VirtualClassModule.recording;
+        if (!r || !r.captureId || r.state !== 'on') return;
+        try { VirtualClassModule.jitsiApi && VirtualClassModule.jitsiApi.executeCommand('stopRecording', 'file'); } catch (err) { /* closing */ }
+        navigator.sendBeacon(`/api/class-recordings/${encodeURIComponent(r.captureId)}/stop`);
+        e.preventDefault();
+        e.returnValue = '';
+    },
+
     // Called by the router when the user leaves the Online Classes page
     onLeaveRoute() {
+        if (this.recording) this.stopRecording();
         this.disposeMeeting();
         if (this.currentTab === 'studio') this.currentTab = 'lobby';
     },
@@ -1750,9 +1919,11 @@ const VirtualClassModule = {
         this.enterClassroom(sessionId);
     },
 
-    endSession(sessionId) {
+    async endSession(sessionId) {
         const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
         if (!session || !confirm('End this class for everyone? Students will no longer be able to join.')) return;
+        // The class ending stops its recording (and asks whether to save it)
+        if (this.recording) await this.stopRecording();
         Object.assign(session, { status: 'COMPLETED', isLive: false, endedAt: new Date().toISOString() });
         session.attendanceCount = new Set((window.LmsData.attendance || []).filter(a => a.session === 'VIRTUAL_CLASS' && a.virtualSessionId === session.id && a.role === 'STUDENT').map(a => a.userId)).size;
         window.DataStore.save(window.LmsData);
@@ -1813,7 +1984,8 @@ const VirtualClassModule = {
         );
     },
 
-    leaveClass() {
+    async leaveClass() {
+        if (this.recording) await this.stopRecording();
         this.disposeMeeting();
         this.activeSession = null;
         this.switchTab('lobby');
@@ -1874,3 +2046,4 @@ const VirtualClassModule = {
 };
 
 window.VirtualClassModule = VirtualClassModule;
+window.addEventListener('beforeunload', e => VirtualClassModule.onPageUnload(e));
