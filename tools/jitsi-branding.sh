@@ -20,6 +20,10 @@ BG="#0a333d"   # --primary-900 in css/main.css
 
 [[ $EUID -eq 0 ]] || { echo "Run with sudo."; exit 1; }
 [[ "$LMS_URL" =~ ^https?:// ]] || { echo "Usage: sudo bash $0 https://your-lms-address"; exit 1; }
+LMS_URL="${LMS_URL%/}"
+# The address must be the real portal: meeting links without a token are sent there
+LMS_HOST="$(echo "$LMS_URL" | sed -E 's#^https?://([^/:]+).*#\1#')"
+getent hosts "$LMS_HOST" >/dev/null || { echo "$LMS_HOST does not resolve. Give the address students open the portal with."; exit 1; }
 
 CONFIG="/etc/jitsi/meet/$DOMAIN-config.js"
 IFACE="/etc/jitsi/meet/$DOMAIN-interface_config.js"
