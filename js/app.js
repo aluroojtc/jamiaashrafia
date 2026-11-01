@@ -78,19 +78,23 @@ const App = {
 
     toggleNavSubmenu(id) {
         const submenu = document.getElementById('submenu-' + id);
-        const caret = document.getElementById('caret-' + id);
         if (!submenu) return;
         const isClosed = submenu.style.display === 'none' || (!submenu.classList.contains('open') && submenu.style.display !== 'flex');
-        if (isClosed) {
-            submenu.style.display = 'flex';
-            submenu.classList.add('open');
-            if (caret) caret.style.transform = 'rotate(180deg)';
-        } else {
-            submenu.style.display = 'none';
-            submenu.classList.remove('open');
-            if (caret) caret.style.transform = 'rotate(0deg)';
-        }
-        this.openSubmenus[id] = isClosed;
+        this.setNavSubmenu(id, isClosed);
+    },
+
+    // Only one sidebar group is open at a time: opening one collapses the others
+    setNavSubmenu(id, open) {
+        document.querySelectorAll('.nav-submenu-list[id^="submenu-"]').forEach(submenu => {
+            const group = submenu.id.replace('submenu-', '');
+            const isOpen = open && group === id;
+            if (group !== id && !open) return;
+            submenu.style.display = isOpen ? 'flex' : 'none';
+            submenu.classList.toggle('open', isOpen);
+            const caret = document.getElementById('caret-' + group);
+            if (caret) caret.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+            this.openSubmenus[group] = isOpen;
+        });
     },
 
     /**
@@ -339,7 +343,7 @@ const App = {
                         parts.push(link({ ...kids[0], icon: item.icon, iconColor: kids[0].iconColor, label: item.label }));
                         return;
                     }
-                    const open = !!this.openSubmenus[item.group] || kids.some(k => k.route === this.currentRoute);
+                    const open = this.openSubmenus[item.group] ?? kids.some(k => k.route === this.currentRoute);
                     parts.push(`
                         <div class="nav-group-wrapper">
                             <div class="nav-item nav-parent-item ${kids.some(k => k.route === this.currentRoute) ? 'active' : ''}"
@@ -391,23 +395,16 @@ const App = {
             }
         });
 
-        // Synchronize submenu parents (Users & Roles, Students Management, Teachers): open the one holding this page
+        // Synchronize submenu parents (Users & Roles, Students Management, Teachers): open the one holding this page,
+        // and collapse them all when the page is a plain menu link
+        let routeGroup = null;
         document.querySelectorAll('.nav-parent-item[data-group-routes]').forEach(parentNav => {
             const group = parentNav.id.replace('parent-nav-', '');
-            if (parentNav.dataset.groupRoutes.split(' ').includes(route)) {
-                parentNav.classList.add('active');
-                const submenu = document.getElementById('submenu-' + group);
-                const caret = document.getElementById('caret-' + group);
-                if (submenu) {
-                    submenu.style.display = 'flex';
-                    submenu.classList.add('open');
-                    if (caret) caret.style.transform = 'rotate(180deg)';
-                    this.openSubmenus[group] = true;
-                }
-            } else {
-                parentNav.classList.remove('active');
-            }
+            const holdsRoute = parentNav.dataset.groupRoutes.split(' ').includes(route);
+            parentNav.classList.toggle('active', holdsRoute);
+            if (holdsRoute) routeGroup = group;
         });
+        this.setNavSubmenu(routeGroup, true);
 
         const viewport = document.getElementById('main-content-viewport');
         if (!viewport) return;
