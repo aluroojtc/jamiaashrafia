@@ -786,8 +786,15 @@
             localStorage.setItem('JAMIA_CURRENT_USER_ID', user.id);
 
             showToast(I18n.t('Welcome! Signing in to {role} Dashboard...', { role: I18n.translateText(roleTitleOf(user.role)) }), 'success');
+            // Opened from a class link: back to that class (only the portal's own live class page)
+            let next = 'index.html#dashboard';
+            try {
+                const back = sessionStorage.getItem('JAMIA_AFTER_LOGIN') || '';
+                sessionStorage.removeItem('JAMIA_AFTER_LOGIN');
+                if (/^live\.html\?(session|room)=[A-Za-z0-9_%-]+$/.test(back)) next = back;
+            } catch (e) { /* storage blocked */ }
             setTimeout(() => {
-                window.location.href = 'index.html#dashboard';
+                window.location.href = next;
             }, 600);
         }
 

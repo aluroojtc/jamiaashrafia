@@ -49,6 +49,14 @@ config.disableDeepLinking = true;
 config.deeplinking = { disabled: true };
 // Invite links cannot be used: joining needs a token issued by the LMS
 config.disableInviteFunctions = true;
+// A bare room link (no token) goes to the LMS, which signs the person in and opens the class with a token.
+// Jibri (iAmRecorder in the link) signs in with its own account and stays.
+(function () {
+    var room = location.pathname.replace(/^\//, '');
+    if (/^JamiaAshrafia[A-Za-z0-9]+$/i.test(room) && !/[?&]jwt=/.test(location.search) && !/iAmRecorder=true/.test(location.hash)) {
+        location.replace('$LMS_URL/live.html?room=' + encodeURIComponent(room));
+    }
+})();
 // END JAMIA BRANDING
 EOF
 

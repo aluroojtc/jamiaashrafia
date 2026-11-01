@@ -41,6 +41,8 @@ window.App = App;
 
 const LiveRoom = {
     sessionId: new URLSearchParams(location.search).get('session') || '',
+    // A plain meeting link (meet.<domain>/<room>) opened without the portal: the meeting server sends it here
+    room: new URLSearchParams(location.search).get('room') || '',
 
     message(icon, title, text, buttons = '') {
         const box = document.getElementById('jitsi-container');
@@ -52,6 +54,15 @@ const LiveRoom = {
                 <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">${buttons}</div>
             </div>`;
         document.getElementById('live-actions').innerHTML = '';
+    },
+
+    // Signing in from this tab comes back to this class (login.html reads it; the tab's own storage)
+    rememberForLogin() {
+        try { sessionStorage.setItem('JAMIA_AFTER_LOGIN', `live.html${location.search}`); } catch (e) { /* storage blocked */ }
+    },
+
+    forgetForLogin() {
+        try { sessionStorage.removeItem('JAMIA_AFTER_LOGIN'); } catch (e) { /* storage blocked */ }
     },
 
     closeButton() {
@@ -68,11 +79,18 @@ const LiveRoom = {
     async verify() {
         for (let attempt = 0; attempt < 8; attempt++) {
             const res = await fetch('/api/virtual-class/verify-access', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: this.sessionId }), cache: 'no-store'
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.sessionId ? { sessionId: this.sessionId } : { room: this.room }), cache: 'no-store'
             });
             const data = await res.json().catch(() => ({}));
-            if (res.ok && data.authorized) return { ok: true, session: data.session, isHost: !!data.isHost };
-            if (res.status !== 404) return { ok: false, message: data.message || data.error || 'You cannot join this class.' };
+            if (res.ok && data.authorized) {
+                // From here on the tab is this class's own tab
+                if (!this.sessionId && data.session?.id) {
+                    this.sessionId = data.session.id;
+                    history.replaceState(null, '', `live.html?session=${encodeURIComponent(this.sessionId)}`);
+                }
+                return { ok: true, session: data.session, isHost: !!data.isHost };
+            }
+            if (res.status !== 404 || !this.sessionId) return { ok: false, message: data.message || data.error || 'You cannot join this class.' };
             await new Promise(r => setTimeout(r, 2000));
         }
         return { ok: false, message: 'This online class could not be found. It may have been removed.' };
@@ -93,12 +111,14 @@ const LiveRoom = {
     },
 
     async start() {
-        if (!this.sessionId) {
+        if (!this.sessionId && !this.room) {
             this.message('fa-video-slash', 'No class chosen', 'Open the live class from Online Classes in the portal.', this.closeButton());
             return;
         }
+        LiveRoom.rememberForLogin();
         const user = await AuthRBAC.verifySession();
-        if (!user) return; // sent to the login page
+        if (!user) return; // sent to the login page, which comes back here
+        LiveRoom.forgetForLogin();
         if (user === 'offline') {
             this.message('fa-plug', 'The portal server cannot be reached', 'Check your internet connection, then try again.',
                 `<button class="btn btn-gold" onclick="location.reload()"><i class="fas fa-redo"></i> ${I18n.t('Try again')}</button>`);

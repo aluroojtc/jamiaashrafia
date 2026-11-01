@@ -1658,6 +1658,8 @@ const VirtualClassModule = {
                     startWithAudioMuted: !this.isHost,
                     startWithVideoMuted: !this.isHost,
                     disableDeepLinking: true,
+                    // Jitsi's own invite shares the bare meeting link, which needs a sign-in token; Copy Link gives the portal's
+                    disableInviteFunctions: true,
                     // Jitsi's own record button runs the portal's Start / Stop Recording instead, and a host
                     // hanging up stops the recording first (once out of the meeting it can no longer be stopped)
                     buttonsWithNotifyClick: this.isHost
@@ -1929,9 +1931,11 @@ const VirtualClassModule = {
 
     copyMeetingLink() {
         const session = this.activeSession || {};
+        // The portal's class link: it signs the person in and checks the class before the meeting opens
+        // (a bare meeting-server link has no sign-in token, so the meeting server refuses it)
         const url = session.platform === 'EXTERNAL' && session.externalUrl
             ? session.externalUrl
-            : `https://${this.meetingDomain()}/${this.roomPath(session)}`;
+            : new URL(this.liveRoomUrl(session), location.href).href;
         navigator.clipboard.writeText(url).then(
             () => window.App?.showToast('Meeting link copied', 'success'),
             () => window.App?.showToast(url, 'info')

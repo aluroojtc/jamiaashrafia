@@ -9,6 +9,8 @@
     <!-- Signed-out visitors go to the login page; the server checks the session on every request anyway -->
     <script>
         if (!localStorage.getItem('JAMIA_CURRENT_USER_ID')) {
+            // After signing in, login.html brings this tab back to the class
+            try { sessionStorage.setItem('JAMIA_AFTER_LOGIN', 'live.html' + location.search); } catch (e) {}
             window.location.replace('login.html');
         }
     </script>
@@ -75,8 +77,8 @@
     <script src="js/data.js?v=8.0"></script>
     <script src="js/auth-rbac.js?v=8.1"></script>
     <script src="js/lms-core.js?v=8.1"></script>
-    <script src="js/modules/virtual-class.js?v=8.2"></script>
+    <script src="js/modules/virtual-class.js?v=8.3"></script>
     <script src="js/modules/class-recordings.js?v=8.5"></script>
-    <script src="js/live-room.js?v=1.0"></script>
+    <script src="js/live-room.js?v=1.1"></script>
 </body>
 </html>

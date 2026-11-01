@@ -313,6 +313,18 @@ async function run() {
         check('… and for an enrolled student', r.status === 200 && typeof r.body.token === 'string' && r.body.isHost === false, r.body);
         r = await as('studentB', 'POST', '/api/virtual-class/join-token', { sessionId: ids.vcA });
         check('… and still refuses students of other classes', r.status === 403, r.status);
+
+        // --- A bare meeting link (meet.<domain>/<room>) comes back to the portal as live.html?room=<room>
+        r = await as('studentA', 'POST', '/api/virtual-class/verify-access', { room: roomOf(sessionA) });
+        check('A room link opens its class for an enrolled student', r.status === 200 && r.body.session && r.body.session.id === ids.vcA && r.body.isHost === false, r.body);
+        r = await as('teacherA', 'POST', '/api/virtual-class/verify-access', { room: roomOf(sessionA).toUpperCase() });
+        check('… and for the host, whatever the letter case', r.status === 200 && r.body.isHost === true, r.body);
+        r = await as('studentB', 'POST', '/api/virtual-class/verify-access', { room: roomOf(sessionA) });
+        check('… but not for students of other classes', r.status === 403, r.status);
+        r = await request('POST', '/api/virtual-class/verify-access', { body: { room: roomOf(sessionA) } });
+        check('… nor for signed-out visitors', r.status === 401, r.status);
+        r = await as('studentA', 'POST', '/api/virtual-class/verify-access', { room: 'JamiaAshrafiaNoSuchRoom' });
+        check('An unknown room link is not found', r.status === 404, r.status);
     } catch (err) {
         failed++;
         console.error('[ERROR]', err);

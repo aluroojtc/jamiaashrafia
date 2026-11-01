@@ -993,7 +993,14 @@ async function decideVirtualAccess(req, sessionId) {
 
 async function handleVirtualVerify(req, res) {
     const body = await readJson(req);
-    const d = await decideVirtualAccess(req, body.sessionId);
+    // A plain meeting link (meet.<domain>/<room>) is sent here by the meeting server; find its class by room name
+    let sessionId = body.sessionId;
+    if (!sessionId && body.room && caller(req).id) {
+        const room = String(body.room).toLowerCase();
+        const found = (await loadCollection('virtualClasses')).find(s => s && s.id && meetingRoomName(s).toLowerCase() === room);
+        if (found) sessionId = found.id;
+    }
+    const d = await decideVirtualAccess(req, sessionId);
     if (d.status === 200) {
         sendJson(res, 200, { status: 'success', authorized: true, isHost: d.isHost, session: d.session });
         return;
