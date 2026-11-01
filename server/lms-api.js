@@ -491,6 +491,8 @@ async function handleStoreSync(req, res) {
                         : extraBefore);
                     delete record.additionalRoles;
                     if (record.role !== 'SUPER_ADMIN' || !existing) await roles.setUserRoles(conn, id, groupAfter || record.role, extraAfter, who.id);
+                    // "Every campus" follows the roles (all locations / own locations only)
+                    roles.applyCampusScope(record);
                     rolesChange = JSON.stringify(extraBefore.slice().sort()) !== JSON.stringify(extraAfter.slice().sort()) ? { before: extraBefore, after: extraAfter } : null;
                     if (existing && groupBefore !== groupAfter) rolesChange = { ...(rolesChange || {}), group: { before: groupBefore, after: groupAfter } };
                     allUsers = allUsers.filter(u => u.id !== id).concat(record);

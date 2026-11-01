@@ -3654,5 +3654,17 @@ I18n.register('ur', {
     "Recording saved. Students of the class have been notified.": "ریکارڈنگ محفوظ ہو گئی۔ جماعت کے طلبہ کو اطلاع دے دی گئی ہے۔",
     "Recording started. Everyone in the class sees that it is being recorded.": "ریکارڈنگ شروع ہو گئی۔ سبق میں موجود سب کو معلوم ہے کہ ریکارڈنگ ہو رہی ہے۔",
     "Resuming from {time}": "{time} سے جاری",
-    "Recording could not start ({error}).": "ریکارڈنگ شروع نہیں ہو سکی ({error})۔"
+    "Recording could not start ({error}).": "ریکارڈنگ شروع نہیں ہو سکی ({error})۔",
+    "Location access": "مقامات تک رسائی",
+    "All locations": "تمام مقامات",
+    "Own locations only": "صرف اپنے مقامات",
+    "Set on each account": "ہر اکاؤنٹ پر الگ",
+    "Locations": "مقامات",
+    "All location access": "ہر قسم کی رسائی",
+    "All locations (from role)": "تمام مقامات (عہدے کی طرف سے)",
+    "Only someone with access to every location can choose this.": "یہ صرف وہی منتخب کر سکتا ہے جسے تمام مقامات تک رسائی ہو۔",
+    "People with this role can reach every campus, including campuses added later.": "اس عہدے والے تمام کیمپسز تک رسائی رکھتے ہیں، بعد میں شامل ہونے والے کیمپسز سمیت۔",
+    "People with this role can reach only the campuses assigned on their account.": "اس عہدے والے صرف انہی کیمپسز تک رسائی رکھتے ہیں جو ان کے اکاؤنٹ پر مقرر ہیں۔",
+    "A role set to \"All locations\" reaches every campus; with \"Own locations only\" this person reaches only the campuses ticked here.": "\"تمام مقامات\" والا عہدہ ہر کیمپس تک رسائی دیتا ہے؛ \"صرف اپنے مقامات\" کی صورت میں یہ شخص صرف یہاں منتخب کیمپسز تک رسائی رکھتا ہے۔",
+    "{n} person(s) hold this role. From now on they reach only the campuses on their account (their home campus, if none are ticked). Continue?": "{n} افراد یہ عہدہ رکھتے ہیں۔ اب سے وہ صرف اپنے اکاؤنٹ پر مقرر کیمپسز تک رسائی رکھیں گے (کوئی منتخب نہ ہو تو صرف اپنا مرکزی کیمپس)۔ جاری رکھیں؟"
 });

@@ -26,12 +26,15 @@ const db = require('../database/db');
 const catalog = require('./permissions');
 const audit = require('./audit');
 const auth = require('./auth');
+const campus = require('./campus');
 
 const SUPER_ADMIN = 'SUPER_ADMIN';
 const CORE_ROLE_IDS = Object.keys(catalog.SYSTEM_ROLES);
 const GROUP_DOMAINS = ['STUDENT', 'TEACHER'];
 const ROLE_ID_PATTERN = /^[A-Z][A-Z0-9_]{1,59}$/;
 const BADGES = ['gold', 'primary', 'success', 'info', 'warning'];
+// Location access of a role: every campus, or only the campuses on the person's account
+const CAMPUS_SCOPES = ['ALL', 'OWN'];
 
 // Module switches each role had by default before roles were stored in the database
 const LEGACY_DEFAULT_MODULES = {
@@ -118,6 +121,7 @@ async function ensureRolesSchema() {
     await seedTemplatesOnce();
     await backfillAssignments();
     await load();
+    await settleCampusScopes();
     // Another server process (or a direct database change) may edit roles; pick that up within seconds
     if (!reloadTimer) reloadTimer = setInterval(() => load().catch(() => {}), 15000);
     if (reloadTimer.unref) reloadTimer.unref();
@@ -135,6 +139,13 @@ async function ensureDomainSchema() {
         await db.query(`ALTER TABLE roles ADD COLUMN domain VARCHAR(16) NOT NULL DEFAULT 'SYSTEM' AFTER scope`);
         await db.query(`ALTER TABLE roles ADD INDEX idx_roles_domain (domain)`);
         console.log('[Roles] Added roles.domain (system roles, student types and teacher types are now separate)');
+    }
+    const [campusCol] = await db.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'roles' AND column_name = 'campus_scope'`
+    );
+    if (!campusCol.length) {
+        await db.query(`ALTER TABLE roles ADD COLUMN campus_scope VARCHAR(8) NULL AFTER scope`);
+        console.log('[Roles] Added roles.campus_scope (location access: all locations or own locations only)');
     }
     await db.query(`UPDATE roles SET domain = 'STUDENT' WHERE id = 'STUDENT' AND domain <> 'STUDENT'`);
     await db.query(`UPDATE roles SET domain = 'TEACHER' WHERE id = 'TEACHER' AND domain <> 'TEACHER'`);
@@ -280,9 +291,10 @@ async function insertRole(role, permissions, by) {
     // The built-in Student and Teacher roles are the default groups of their domains; everything else is SYSTEM
     const domain = role.domain || (GROUP_DOMAINS.includes(role.id) ? role.id : 'SYSTEM');
     await db.query(
-        `INSERT INTO roles (id, name, urdu_title, badge_class, description, scope, domain, is_system, status, version, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?)`,
-        [role.id, role.name, role.urduTitle || '', role.badgeClass || 'info', role.description || '', role.scope || 'ALL', domain, role.isSystem ? 1 : 0, by]
+        `INSERT INTO roles (id, name, urdu_title, badge_class, description, scope, campus_scope, domain, is_system, status, version, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?)`,
+        [role.id, role.name, role.urduTitle || '', role.badgeClass || 'info', role.description || '', role.scope || 'ALL',
+            CAMPUS_SCOPES.includes(role.campusScope) ? role.campusScope : null, domain, role.isSystem ? 1 : 0, by]
     );
     for (const p of new Set(permissions)) {
         await db.query(`INSERT IGNORE INTO role_permissions (role_id, permission) VALUES (?, ?)`, [role.id, p]);
@@ -307,6 +319,8 @@ async function load() {
             description: r.description || '',
             // A group's data scope is fixed by its domain (students: own records, teachers: classes they teach)
             scope: domain !== 'SYSTEM' ? catalog.DOMAINS[domain].scope : (catalog.SCOPES[r.scope] ? r.scope : 'SELF'),
+            // Students always belong to their class's campus; null: decided on each account (roles made before this setting)
+            campusScope: domain === 'STUDENT' ? 'OWN' : (CAMPUS_SCOPES.includes(r.campus_scope) ? r.campus_scope : null),
             domain,
             isSystem: !!r.is_system,
             status: r.status,
@@ -444,6 +458,107 @@ function additionalRolesOf(user) {
     return rolesOfUser(user).slice(String(user && user.role || '').toUpperCase() === SUPER_ADMIN ? 0 : 1);
 }
 
+// ---------------------------------------------------------------------------
+// Location access (all locations / own locations only)
+// ---------------------------------------------------------------------------
+
+/** 'ALL' when any of these roles covers all locations, 'OWN' when they all cover own locations, else null. */
+function campusScopeOfRoles(roleIds) {
+    const scopes = (roleIds || []).map(id => getRole(String(id || '').toUpperCase()))
+        .filter(r => r && r.status === 'ACTIVE' && r.domain !== 'STUDENT')
+        .map(r => r.campusScope);
+    if (scopes.includes('ALL')) return 'ALL';
+    return scopes.length && scopes.every(s => s === 'OWN') ? 'OWN' : null;
+}
+
+// The roles an account record stands for, including a type or additional roles requested in the same save
+function requestedRoles(user) {
+    const main = String(user.role || '').toUpperCase();
+    const domain = accountDomain(main);
+    const asked = String(user.permissionGroup || '').toUpperCase();
+    const first = GROUP_DOMAINS.includes(domain) ? (isGroupOf(asked, domain) ? asked : groupOf(user)) : main;
+    const extra = Array.isArray(user.additionalRoles) ? user.additionalRoles.map(r => String(r).toUpperCase()) : additionalRolesOf(user);
+    return [first, ...extra];
+}
+
+/** Location access a person's roles give ('ALL' / 'OWN'); null for students, the Super Admin and older roles. */
+function campusScopeOf(user) {
+    if (!user || !cache) return null;
+    const main = String(user.role || '').toUpperCase();
+    if (!main || main === SUPER_ADMIN || main === 'STUDENT') return null;
+    return campusScopeOfRoles(requestedRoles(user));
+}
+campus.setRoleCampusScope(campusScopeOf);
+
+// Brings an account's "every campus" flag in line with its roles; true when the record changed
+function applyCampusScope(record) {
+    const reach = campusScopeOf(record);
+    if (!reach) return false;
+    const all = reach === 'ALL';
+    if (record.allCampuses === all) return false;
+    record.allCampuses = all;
+    if (!all) record.campusIds = campus.uniq([...(Array.isArray(record.campusIds) ? record.campusIds : []), record.branchId]);
+    return true;
+}
+
+// Whether this person reaches every campus (only they may create a role for all locations or switch one)
+function hasEveryCampus(user, eff) {
+    return !!(eff && eff.isSuperAdmin) || campus.accountCampuses(user, '') === campus.ALL;
+}
+
+async function loadAccounts() {
+    const [rows] = await db.query(`SELECT data FROM lms_records WHERE collection = 'users' AND deleted = 0`);
+    return rows.map(r => JSON.parse(r.data));
+}
+
+// After a role's location access changes, every holder's account follows (open portals pick it up with their next sync)
+async function syncHolderCampuses(roleId, by) {
+    let changed = 0;
+    for (const user of await loadAccounts()) {
+        if (!rolesOfUser(user).includes(roleId) || !applyCampusScope(user)) continue;
+        if (!user.allCampuses && !user.branchId) {
+            user.branchId = (await campus.defaultCampusId()) || null;
+            user.campusIds = campus.uniq([...(user.campusIds || []), user.branchId]);
+        }
+        await saveUserRecord(user, by);
+        changed++;
+    }
+    return changed;
+}
+
+/**
+ * Roles without a location setting get one, chosen so that nobody's access changes: All locations when every
+ * holder had every campus on their account, otherwise Own locations (Admin: All locations while nobody holds it).
+ * A holder with every campus whose roles then all say Own locations keeps today's campuses as an explicit list.
+ */
+async function settleCampusScopes() {
+    const [open] = await db.query(`SELECT id, domain FROM roles WHERE campus_scope IS NULL`);
+    if (!open.length) return;
+    const users = (await loadAccounts()).filter(u => u.role && !['SUPER_ADMIN', 'STUDENT'].includes(String(u.role).toUpperCase()));
+    for (const r of open) {
+        const holders = users.filter(u => rolesOfUser(u).includes(r.id));
+        const scope = r.domain === 'STUDENT' ? 'OWN'
+            : holders.length ? (holders.every(u => u.allCampuses === true) ? 'ALL' : 'OWN')
+                : (r.id === 'ACADEMIC_ADMIN' ? 'ALL' : 'OWN');
+        await db.query(`UPDATE roles SET campus_scope = ? WHERE id = ? AND campus_scope IS NULL`, [scope, r.id]);
+    }
+    await load();
+    let everyCampus = null;
+    let kept = 0;
+    for (const u of users) {
+        if (u.allCampuses !== true || campusScopeOf(u) !== 'OWN') continue;
+        if (!everyCampus) {
+            const [b] = await db.query(`SELECT id FROM branches`).catch(() => [[]]);
+            everyCampus = b.map(x => x.id);
+        }
+        u.allCampuses = false;
+        u.campusIds = campus.uniq([...everyCampus, u.branchId]);
+        await saveUserRecord(u, 'campus-scope-migration');
+        kept++;
+    }
+    console.log(`[Roles] Location access set on ${open.length} role(s)${kept ? `; ${kept} account(s) keep their campuses as a list` : ''}`);
+}
+
 /**
  * What a user may do: { roleId, roleIds, scope, scopes: Map(permission -> scope), permissions:Set, isSuperAdmin }
  * opts.onlyRole limits it to one role (used when previewing a role).
@@ -552,7 +667,7 @@ async function list(includePermissions) {
     const userCount = id => counts.get(id) || 0;
     const out = Array.from(cache.values()).map(r => ({
         id: r.id, name: r.name, urduTitle: r.urduTitle, badgeClass: r.badgeClass, description: r.description,
-        scope: r.scope, domain: r.domain, isDefault: r.domain !== 'SYSTEM' && r.id === defaultGroup(r.domain),
+        scope: r.scope, campusScope: r.campusScope, domain: r.domain, isDefault: r.domain !== 'SYSTEM' && r.id === defaultGroup(r.domain),
         isSystem: r.isSystem, status: r.status, version: r.version, userCount: userCount(r.id),
         ...(includePermissions ? { permissions: Array.from(r.granted).sort(), warnings: catalog.sodWarnings(r.permissions) } : {})
     }));
@@ -656,6 +771,7 @@ async function revokeSuperAdmin(actorUser, targetId, newRole, password, req) {
     await setUserRoles(null, target.id, main, keep, actorUser.id);
     target.role = recordRole;
     target.additionalRoles = keep;
+    applyCampusScope(target);
     await saveUserRecord(target, actorUser.id);
     await load();
     await auth.revokeUserSessions(target.id, target.id === actorUser.id ? req : null);
@@ -724,9 +840,13 @@ async function createRole(actorUser, body, req, domain = 'SYSTEM') {
     if (denied.length) return fail(403, `You can only give permissions you hold yourself: ${denied.join(', ')}`);
     const overCeiling = beyondCeiling(domain, permissions);
     if (overCeiling.length) return fail(400, `A ${words.thing} cannot hold: ${overCeiling.join(', ')}`);
+    const campusScope = domain === 'STUDENT' ? 'OWN' : (body.campusScope === 'ALL' ? 'ALL' : 'OWN');
+    if (campusScope === 'ALL' && !hasEveryCampus(actorUser, eff)) {
+        return fail(403, `Only someone with access to every location can create a ${words.thing} that covers all locations.`);
+    }
 
     const role = {
-        id, name, scope, domain, isSystem: false,
+        id, name, scope, campusScope, domain, isSystem: false,
         urduTitle: cleanText(body.urduTitle, 120),
         badgeClass: BADGES.includes(body.badgeClass) ? body.badgeClass : 'info',
         description: cleanText(body.description, 1000)
@@ -771,6 +891,13 @@ async function updateRole(actorUser, id, body, req, domain = 'SYSTEM') {
         if (body.scope === 'ALL' && eff.scope !== 'ALL') return fail(403, 'Only whole-institution staff can give a role whole-institution scope.');
         scope = body.scope;
     }
+    let campusScope = role.campusScope;
+    if (body.campusScope && body.campusScope !== role.campusScope) {
+        if (role.domain === 'STUDENT') return fail(400, 'A student always belongs to the campus of their class.');
+        if (!CAMPUS_SCOPES.includes(body.campusScope)) return fail(400, 'Location access must be all locations or own locations only.');
+        if (!hasEveryCampus(actorUser, eff)) return fail(403, 'Only someone with access to every location can change location access.');
+        campusScope = body.campusScope;
+    }
     const next = {
         name: body.name !== undefined ? cleanText(body.name, 120) || role.name : role.name,
         urduTitle: body.urduTitle !== undefined ? cleanText(body.urduTitle, 120) : role.urduTitle,
@@ -784,9 +911,9 @@ async function updateRole(actorUser, id, body, req, domain = 'SYSTEM') {
     try {
         await conn.beginTransaction();
         const [res] = await conn.query(
-            `UPDATE roles SET name = ?, urdu_title = ?, badge_class = ?, description = ?, scope = ?, status = ?, version = version + 1, updated_by = ?
+            `UPDATE roles SET name = ?, urdu_title = ?, badge_class = ?, description = ?, scope = ?, campus_scope = ?, status = ?, version = version + 1, updated_by = ?
              WHERE id = ? AND version = ?`,
-            [next.name, next.urduTitle, next.badgeClass, next.description, scope, next.status, actorUser.id, id, role.version]
+            [next.name, next.urduTitle, next.badgeClass, next.description, scope, campusScope, next.status, actorUser.id, id, role.version]
         );
         if (!res.affectedRows) {
             await conn.rollback();
@@ -802,12 +929,15 @@ async function updateRole(actorUser, id, body, req, domain = 'SYSTEM') {
         conn.release();
     }
     await load();
+    const moved = campusScope !== role.campusScope ? await syncHolderCampuses(id, actorUser.id) : 0;
     const a = auditNames(role.domain);
+    const where = v => (v === 'ALL' ? 'all locations' : v === 'OWN' ? 'own locations' : 'per account');
     await audit.log({
         req, action: `${a.prefix}.update`, entityType: a.entityType, entityId: id,
-        summary: `Changed ${DOMAIN_WORDS[role.domain].thing} ${next.name}: +${add.length} / -${remove.length} permission(s)${scope !== role.scope ? `, scope ${role.scope} → ${scope}` : ''}`,
-        before: { name: role.name, scope: role.scope, status: role.status, permissions: Array.from(role.granted).sort() },
-        after: { name: next.name, scope, status: next.status, added: add, removed: remove }
+        summary: `Changed ${DOMAIN_WORDS[role.domain].thing} ${next.name}: +${add.length} / -${remove.length} permission(s)${scope !== role.scope ? `, scope ${role.scope} → ${scope}` : ''}`
+            + (campusScope !== role.campusScope ? `, locations ${where(role.campusScope)} → ${where(campusScope)} (${moved} account(s) updated)` : ''),
+        before: { name: role.name, scope: role.scope, campusScope: role.campusScope, status: role.status, permissions: Array.from(role.granted).sort() },
+        after: { name: next.name, scope, campusScope, status: next.status, added: add, removed: remove }
     });
     return { ok: true, role: (await list(true)).roles.find(r => r.id === id) };
 }
@@ -884,8 +1014,9 @@ async function setMemberPermissions(actorUser, userId, body, req) {
         await conn.query(`DELETE FROM user_permission_overrides WHERE user_id = ?`, [target.id]);
         for (const k of allow) await conn.query(`INSERT INTO user_permission_overrides (user_id, permission, effect, granted_by) VALUES (?, ?, 'ALLOW', ?)`, [target.id, k, actorUser.id]);
         for (const k of deny) await conn.query(`INSERT INTO user_permission_overrides (user_id, permission, effect, granted_by) VALUES (?, ?, 'DENY', ?)`, [target.id, k, actorUser.id]);
-        // Touch the account so every open portal picks up the new type with its next sync
+        // Touch the account so every open portal picks up the new type (and its location access) with its next sync
         target.permissionGroup = group;
+        applyCampusScope(target);
         await conn.query(`UPDATE lms_records SET data = ?, updated_by = ?, updated_at = NOW(3) WHERE collection = 'users' AND id = ?`, [JSON.stringify(target), actorUser.id, target.id]);
         await conn.commit();
     } catch (err) {
@@ -961,6 +1092,9 @@ module.exports = {
     createRole,
     updateRole,
     deleteRole,
+    campusScopeOf,
+    settleCampusScopes,
+    applyCampusScope,
     catalogPayload,
     legacyPermissionsFor
 };

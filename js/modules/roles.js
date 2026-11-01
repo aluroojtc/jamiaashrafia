@@ -58,6 +58,50 @@ const RolesModule = {
         return { ALL: 'Whole institution', TEACHING: 'Classes they teach', SELF: 'Own records only' }[scope] || scope || '—';
     },
 
+    // Location access: every campus, or only the campuses on the person's account
+    campusScopeLabel(campusScope) {
+        return { ALL: 'All locations', OWN: 'Own locations only' }[campusScope] || 'Set on each account';
+    },
+
+    campusScopePill(campusScope) {
+        return campusScope === 'ALL'
+            ? `<span class="status-pill success" style="font-size: 0.72rem;"><i class="fas fa-globe"></i> ${I18n.t('All locations')}</span>`
+            : campusScope === 'OWN'
+                ? `<span class="status-pill info" style="font-size: 0.72rem;"><i class="fas fa-map-marker-alt"></i> ${I18n.t('Own locations only')}</span>`
+                : `<span style="font-size: 0.8rem; color: var(--text-muted);">${I18n.t('Set on each account')}</span>`;
+    },
+
+    // The All locations / Own locations only choice in the role and teacher-type forms
+    renderCampusScopeField(role, isNew) {
+        const value = role.campusScope || (isNew ? 'OWN' : '');
+        const canAll = window.AuthRBAC.hasAllCampuses();
+        const option = (v, title, text, locked) => `
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border-prominent); border-radius: var(--radius-sm); cursor: ${locked ? 'not-allowed' : 'pointer'}; flex: 1; min-width: 240px; ${locked ? 'opacity: 0.6;' : ''}"
+                ${locked ? `title="${Lms.esc(I18n.t('Only someone with access to every location can choose this.'))}"` : ''}>
+                <input type="radio" name="role-campus-scope" value="${v}" ${value === v ? 'checked' : ''} ${locked ? 'disabled' : ''} style="margin-top: 3px;">
+                <span><strong style="color: var(--primary-950);">${I18n.t(title)}</strong><br><span style="font-size: 0.8rem; color: var(--text-secondary);">${I18n.t(text)}</span></span>
+            </label>`;
+        return `
+            <div style="margin: 0 0 16px;">
+                <label class="form-label" style="font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 6px;"><i class="fas fa-map-marker-alt" style="color: var(--gold-500);"></i> ${I18n.t('Location access')}</label>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    ${option('ALL', 'All locations', 'People with this role can reach every campus, including campuses added later.', !canAll && value !== 'ALL')}
+                    ${option('OWN', 'Own locations only', 'People with this role can reach only the campuses assigned on their account.', !canAll && value === 'ALL')}
+                </div>
+            </div>`;
+    },
+
+    // The chosen location access; asks first when a role with holders is narrowed to own locations
+    readCampusScope(before, userCount) {
+        const picked = document.querySelector('input[name="role-campus-scope"]:checked');
+        const value = picked ? picked.value : null;
+        if (value === 'OWN' && before === 'ALL' && userCount
+            && !confirm(I18n.t('{n} person(s) hold this role. From now on they reach only the campuses on their account (their home campus, if none are ticked). Continue?', { n: userCount }))) {
+            return false;
+        }
+        return value;
+    },
+
     render() {
         const rbac = window.AuthRBAC;
         if (!rbac.can('roles.view')) {
@@ -125,18 +169,20 @@ const RolesModule = {
                     search: 'Search role name, id or description...',
                     selects: [
                         { key: 'scope', label: 'All data scopes', options: [['ALL', this.scopeLabel('ALL')], ['TEACHING', this.scopeLabel('TEACHING')], ['SELF', this.scopeLabel('SELF')]] },
+                        { key: 'locations', label: 'All location access', options: [['ALL', 'All locations'], ['OWN', 'Own locations only']] },
                         { key: 'kind', label: 'Default and custom', options: [['DEFAULT', 'Default'], ['CUSTOM', 'Custom']] },
                         { key: 'status', label: 'All statuses', options: [['ACTIVE', 'Active'], ['INACTIVE', 'Switched off']] }
                     ]
                 })}
                 <div class="table-responsive">
                     <table class="data-table" id="roles-table">
-                        <thead><tr><th>Role</th><th>Description</th><th>Data scope</th><th>Permissions</th><th style="text-align: center;">Users</th><th>Type</th><th style="text-align: end;">Actions</th></tr></thead>
+                        <thead><tr><th>Role</th><th>Description</th><th>Data scope</th><th>Locations</th><th>Permissions</th><th style="text-align: center;">Users</th><th>Type</th><th style="text-align: end;">Actions</th></tr></thead>
                         <tbody>
-                            <tr data-f-scope="ALL" data-f-kind="DEFAULT" data-f-status="ACTIVE">
+                            <tr data-f-scope="ALL" data-f-locations="ALL" data-f-kind="DEFAULT" data-f-status="ACTIVE">
                                 <td>${this.renderRoleTitle(superRole)}</td>
                                 <td style="max-width: 320px; font-size: 0.84rem; color: var(--text-secondary);">Full control of every branch, account, record and setting.</td>
                                 <td>${this.scopeLabel('ALL')}</td>
+                                <td>${this.campusScopePill('ALL')}</td>
                                 <td><span class="status-pill success"><i class="fas fa-infinity"></i> All (automatic)</span></td>
                                 <td style="text-align: center;">${this.renderUserCount(superRole.userCount || 0)}</td>
                                 <td><span class="badge-pill gold"><i class="fas fa-lock" style="font-size: 0.65rem;"></i> Super Admin</span></td>
@@ -171,10 +217,11 @@ const RolesModule = {
         const canEdit = this.canEdit(r);
         const own = r.id === window.AuthRBAC.getRole();
         return `
-            <tr data-f-scope="${Lms.esc(r.scope || 'ALL')}" data-f-kind="${this.isCore(r.id) ? 'DEFAULT' : 'CUSTOM'}" data-f-status="${r.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'}">
+            <tr data-f-scope="${Lms.esc(r.scope || 'ALL')}" data-f-locations="${Lms.esc(r.campusScope || '')}" data-f-kind="${this.isCore(r.id) ? 'DEFAULT' : 'CUSTOM'}" data-f-status="${r.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'}">
                 <td>${this.renderRoleTitle(r)}</td>
                 <td style="max-width: 320px; font-size: 0.84rem; color: var(--text-secondary);">${Lms.esc(r.description || '')}</td>
                 <td style="font-size: 0.84rem;">${Lms.esc(this.scopeLabel(r.scope))}</td>
+                <td>${this.campusScopePill(r.campusScope)}</td>
                 <td><span class="status-pill"><i class="fas fa-key"></i> ${perms ? perms.length : '—'}</span>${r.status === 'INACTIVE' ? ' <span class="status-pill danger">Switched off</span>' : ''}${(r.warnings || []).length ? ` <span class="status-pill warning" title="${Lms.esc(r.warnings.map(w => I18n.translateText(w.message)).join(' '))}" style="cursor: help;"><i class="fas fa-exclamation-triangle"></i> ${r.warnings.length}</span>` : ''}</td>
                 <td style="text-align: center;">${this.renderUserCount(r.userCount)}</td>
                 <td>${this.isCore(r.id)
@@ -206,7 +253,7 @@ const RolesModule = {
         const isNew = !roleId;
         const source = copyFrom ? this.roles().find(r => r.id === copyFrom) : null;
         const role = !isNew ? this.roles().find(r => r.id === roleId)
-            : source ? { name: `Copy of ${source.name}`, urduTitle: source.urduTitle, badgeClass: source.badgeClass, description: source.description, scope: source.scope, permissions: (source.permissions || []).slice() }
+            : source ? { name: `Copy of ${source.name}`, urduTitle: source.urduTitle, badgeClass: source.badgeClass, description: source.description, scope: source.scope, campusScope: source.campusScope, permissions: (source.permissions || []).slice() }
                 : { scope: window.AuthRBAC.scope(), permissions: [] };
         if (!role) return App.showToast('Role not found.', 'danger');
         if (!isNew && !this.canEdit(role)) return App.showToast('You are not allowed to change this role.', 'warning');
@@ -228,6 +275,7 @@ const RolesModule = {
                     <div>${label('Visual Badge Style')}<select id="role-badge-input" class="form-control">${BADGE_STYLES.map(([v, t]) => `<option value="${v}" ${role.badgeClass === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
                 </div>
                 <div style="margin: 12px 0 16px;">${label('Description')}<textarea id="role-desc-input" class="form-control" rows="2">${Lms.esc(role.description || '')}</textarea></div>
+                ${this.renderCampusScopeField(role, isNew)}
                 ${this.renderPermissionChecklist(role, isNew)}
             </form>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -353,6 +401,9 @@ const RolesModule = {
         };
         const checked = this.boxes().filter(b => b.checked).map(b => b.value);
         if (!body.name) return App.showToast('Give the role a name.', 'danger');
+        const campusScope = this.readCampusScope(this.editing && this.editing.campusScope, this.editing && this.editing.userCount);
+        if (campusScope === false) return;
+        if (campusScope) body.campusScope = campusScope;
 
         let res;
         if (isNew) {

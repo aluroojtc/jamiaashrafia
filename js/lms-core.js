@@ -509,18 +509,17 @@ const Lms = {
     },
 
     /**
-     * Campus access for a staff or teacher account: home campus, "all campuses" and the campuses they work at.
-     * Only campuses the signed-in person has can be given, and "all campuses" only by someone who has all of them.
+     * Campus access for a staff or teacher account: home campus and the campuses they work at.
+     * Whether they reach every campus comes from their role (Location access on the Roles page): the campuses
+     * ticked here apply when their roles are "Own locations only". Only campuses the signed-in person has can be given.
      */
     campusAccessFields(prefix, user) {
         const u = user || {};
         const mine = this.myBranches();
-        const canAll = window.AuthRBAC.hasAllCampuses();
-        const all = canAll && (user ? u.allCampuses === true : false);
         const home = u.branchId && this.branches().some(b => b.id === u.branchId) ? u.branchId : this.defaultBranchId();
         const held = new Set([...(u.campusIds || []), home].filter(Boolean));
         const box = b => `<label style="display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 6px 0; font-size: 0.85rem;">
-                <input type="checkbox" class="${prefix}-campus" value="${this.esc(b.id)}" ${held.has(b.id) ? 'checked' : ''} ${all ? 'disabled' : ''}> ${this.esc(b.name)}</label>`;
+                <input type="checkbox" class="${prefix}-campus" value="${this.esc(b.id)}" ${held.has(b.id) ? 'checked' : ''}> ${this.esc(b.name)}</label>`;
         return `
             <div style="margin-bottom: 16px; padding: 12px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px;">
                 <label class="form-label" style="font-weight: 600; display: block; margin-bottom: 6px;"><i class="fas fa-map-marker-alt"></i> ${I18n.t('Campus access')}</label>
@@ -530,22 +529,20 @@ const Lms = {
                         <select id="${prefix}-home-campus" class="form-control">${this.branchOptions(home)}</select>
                     </div>
                     <div style="display: flex; align-items: flex-end;">
-                        ${canAll ? `<label style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
-                            <input type="checkbox" id="${prefix}-all-campuses" ${all ? 'checked' : ''}
-                                onchange="document.querySelectorAll('.${prefix}-campus').forEach(c => { c.disabled = this.checked; })"> ${I18n.t('All campuses')}</label>` : ''}
+                        ${user && u.allCampuses === true ? `<span class="status-pill success"><i class="fas fa-globe"></i> ${I18n.t('All locations (from role)')}</span>` : ''}
                     </div>
                 </div>
                 <small style="color: var(--text-muted); display: block; margin-bottom: 4px;">${I18n.t('Works at these campuses')}</small>
                 <div>${mine.map(box).join('') || `<em>${I18n.t('No campuses are set up yet.')}</em>`}</div>
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">${I18n.t('A role set to "All locations" reaches every campus; with "Own locations only" this person reaches only the campuses ticked here.')}</small>
             </div>`;
     },
 
+    // allCampuses is worked out by the server from the person's roles
     readCampusAccess(prefix) {
-        const allBox = document.getElementById(`${prefix}-all-campuses`);
         const branchId = this.val(`${prefix}-home-campus`) || this.defaultBranchId() || null;
-        if (allBox && allBox.checked) return { branchId, allCampuses: true, campusIds: [] };
         const ids = Array.from(document.querySelectorAll(`.${prefix}-campus`)).filter(c => c.checked).map(c => c.value);
-        return { branchId, allCampuses: false, campusIds: Array.from(new Set([...ids, branchId].filter(Boolean))) };
+        return { branchId, campusIds: Array.from(new Set([...ids, branchId].filter(Boolean))) };
     },
 
     worksAtCampus(user, branchId) {

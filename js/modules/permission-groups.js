@@ -177,8 +177,8 @@ const PermissionGroupsModule = {
                 ${groups.length > 1 ? Lms.filterBar(`types-table-${domain}`, { search: 'Search type name, id or description...' }) : ''}
                 <div class="table-responsive">
                     <table class="data-table" id="types-table-${domain}">
-                        <thead><tr><th>Type</th><th>Description</th><th>Permissions</th><th style="text-align: center;">${I18n.t(info.people)}</th><th style="text-align: end;">Actions</th></tr></thead>
-                        <tbody>${groups.length ? groups.map(g => this.renderGroupRow(domain, g)).join('') : `<tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">${I18n.t('Loading…')}</td></tr>`}</tbody>
+                        <thead><tr><th>Type</th><th>Description</th>${domain === 'TEACHER' ? `<th>${I18n.t('Locations')}</th>` : ''}<th>Permissions</th><th style="text-align: center;">${I18n.t(info.people)}</th><th style="text-align: end;">Actions</th></tr></thead>
+                        <tbody>${groups.length ? groups.map(g => this.renderGroupRow(domain, g)).join('') : `<tr><td colspan="${domain === 'TEACHER' ? 6 : 5}" style="text-align: center; padding: 30px; color: var(--text-muted);">${I18n.t('Loading…')}</td></tr>`}</tbody>
                     </table>
                 </div>
             </div>
@@ -200,6 +200,7 @@ const PermissionGroupsModule = {
                     <code style="font-size: 0.72rem; color: var(--text-muted);">${Lms.esc(g.id)}</code>
                 </td>
                 <td style="max-width: 340px; font-size: 0.84rem; color: var(--text-secondary);">${Lms.esc(g.description || '')}</td>
+                ${domain === 'TEACHER' ? `<td>${RolesModule.campusScopePill(g.campusScope)}</td>` : ''}
                 <td><span class="status-pill"><i class="fas fa-key"></i> ${perms ? perms.length : '—'}</span></td>
                 <td style="text-align: center;">${RolesModule.renderUserCount(g.userCount)}</td>
                 <td style="text-align: end; white-space: nowrap;">
@@ -280,7 +281,7 @@ const PermissionGroupsModule = {
         const isNew = !groupId;
         const source = copyFrom ? this.group(domain, copyFrom) : null;
         const group = !isNew ? this.group(domain, groupId)
-            : source ? { name: `Copy of ${source.name}`, urduTitle: source.urduTitle, badgeClass: source.badgeClass, description: source.description, permissions: (source.permissions || []).slice() }
+            : source ? { name: `Copy of ${source.name}`, urduTitle: source.urduTitle, badgeClass: source.badgeClass, description: source.description, campusScope: source.campusScope, permissions: (source.permissions || []).slice() }
                 : { permissions: [] };
         if (!group) return App.showToast('Type not found.', 'danger');
         this.editing = { domain, group: isNew ? null : group };
@@ -301,6 +302,7 @@ const PermissionGroupsModule = {
                     ${domain === 'STUDENT' ? '' : `<div>${label('Visual Badge Style')}<select id="role-badge-input" class="form-control">${BADGE_STYLES.map(([v, t]) => `<option value="${v}" ${group.badgeClass === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`}
                 </div>
                 <div style="margin: 12px 0 16px;">${label('Description')}<textarea id="role-desc-input" class="form-control" rows="2">${Lms.esc(group.description || '')}</textarea></div>
+                ${domain === 'TEACHER' ? RolesModule.renderCampusScopeField(group, isNew) : ''}
                 ${RolesModule.renderPermissionChecklist(group, isNew, { ceiling: this.ceiling(domain), defaults, ceilingNote: I18n.t(info.ceilingNote) })}
             </form>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -322,6 +324,11 @@ const PermissionGroupsModule = {
             description: document.getElementById('role-desc-input').value.trim()
         };
         if (!body.name) return App.showToast('Give the type a name.', 'danger');
+        if (domain === 'TEACHER') {
+            const campusScope = RolesModule.readCampusScope(group && group.campusScope, group && group.userCount);
+            if (campusScope === false) return;
+            if (campusScope) body.campusScope = campusScope;
+        }
         const checked = RolesModule.boxes().filter(b => b.checked && !b.disabled).map(b => b.value);
         let res;
         if (!group) {

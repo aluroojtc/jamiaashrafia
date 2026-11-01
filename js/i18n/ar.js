@@ -3654,5 +3654,17 @@ I18n.register('ar', {
     "Recording saved. Students of the class have been notified.": "تم حفظ التسجيل وإشعار طلاب الصف.",
     "Recording started. Everyone in the class sees that it is being recorded.": "بدأ التسجيل. يرى جميع الحاضرين أن الدرس يُسجَّل.",
     "Resuming from {time}": "الاستئناف من {time}",
-    "Recording could not start ({error}).": "تعذّر بدء التسجيل ({error})."
+    "Recording could not start ({error}).": "تعذّر بدء التسجيل ({error}).",
+    "Location access": "الوصول إلى المواقع",
+    "All locations": "جميع المواقع",
+    "Own locations only": "مواقعه فقط",
+    "Set on each account": "يُحدَّد لكل حساب",
+    "Locations": "المواقع",
+    "All location access": "كل أنواع الوصول",
+    "All locations (from role)": "جميع المواقع (من الدور)",
+    "Only someone with access to every location can choose this.": "لا يختار هذا إلا من لديه وصول إلى جميع المواقع.",
+    "People with this role can reach every campus, including campuses added later.": "يصل أصحاب هذا الدور إلى جميع الفروع، بما فيها الفروع التي تُضاف لاحقًا.",
+    "People with this role can reach only the campuses assigned on their account.": "لا يصل أصحاب هذا الدور إلا إلى الفروع المحددة في حساباتهم.",
+    "A role set to \"All locations\" reaches every campus; with \"Own locations only\" this person reaches only the campuses ticked here.": "الدور المضبوط على \"جميع المواقع\" يصل إلى كل الفروع؛ ومع \"مواقعه فقط\" لا يصل هذا الشخص إلا إلى الفروع المحددة هنا.",
+    "{n} person(s) hold this role. From now on they reach only the campuses on their account (their home campus, if none are ticked). Continue?": "يحمل هذا الدور {n} شخص. من الآن لن يصلوا إلا إلى الفروع المحددة في حساباتهم (فرعهم الرئيسي إن لم يُحدَّد شيء). هل تريد المتابعة؟"
 });

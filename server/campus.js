@@ -1,10 +1,13 @@
 /**
  * JAMIA ASHRAFIA LAHORE - CAMPUS (LOCATION) ACCESS
  *
- * Campuses are the branches set up in Institution Setup. Which campuses a person works with sits on their account:
+ * Campuses are the branches set up in Institution Setup. Whether a person reaches every campus comes from their
+ * roles: a role (or teacher type) gives "All locations" or "Own locations only" (roles.campus_scope); anyone holding
+ * an All-locations role reaches every campus, everyone else only the campuses on their account:
  *   branchId     - home campus. For a student, their one primary campus (always the campus of their class).
- *   allCampuses  - staff and teachers: true = every campus, now and in future
- *   campusIds    - staff and teachers without allCampuses: the campuses they work at (home campus included)
+ *   allCampuses  - staff and teachers: true = every campus. Kept equal to what their roles give (server/roles.js);
+ *                  it only decides by itself for roles made before roles had a location setting.
+ *   campusIds    - staff and teachers: the campuses they work at (home campus included)
  * The Super Admin always has every campus.
  *
  * Records follow a campus too: classes carry branchId; courses carry campusIds (empty = taught at every campus);
@@ -46,6 +49,12 @@ async function defaultCampusId(force) {
     return id;
 }
 
+// Set by server/roles.js: 'ALL' / 'OWN' from a person's roles, or null when a role leaves it to the account
+let roleCampusScope = () => null;
+function setRoleCampusScope(fn) {
+    roleCampusScope = typeof fn === 'function' ? fn : () => null;
+}
+
 function uniq(list) {
     return Array.from(new Set((list || []).map(x => String(x || '').trim()).filter(Boolean)));
 }
@@ -55,7 +64,8 @@ function accountCampuses(user, fallback) {
     if (!user) return [];
     if (user.role === 'SUPER_ADMIN') return ALL;
     if (user.role === 'STUDENT') return uniq([user.branchId || fallback]);
-    if (user.allCampuses === true) return ALL;
+    const fromRoles = roleCampusScope(user);
+    if (fromRoles === ALL || (!fromRoles && user.allCampuses === true)) return ALL;
     const ids = uniq([...(Array.isArray(user.campusIds) ? user.campusIds : []), user.branchId]);
     return ids.length ? ids : uniq([fallback]);
 }
@@ -93,6 +103,9 @@ function normalizeAccount(user, classBranch, fallback) {
         user.branchId = fromClass || user.branchId || fallback || null;
         return user;
     }
+    // The roles decide "every campus"; the account lists the campuses for own-location roles
+    const fromRoles = roleCampusScope(user);
+    if (fromRoles) user.allCampuses = fromRoles === ALL;
     if (user.allCampuses === true) {
         user.campusIds = uniq(user.campusIds);
         if (!user.branchId) user.branchId = fallback || null;
@@ -181,4 +194,4 @@ async function migrate(log = () => {}) {
     return counts;
 }
 
-module.exports = { ALL, defaultCampusId, accountCampuses, allowedSet, within, overlaps, normalizeAccount, uniq, migrate };
+module.exports = { ALL, defaultCampusId, accountCampuses, allowedSet, within, overlaps, normalizeAccount, uniq, migrate, setRoleCampusScope };

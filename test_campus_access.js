@@ -228,8 +228,10 @@ async function run() {
         const tNew = `${P}tnew`;
         check('Single-campus Admin cannot give a new teacher another campus',
             rejected(await sync('adminA', { users: [{ id: tNew, role: 'TEACHER', name: 'T', email: `${tNew}@test.local`, branchId: B.A, campusIds: [B.A, B.C] }] }), 'users', tNew));
-        check('Single-campus Admin cannot give "all campuses"',
-            rejected(await sync('adminA', { users: [{ id: tNew, role: 'TEACHER', name: 'T', email: `${tNew}@test.local`, branchId: B.A, allCampuses: true }] }), 'users', tNew));
+        // "All campuses" comes from the person's role or type (Location access); a tick on the account gives nothing
+        await sync('adminA', { users: [{ id: tNew, role: 'TEACHER', name: 'T', email: `${tNew}@test.local`, branchId: B.A, allCampuses: true }] });
+        const ticked = await stored('users', tNew);
+        check('Single-campus Admin cannot give "all campuses"', !ticked || (ticked.allCampuses !== true && !(ticked.campusIds || []).includes(B.C)), ticked);
         check('Single-campus Admin can register a teacher for own campus',
             accepted(await sync('adminA', { users: [{ id: tNew, role: 'TEACHER', name: 'T', email: `${tNew}@test.local`, branchId: B.A, campusIds: [B.A] }] }), 'users', tNew));
         const self = await sync('adminA', { users: [{ ...(await stored('users', ids.adminA)), allCampuses: true, campusIds: [B.A, B.C] }] });
