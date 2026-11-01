@@ -794,7 +794,7 @@ const App = {
                         <h3 style="color: var(--text-primary); margin-top: 6px;">${Lms.esc(session.title)}</h3>
                         <div style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-user-tie"></i> ${Lms.esc(Lms.personName(session.hostId, session.hostTeacher))} • ${Lms.esc(session.className || '')}</div>
                     </div>
-                    <button class="btn ${live ? 'btn-primary' : 'btn-secondary'}" onclick="App.navigate('virtual-class')">
+                    <button class="btn ${live ? 'btn-primary' : 'btn-secondary'}" onclick="App.navigate('virtual-class')${live ? `; VirtualClassModule.enterClassroom('${Lms.esc(session.id)}')` : ''}">
                         <i class="fas ${live ? 'fa-sign-in-alt' : 'fa-video'}"></i> ${live ? (isHostView ? 'Open Live Room' : 'Join Class') : 'Online Classes'}
                     </button>
                 </div>

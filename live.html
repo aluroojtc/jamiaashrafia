@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Language (English / Urdu / Arabic): sets <html lang dir> and loads the catalog before the page renders -->
+    <script src="js/i18n.js?v=1.5"></script>
+    <title>Live Class - Jamia Ashrafia Lahore</title>
+    <!-- Signed-out visitors go to the login page; the server checks the session on every request anyway -->
+    <script>
+        if (!localStorage.getItem('JAMIA_CURRENT_USER_ID')) {
+            window.location.replace('login.html');
+        }
+    </script>
+    <link rel="icon" type="image/png" href="assets/images/favicon.png?v=3.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="css/main.css?v=4.1">
+    <link rel="stylesheet" href="css/components.css?v=6.2">
+    <link rel="stylesheet" href="css/i18n.css?v=1.0">
+    <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; background: #0b1114; }
+        .live-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+        .live-bar {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+            padding: 8px 16px; background: #0d1418; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #e2e8f0;
+        }
+        .live-bar-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .live-bar-title img { width: 34px; height: 34px; flex-shrink: 0; }
+        .live-bar-title strong { color: #ffffff; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .live-bar-title small { color: #94a3b8; font-size: 0.75rem; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .live-bar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        #jitsi-container { flex: 1; min-height: 0; background: #0b1114; display: flex; align-items: center; justify-content: center; color: #cbd5e1; }
+        .live-message { text-align: center; max-width: 520px; padding: 24px; }
+        .live-message h2 { color: #ffffff; margin: 12px 0 8px; }
+        .live-message p { color: #94a3b8; line-height: 1.6; }
+        @media (max-width: 600px) {
+            .live-bar { padding: 6px 10px; }
+            .live-bar-title img { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="live-shell">
+        <header class="live-bar">
+            <div class="live-bar-title">
+                <img src="assets/images/crest.png" alt="">
+                <div style="min-width: 0;">
+                    <strong id="live-title">Live Class</strong>
+                    <small id="live-subtitle">Jamia Ashrafia Lahore</small>
+                </div>
+            </div>
+            <div class="live-bar-actions" id="live-actions"></div>
+        </header>
+        <div id="jitsi-container">
+            <div style="text-align: center;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><div style="margin-top: 10px;">Connecting to the live classroom...</div></div>
+        </div>
+    </div>
+
+    <!-- Shared popup (used by the portal's scripts) -->
+    <div class="modal-backdrop" id="global-modal-backdrop">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h3 class="card-title" id="modal-title-text"></h3>
+                <button class="icon-btn" onclick="App.closeModal()" style="width: 32px; height: 32px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body-container"></div>
+            <div class="modal-footer" id="modal-footer-container"></div>
+        </div>
+    </div>
+    <div id="toast-container"></div>
+
+    <script src="js/data.js?v=8.0"></script>
+    <script src="js/auth-rbac.js?v=8.1"></script>
+    <script src="js/lms-core.js?v=8.1"></script>
+    <script src="js/modules/virtual-class.js?v=8.2"></script>
+    <script src="js/modules/class-recordings.js?v=8.5"></script>
+    <script src="js/live-room.js?v=1.0"></script>
+</body>
+</html>

@@ -792,7 +792,7 @@ function legacyHandler(req, res) {
 }
 
 // Paths that may be served as static files. Everything else (source, .env, .git, SQL, archives) stays private.
-const PUBLIC_FILES = new Set(['/index.html', '/login.html']);
+const PUBLIC_FILES = new Set(['/index.html', '/login.html', '/live.html']);
 const PUBLIC_DIRS = ['/css/', '/js/', '/assets/', '/uploads/'];
 const INLINE_UPLOAD_EXT = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp3', '.m4a', '.mp4', '.webm', '.txt']);
 

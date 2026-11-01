@@ -427,86 +427,40 @@ const VirtualClassModule = {
     // =========================================================================
     // 2. LIVE STUDIO ROOM (INTERACTIVE WEBRTC SUITE)
     // =========================================================================
-    async enterClassroom(sessionId) {
+    // Every live class opens in its own browser tab (live.html), which checks access, records attendance and holds
+    // the meeting. The tab is opened straight from the click, so pop-up blockers allow it.
+    enterClassroom(sessionId) {
         const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
         if (!session) {
             window.App?.showToast("Classroom session not found", "danger");
             return;
         }
-        // The server decides again (/api/virtual-classes/.../join); this only avoids a pointless attempt
+        // The live tab asks the server again (/api/virtual-class/verify-access); this only avoids a pointless attempt
         if (!window.AuthRBAC.canAny(['virtual_classes.join', 'virtual_classes.host', 'virtual_classes.manage'])) {
             window.App?.showToast('Joining online classes is not part of your type.', 'warning');
             return;
         }
-
-        const currentUser = window.AuthRBAC?.currentUser || {};
-        // Recording retention & vault administration, and managing every class (not just one's own)
-        const canRetention = window.AuthRBAC.can('settings.recordings');
-        const canManageAll = window.AuthRBAC.can('virtual_classes.manage');
-        const isTeacher = window.AuthRBAC?.isTeacher();
-        const isStudent = window.AuthRBAC?.isStudent();
-
-        // 1. Strict Backend Authorization Enforcement
-        try {
-            const verifyRes = await fetch('/api/virtual-class/verify-access', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    sessionId: session.id,
-                    classId: session.classId,
-                    userId: currentUser.id,
-                    role: currentUser.role,
-                    userClassId: currentUser.classId
-                })
-            });
-
-            const verdict = verifyRes.ok ? await verifyRes.clone().json().catch(() => ({})) : null;
-            if (verdict && verdict.unverified && isStudent && currentUser.classId !== session.classId) {
-                this.accessBlocked = true;
-                this.accessBlockedReason = 'You are not enrolled in this class, so this live session is restricted.';
-                this.activeSession = session;
-                this.switchTab('studio');
-                return;
-            }
-            if (!verifyRes.ok) {
-                const errData = await verifyRes.json();
-                this.accessBlocked = true;
-                this.accessBlockedReason = errData.message || 'Access Denied: Scholar is not enrolled in this academic section.';
-                this.activeSession = session;
-                this.switchTab('studio');
-                return;
-            }
-        } catch (e) {
-            console.warn("Backend verification offline; applying local RBAC security policy", e);
-            if (isStudent && currentUser.classId !== session.classId) {
-                this.accessBlocked = true;
-                this.accessBlockedReason = `Access Denied: Scholar is enrolled in ${currentUser.classId}, but attempted to access ${session.className}. Enforced at backend.`;
-                this.activeSession = session;
-                this.switchTab('studio');
-                return;
-            }
-        }
-
-        await this.loadMeetingConfig();
-
-        // 2. Access Granted: Configure Active Session
-        this.accessBlocked = false;
-        this.activeSessionId = session.id;
-        this.activeSession = session;
-        this.isHost = this.canHost(session);
+        Object.assign(this, { accessBlocked: false, activeSessionId: session.id, activeSession: session, isHost: this.canHost(session) });
         if (session.status !== 'LIVE' && !session.isLive && !this.isHost) {
             window.App?.showToast('This class has not started yet.', 'info');
             return;
         }
-
-        // 3. Auto-Log Attendance in System & Backend
-        this.recordAutoAttendance(session, currentUser);
-
-        // 4. Switch to Studio Tab
+        const win = this.openLiveTab(session);
         this.switchTab('studio');
-        window.App?.showToast(`Joined ${session.title}. Attendance recorded.`, "success");
+        window.App?.showToast(win ? 'The live class opened in a new tab.' : 'Your browser blocked the new tab. Press "Open Live Room" to open the class.', win ? 'success' : 'warning');
+    },
+
+    liveRoomUrl(session) {
+        return `live.html?session=${encodeURIComponent(session.id)}`;
+    },
+
+    // One tab per class: pressing again brings the same tab back
+    liveTabName(session) {
+        return `jamia-live-${String(session.id).replace(/[^A-Za-z0-9_-]/g, '')}`;
+    },
+
+    openLiveTab(session) {
+        return window.open(this.liveRoomUrl(session), this.liveTabName(session));
     },
 
     recordAutoAttendance(session, currentUser) {
@@ -594,16 +548,16 @@ const VirtualClassModule = {
                     </div>
                 </div>
             </div>
-            ${!isExternal && !this.canEmbed() ? `
+            ${!isExternal ? `
                 <div class="card" style="text-align: center; padding: 40px 20px;">
-                    <i class="fas fa-video" style="font-size: 2.4rem; color: var(--primary-600);"></i>
-                    <h3 style="margin: 12px 0 6px;">The live classroom opens in a new tab</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 6px;">Your attendance has been recorded. Keep this portal open in the other tab.</p>
+                    <i class="fas fa-external-link-alt" style="font-size: 2.4rem; color: var(--primary-600);"></i>
+                    <h3 style="margin: 12px 0 6px;">The live class opens in its own browser tab</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 6px;">Video, audio, screen sharing, chat and the whiteboard are in that tab. Your attendance is recorded when the class opens there.</p>
                     <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 16px;">
-                        ${isHost ? 'As the teacher, sign in when the meeting asks (Google / GitHub) to start the class as moderator. ' : 'If the teacher has not started yet, wait on the meeting page — it opens automatically. '}
+                        ${isHost ? 'Start Recording, Stop Recording and End Class are at the top of the class tab. ' : 'Allow camera and microphone access when the browser asks. '}
                         ${session.passcode ? `Passcode if asked: <code>${Lms.esc(session.passcode)}</code>` : ''}
                     </p>
-                    <button class="btn btn-primary" onclick="VirtualClassModule.openMeetingTab()"><i class="fas fa-external-link-alt"></i> Open Live Classroom</button>
+                    <a class="btn btn-primary" href="${Lms.esc(this.liveRoomUrl(session))}" target="${Lms.esc(this.liveTabName(session))}"><i class="fas fa-sign-in-alt"></i> ${isHost ? 'Open Live Room' : 'Join Live Class'}</a>
                 </div>` : ''}
             ${isExternal ? `
                 <div class="card" style="text-align: center; padding: 40px 20px;">
@@ -613,13 +567,7 @@ const VirtualClassModule = {
                         ? I18n.t('Your attendance has been recorded. Open the meeting in a new tab and use passcode {code} if asked.', { code: `<code>${Lms.esc(session.passcode)}</code>` })
                         : I18n.t('Your attendance has been recorded. Open the meeting in a new tab.')}</p>
                     <a class="btn btn-primary" href="${Lms.esc(session.externalUrl)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-video"></i> Open Meeting</a>
-                </div>` : !this.canEmbed() ? '' : `
-                <div id="jitsi-container" style="width: 100%; height: 72vh; min-height: 460px; background: #0b1114; border-radius: var(--radius-md); overflow: hidden; display: flex; align-items: center; justify-content: center; color: #cbd5e1;">
-                    <div style="text-align: center;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><div style="margin-top: 10px;">Connecting to the live classroom...</div></div>
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
-                    Video, audio, screen sharing, chat, raise-hand and the whiteboard are inside the meeting toolbar. Allow camera and microphone access when the browser asks.
-                </div>`}
+                </div>` : ''}
         `;
     },
 
@@ -1597,6 +1545,10 @@ const VirtualClassModule = {
     async openMeetingTab() {
         const session = this.activeSession;
         if (!session) return;
+        if (!this.inLiveRoom) {
+            if (!this.openLiveTab(session)) window.App?.showToast('Your browser blocked the new tab. Allow pop-ups for this site and try again.', 'warning');
+            return;
+        }
         // Open the tab now (pop-up blockers allow it only straight from the click), then send it to the room
         const win = window.open('about:blank', '_blank');
         if (!win) {
@@ -1652,8 +1604,10 @@ const VirtualClassModule = {
         return `JamiaAshrafia${String(session.meetingUuid || session.id).replace(/[^a-zA-Z0-9]/g, '')}${String(session.id).replace(/[^a-zA-Z0-9]/g, '').slice(-6)}`;
     },
 
+    inLiveRoom: false, // true in the class's own tab (js/live-room.js)
+
     initAfterRender() {
-        if (this.currentTab === 'studio' && this.activeSession && !this.accessBlocked && !(this.activeSession.platform === 'EXTERNAL' && this.activeSession.externalUrl) && this.canEmbed()) {
+        if (this.inLiveRoom && this.currentTab === 'studio' && this.activeSession && !this.accessBlocked && !(this.activeSession.platform === 'EXTERNAL' && this.activeSession.externalUrl) && this.canEmbed()) {
             this.mountMeeting();
         } else {
             this.disposeMeeting();
@@ -1755,7 +1709,7 @@ const VirtualClassModule = {
     _recTimer: null,
 
     canRecord(session) {
-        return !!session && this.isHost && this.canEmbed() && this.meetingConfig.authMode !== 'JAAS'
+        return !!session && this.inLiveRoom && this.isHost && this.canEmbed() && this.meetingConfig.authMode !== 'JAAS'
             && !(session.platform === 'EXTERNAL' && session.externalUrl) && window.AuthRBAC.can('recordings.manage');
     },
 

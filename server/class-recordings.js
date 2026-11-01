@@ -315,8 +315,8 @@ async function handleStart(req, res, deps) {
     const session = access.session;
     if (!(await mayRecord(req, deps, session))) throw fail(403, 'Your role is not allowed to record this class (it needs "Manage recordings").');
     const settings = await deps.getMeetingSettings();
-    if (settings.authMode === 'JAAS' || settings.domain === 'meet.jit.si' || !settings.embed) {
-        throw fail(400, 'Recording works with the school\'s own Jitsi server shown inside the portal.');
+    if (settings.authMode === 'JAAS' || settings.domain === 'meet.jit.si') {
+        throw fail(400, 'Recording works with the school\'s own Jitsi server.');
     }
     await ensureSchema();
     const who = deps.caller(req);
