@@ -23,7 +23,10 @@ const Lms = {
     localName(english, native, urduOnly) {
         const lang = window.I18n ? window.I18n.lang : 'en';
         const useNative = lang === 'ur' || (lang === 'ar' && !urduOnly);
-        if (useNative && native && String(native).trim()) return native;
+        if (useNative && native && String(native).trim()) {
+            if (english && window.I18n && window.I18n.noteEnglish) window.I18n.noteEnglish(native, english);
+            return native;
+        }
         return english || native || '';
     },
 
@@ -919,17 +922,18 @@ const Lms = {
         }
     },
 
-    // Download a table as CSV: its header and the rows the filters leave visible. Returns false when nothing is shown.
-    exportTableCsv(tableId, filename) {
-        const table = document.getElementById(tableId);
-        if (!table) return false;
-        const rows = this._filterRows(table).filter(r => !r.hidden);
-        if (!rows.length) return false;
-        const clean = el => (el.innerText || el.textContent).replace(/\s+/g, ' ').trim();
-        const quote = v => `"${String(v).replace(/"/g, '""')}"`;
-        const head = table.tHead && table.tHead.rows[0] ? Array.from(table.tHead.rows[0].cells).map(clean) : [];
-        const lines = [head].concat(rows.map(r => Array.from(r.cells).map(clean))).map(cells => cells.map(quote).join(','));
-        const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    // Download rows (arrays of values) as a CSV file for Excel. Exports are English only: translated labels,
+    // names and dates go back to their English. Saved as UTF-8 with a byte-order mark so Excel reads it
+    // correctly, and long numbers (phones, CNICs) stay as typed instead of becoming 1.23E+08.
+    downloadCsv(filename, rows) {
+        const cell = v => {
+            let text = v === undefined || v === null ? '' : String(v);
+            if (window.I18n && window.I18n.english) text = window.I18n.english(text);
+            text = text.replace(/[\r\n]+/g, ' ').trim();
+            if (/^\+?\d{7,}$/.test(text.replace(/[\s-]/g, ''))) text = `="${text}"`;
+            return `"${text.replace(/"/g, '""')}"`;
+        };
+        const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = filename;
@@ -938,6 +942,17 @@ const Lms = {
         link.click();
         link.remove();
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    },
+
+    // Download a table as CSV: its header and the rows the filters leave visible. Returns false when nothing is shown.
+    exportTableCsv(tableId, filename) {
+        const table = document.getElementById(tableId);
+        if (!table) return false;
+        const rows = this._filterRows(table).filter(r => !r.hidden);
+        if (!rows.length) return false;
+        const text = el => (window.I18n && window.I18n.englishText ? window.I18n.englishText(el) : el.textContent.replace(/\s+/g, ' ').trim());
+        const head = table.tHead && table.tHead.rows[0] ? Array.from(table.tHead.rows[0].cells).map(text) : [];
+        this.downloadCsv(filename, [head].concat(rows.map(r => Array.from(r.cells).map(text))));
         return true;
     },
 

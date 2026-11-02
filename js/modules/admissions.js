@@ -2025,23 +2025,18 @@ const AdmissionsModule = {
 
     exportAdmissionsCSV() {
         const rows = [
-            ["Application No", "Category", "Name (English)", "Name (Urdu)", "Father Name (English)", "Father Name (Urdu)", "Gender", "Identification (CNIC/Passport)", "Country", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
+            ["Application No", "Category", "Name", "Father Name", "Gender", "Identification (CNIC/Passport)", "Country", "Phone", "Program", "Status", "Interview Score", "Roll Number"]
         ];
         (window.LmsData.admissions || []).forEach(a => {
             const isIntl = (a.studentType === 'INTERNATIONAL' || (!a.cnic && a.passport));
             const idDoc = isIntl ? (a.passport || 'N/A') : (a.cnic || 'N/A');
             const country = isIntl ? (a.country || 'International') : 'Pakistan';
             const cat = isIntl ? 'INTERNATIONAL' : 'LOCAL';
-            rows.push([a.applicationNo, cat, a.name, a.urduName || '', a.fatherName, a.fatherUrduName || '', Lms.genderLabel(a.gender), idDoc, country, a.phone, a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
+            const program = Lms.program(a.programId);
+            rows.push([a.applicationNo, cat, a.name, Lms.fatherEnglish(a), Lms.genderLabel(a.gender), idDoc, country, a.phone,
+                program ? program.name : a.programId, a.status, a.interviewScore || "N/A", a.allottedRollNo || "N/A"]);
         });
-        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `Jamia_Ashrafia_Admissions_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        Lms.downloadCsv(`Jamia_Ashrafia_Admissions_${new Date().toISOString().split('T')[0]}.csv`, rows);
         App.showToast("Wifaq admission list exported to CSV", "success");
     }
 };

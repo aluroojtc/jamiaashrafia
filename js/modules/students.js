@@ -1439,22 +1439,14 @@ const StudentsModule = {
     // Export Students list to CSV
     exportStudentsCSV() {
         const students = (window.LmsData.users || []).filter(u => u.role === 'STUDENT');
-        let csv = "Roll No,Name (English),Name (Urdu),Father Name (English),Father Name (Urdu),Gender,Program,Class,Email,Phone,Attendance %,Status\n";
+        const rows = [["Roll No", "Name", "Father Name", "Gender", "Program", "Class", "Email", "Phone", "Attendance %", "Status"]];
         students.forEach(s => {
             const cls = Lms.getClass(s.classId);
             const pct = Lms.attendancePct(s.id);
-            csv += `"${s.rollNo || ''}","${s.name}","${s.urduName || ''}","${Lms.fatherEnglish(s)}","${s.fatherUrduName || ''}","${s.gender ? Lms.genderLabel(s.gender) : ''}","${this.programForClass(s.classId)}","${cls ? Lms.className(cls.id) : ''}","${s.email || ''}","${s.phone || ''}","${pct === null ? '' : pct + '%'}","${s.status || 'ACTIVE'}"\n`;
+            rows.push([s.rollNo, s.name, Lms.fatherEnglish(s), s.gender ? Lms.genderLabel(s.gender) : '', this.programForClass(s.classId),
+                cls ? Lms.className(cls.id) : '', s.email, s.phone, pct === null ? '' : pct + '%', s.status || 'ACTIVE']);
         });
-
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Jamia_Ashrafia_Students_Roster_${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        Lms.downloadCsv(`Jamia_Ashrafia_Students_Roster_${new Date().toISOString().split('T')[0]}.csv`, rows);
         App.showToast("Students Roster CSV successfully downloaded!", "gold");
     }
 };

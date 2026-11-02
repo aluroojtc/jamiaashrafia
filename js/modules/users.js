@@ -785,27 +785,9 @@ const UsersModule = {
     // EXPORT USERS CSV
     exportCSV() {
         const users = this.getSystemUsers();
-        const headers = ["ID", "Name (English)", "Name (Urdu)", "Father Name (English)", "Father Name (Urdu)", "Email", "Role", "Designation", "Status"];
-        const rows = users.map(u => [
-            `"${u.id}"`,
-            `"${u.name}"`,
-            `"${u.urduName || ''}"`,
-            `"${Lms.fatherEnglish(u)}"`,
-            `"${u.fatherUrduName || ''}"`,
-            `"${u.email}"`,
-            `"${u.role}"`,
-            `"${u.designation || ''}"`,
-            `"${u.status || 'ACTIVE'}"`
-        ]);
-
-        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `jamia_ashrafia_system_users_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const headers = ["ID", "Name", "Father Name", "Email", "Role", "Designation", "Status"];
+        const rows = users.map(u => [u.id, u.name, Lms.fatherEnglish(u), u.email, u.role, u.designation, u.status || 'ACTIVE']);
+        Lms.downloadCsv(`jamia_ashrafia_system_users_${new Date().toISOString().split('T')[0]}.csv`, [headers].concat(rows));
 
         App.showToast(`Exported ${users.length} system user accounts to CSV.`, "success");
     }

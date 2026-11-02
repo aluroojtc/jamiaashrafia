@@ -210,10 +210,52 @@
         return SKIP_TAGS.has(el.tagName) || el.getAttribute('translate') === 'no' || el.isContentEditable;
     }
 
+    // Exports are English only: what each translated text node, name or date was in English
+    const originals = new WeakMap(); // text node -> { en, shown }
+    const englishOf = new Map(); // shown text (a name or date in the page's language) -> English
+
+    function noteEnglish(shown, english) {
+        if (lang === 'en' || !shown || !english || shown === english) return;
+        if (englishOf.size > 20000) englishOf.clear();
+        englishOf.set(String(shown).trim(), String(english).trim());
+    }
+
+    // The English of a piece of shown text (unchanged when it is not a known translation)
+    function english(text) {
+        if (lang === 'en' || text === undefined || text === null) return text;
+        let out = String(text);
+        const whole = englishOf.get(out.trim());
+        if (whole !== undefined) return whole;
+        if (!/[^\u0000-\u007F]/.test(out)) return out;
+        Array.from(englishOf.keys()).sort((a, b) => b.length - a.length).forEach(k => {
+            if (out.includes(k)) out = out.split(k).join(englishOf.get(k));
+        });
+        return out;
+    }
+
+    // An element's text as it read in English (before the page was translated)
+    function englishText(el) {
+        const parts = [];
+        const visit = node => {
+            if (node.nodeType === 3) {
+                const o = originals.get(node);
+                parts.push(o && o.shown === node.nodeValue ? o.en : node.nodeValue);
+            } else if (node.nodeType === 1 && !SKIP_TAGS.has(node.tagName) && !node.hidden && node.style.display !== 'none') {
+                const block = /^(DIV|P|BR|LI|TR|H[1-6])$/.test(node.tagName);
+                if (block) parts.push(' ');
+                node.childNodes.forEach(visit);
+                if (block) parts.push(' ');
+            }
+        };
+        visit(el);
+        return english(parts.join('').replace(/\s+/g, ' ').trim());
+    }
+
     function translateTextNode(node) {
         const before = node.nodeValue;
         const after = translateText(before);
         if (after === before) return;
+        originals.set(node, { en: before, shown: after });
         const parent = node.parentNode;
         // An <option> without a value submits its text: keep submitting the English text
         if (parent && parent.tagName === 'OPTION' && !parent.hasAttribute('value')) {
@@ -424,17 +466,23 @@
     function formatDate(value, options) {
         const d = value instanceof Date ? value : new Date(value);
         if (isNaN(d)) return String(value || '');
-        return d.toLocaleDateString(meta.locale, options || { day: '2-digit', month: 'short', year: 'numeric' });
+        const shown = d.toLocaleDateString(meta.locale, options || { day: '2-digit', month: 'short', year: 'numeric' });
+        if (lang !== 'en') noteEnglish(shown, d.toLocaleDateString('en-GB', options || { day: '2-digit', month: 'short', year: 'numeric' }));
+        return shown;
     }
     function formatDateTime(value, options) {
         const d = value instanceof Date ? value : new Date(value);
         if (isNaN(d)) return String(value || '');
-        return d.toLocaleString(meta.locale, options || { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const shown = d.toLocaleString(meta.locale, options || { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        if (lang !== 'en') noteEnglish(shown, d.toLocaleString('en-GB', options || { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
+        return shown;
     }
     function formatTime(value, options) {
         const d = value instanceof Date ? value : new Date(value);
         if (isNaN(d)) return String(value || '');
-        return d.toLocaleTimeString(meta.locale, options || { hour: '2-digit', minute: '2-digit' });
+        const shown = d.toLocaleTimeString(meta.locale, options || { hour: '2-digit', minute: '2-digit' });
+        if (lang !== 'en') noteEnglish(shown, d.toLocaleTimeString('en-GB', options || { hour: '2-digit', minute: '2-digit' }));
+        return shown;
     }
 
     window.I18n = {
@@ -447,6 +495,9 @@
         t,
         translateText,
         translateTree,
+        noteEnglish,
+        english,
+        englishText,
         setLanguage,
         applyAccountLanguage,
         // Remembers the account's language on this device after sign-in (the next page opens in it)

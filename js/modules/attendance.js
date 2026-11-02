@@ -462,20 +462,13 @@ const AttendanceModule = {
             return;
         }
 
-        let csv = "ID,User Name,Role,Identifier,Class,Date,Check-In Time,Check-Out Time,Status,Session,Notes\n";
+        const rows = [["ID", "User Name", "Role", "Identifier", "Class", "Date", "Check-In Time", "Check-Out Time", "Status", "Session", "Notes"]];
         records.forEach(r => {
-            csv += `"${r.id}","${r.userName}","${r.role}","${r.identifier || ''}","${r.className || ''}","${r.date}","${r.checkInTime || ''}","${r.checkOutTime || ''}","${r.status}","${r.session || ''}","${r.notes || ''}"\n`;
+            const u = r.userId ? Lms.user(r.userId) : null;
+            rows.push([r.id, u ? u.name : r.userName, r.role, r.identifier, r.classId ? Lms.className(r.classId) : r.className,
+                r.date, r.checkInTime, r.checkOutTime, r.status, r.session, r.notes]);
         });
-
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Jamia_Ashrafia_Attendance_${this.getTodayDate()}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        Lms.downloadCsv(`Jamia_Ashrafia_Attendance_${this.getTodayDate()}.csv`, rows);
         App.showToast("Attendance CSV report successfully exported!", "gold");
     }
 };
