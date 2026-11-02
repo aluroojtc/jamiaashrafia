@@ -752,7 +752,7 @@ const VirtualClassModule = {
             })}
 
             <!-- ATTENDANCE TABLE -->
-            <div class="card" style="padding: 0; overflow: hidden;">
+            <div class="card" style="padding: 0; overflow-x: auto;">
                 <table class="data-table" id="vc-attendance-table">
                     <thead>
                         <tr>

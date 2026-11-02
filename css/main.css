@@ -982,6 +982,38 @@ button, input, select, textarea {
     font-weight: 600;
 }
 
+/* Header search shows only on wide screens */
+.header-search {
+    width: 220px;
+    display: none;
+}
+
+.header-search .form-control {
+    padding-block: 6px;
+    padding-inline: 36px 12px;
+    font-size: 0.82rem;
+}
+
+@media (min-width: 1200px) {
+    .header-search {
+        display: block;
+    }
+}
+
+/* Menu button and the dimmed page behind the open sidebar (phones only) */
+.sidebar-toggle {
+    display: none;
+    flex-shrink: 0;
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 72px 0 0 0;
+    background: rgba(6, 33, 40, 0.45);
+    z-index: 98;
+}
+
 /* ==========================================================================
    RESPONSIVE QUERIES
    ========================================================================== */
@@ -1055,16 +1087,37 @@ button, input, select, textarea {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    .sidebar-toggle {
+        display: inline-flex;
+    }
     .sidebar {
         position: fixed;
-        inset-inline-start: -280px;
+        inset-inline-start: 0;
         top: 72px;
         bottom: 0;
+        width: min(280px, 85vw);
         z-index: 99;
         box-shadow: var(--shadow-lg);
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform var(--transition-normal), visibility var(--transition-normal);
     }
-    .sidebar.open {
-        inset-inline-start: 0;
+    html[dir="rtl"] .sidebar {
+        transform: translateX(100%);
+    }
+    .sidebar.open,
+    html[dir="rtl"] .sidebar.open {
+        transform: none;
+        visibility: visible;
+    }
+    .sidebar.open ~ .sidebar-backdrop {
+        display: block;
+    }
+    body.sidebar-open {
+        overflow: hidden;
+    }
+    .app-body {
+        height: calc(100dvh - 72px);
     }
     .content-viewport {
         padding: 16px;
@@ -1114,5 +1167,37 @@ button, input, select, textarea {
     }
     .user-profile-btn {
         padding: 2px;
+    }
+    .top-header .icon-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Forms and detail panels written as two (or more) equal columns stack into one */
+    [style*="grid-template-columns: 1fr 1fr"],
+    [style*="grid-template-columns:1fr 1fr"] {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    /* Today's six prayer times: two rows of three */
+    [style*="grid-template-columns: repeat(6, 1fr)"] {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    /* Modals use the full phone width */
+    .modal-backdrop {
+        padding: 8px;
+    }
+    .modal-window .modal-header,
+    .modal-window .modal-footer {
+        padding: 14px 16px;
+    }
+    .modal-window .modal-body {
+        padding: 16px;
+    }
+    .modal-window .modal-footer {
+        flex-wrap: wrap;
+    }
+    .view-title-group h1 {
+        font-size: 1.4rem;
     }
 }

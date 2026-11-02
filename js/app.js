@@ -292,6 +292,7 @@ const App = {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeModal();
+                this.toggleSidebar(false);
                 const dropdown = document.getElementById('header-user-dropdown');
                 if (dropdown) dropdown.classList.remove('open');
             }
@@ -307,6 +308,17 @@ const App = {
         const inExam = window.ExamsModule && window.ExamsModule.attempt;
         if (modalOpen || typing || inStudio || inExam) return;
         this.navigate(this.currentRoute, { preserveScroll: true });
+    },
+
+    // Phones: the sidebar slides in over the page (no argument = toggle)
+    toggleSidebar(open) {
+        const sidebar = document.getElementById('app-sidebar');
+        if (!sidebar) return;
+        const show = typeof open === 'boolean' ? open : !sidebar.classList.contains('open');
+        sidebar.classList.toggle('open', show);
+        document.body.classList.toggle('sidebar-open', show);
+        const btn = document.getElementById('sidebar-toggle');
+        if (btn) btn.setAttribute('aria-expanded', String(show));
     },
 
     toggleUserDropdown() {
@@ -385,6 +397,7 @@ const App = {
             return;
         }
         this.currentRoute = route;
+        this.toggleSidebar(false);
         if (leavingRoute === 'virtual-class' && route !== 'virtual-class' && window.VirtualClassModule && window.VirtualClassModule.onLeaveRoute) {
             window.VirtualClassModule.onLeaveRoute();
         }
@@ -687,7 +700,7 @@ const App = {
             </div>
 
             <!-- TWO COLUMN WORKSPACE -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+            <div class="dash-two-col" style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px;">
                 <!-- Left: Live Class Alert Box & Highlights -->
                 <div>
                     ${can('virtual_class') ? this.liveSessionCard(liveClass, true) : ''}
