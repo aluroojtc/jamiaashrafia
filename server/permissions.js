@@ -27,7 +27,8 @@ const SCOPES = {
 const MODULES = [
     ['users', 'Users', 'System user accounts (office staff)'],
     ['roles', 'Roles & Permissions', 'Who may do what'],
-    ['settings', 'Settings & Master Data', 'Admission window, live classes, recordings, branches, programmes and sessions'],
+    ['settings', 'Settings', 'Admission window, live classes, recordings and the architecture page'],
+    ['setup', 'Institution Setup', 'Campuses, programmes, departments, academic sessions and the institution profile'],
     ['audit', 'Audit Log', 'Record of security-relevant changes'],
     ['admissions', 'Admissions', 'Online applications, interviews and enrolment'],
     ['students', 'Students', 'Student records and accounts'],
@@ -66,7 +67,13 @@ const P = [
     ['settings.meetings', 'Live class service', 'Choose the online meeting service.'],
     ['settings.recordings', 'Recording retention', 'Set how long recordings are kept and run clean-up.', { dangerous: true }],
     ['settings.architecture', 'System architecture page', 'Open the technical architecture page.'],
-    ['settings.master_data', 'Institution setup', 'Add, change and remove branches, programmes, departments and academic sessions, and edit the institution profile.', { dangerous: true }],
+
+    ['setup.view', 'Open Institution Setup', 'See the Institution Setup page (campuses, programmes, departments, sessions and profile) without changing anything.'],
+    ['setup.branches.manage', 'Manage campuses & branches', 'Add, change and remove campuses / branches.', { dangerous: true, implies: ['setup.view'] }],
+    ['setup.programs.manage', 'Manage programmes', 'Add, change and remove academic programmes.', { implies: ['setup.view'] }],
+    ['setup.departments.manage', 'Manage departments', 'Add, change and remove departments.', { implies: ['setup.view'] }],
+    ['setup.sessions.manage', 'Manage academic sessions', 'Add, change and remove academic sessions and choose the current one.', { dangerous: true, implies: ['setup.view'] }],
+    ['setup.profile.manage', 'Edit institution profile', 'Change the institution name, contact details, bank account for fees and current leadership.', { dangerous: true, implies: ['setup.view'] }],
 
     ['audit.view', 'View audit log', 'See who changed roles, passwords, results and payments.'],
 
@@ -229,7 +236,7 @@ const SYSTEM_ROLES = {
 // The institution works with three roles (Admin, Teacher, Student) under the Super Admin, so Admin runs the
 // office, academic and finance work. Kept for the Super Admin alone: staff accounts (other Admins) beyond
 // viewing them, changing what roles may do, the audit log, recording purges, deleting students, teachers or
-// applications, institution setup (branches, programmes, sessions) and the identity of anonymous donors. Student self-service (submitting work, sitting exams, uploading
+// applications, changing institution setup (branches, programmes, sessions, profile) and the identity of anonymous donors. Student self-service (submitting work, sitting exams, uploading
 // payment proof) is not part of an office role.
 const DEFAULT_PERMISSIONS = {
     ACADEMIC_ADMIN: [
@@ -253,7 +260,7 @@ const DEFAULT_PERMISSIONS = {
         'virtual_classes.view', 'virtual_classes.join', 'virtual_classes.host', 'virtual_classes.manage',
         'recordings.view', 'recordings.download', 'recordings.manage',
         'reports.academic', 'reports.attendance', 'reports.finance', 'reports.admissions', 'reports.library', 'reports.export',
-        'heritage.view'
+        'heritage.view', 'setup.view'
     ],
     TEACHER: [
         'students.view', 'teachers.view',
@@ -333,6 +340,12 @@ const LEGACY_MODULE_PERMISSIONS = {
     security: ['settings.architecture']
 };
 
+// Permissions that were split into several; stored grants of the old key are moved onto the new ones
+const RENAMED_PERMISSIONS = {
+    'settings.master_data': ['setup.view', 'setup.branches.manage', 'setup.programs.manage', 'setup.departments.manage',
+        'setup.sessions.manage', 'setup.profile.manage']
+};
+
 // Old capability names still used by pages that have not been converted (accepted for one release)
 const LEGACY_ALIASES = {
     'admissions:manage': 'admissions.update', 'admissions:approve': 'admissions.decide', 'admissions:apply': null,
@@ -406,5 +419,6 @@ module.exports = {
     DOMAINS,
     DOMAIN_CEILING,
     LEGACY_MODULE_PERMISSIONS,
+    RENAMED_PERMISSIONS,
     LEGACY_ALIASES
 };

@@ -2,9 +2,9 @@
  * JAMIA ASHRAFIA LAHORE - MASTER DATA, INSTITUTION PROFILE & RECORDING RETENTION
  *
  * - Branches, departments, academic programmes and sessions live in their own SQL tables. Everyone may read
- *   them (the public admission form needs them); changing them needs settings.master_data.
+ *   them (the public admission form needs them); changing them needs setup.<kind>.manage.
  * - The institution profile (name, contact details, current leadership) is a setting; changing it needs
- *   settings.master_data as well.
+ *   setup.profile.manage.
  * - Recording retention: how long lecture recordings are kept, and the clean-up that removes expired ones
  *   from the record store and the uploads folder (settings.recordings).
  *
@@ -26,7 +26,7 @@ const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
 // type: text | int | bool | date; required; max (characters); upper (stored upper-case); min (int)
 const ENTITIES = {
     branches: {
-        table: 'branches', label: 'branch', idPrefix: 'br',
+        table: 'branches', label: 'branch', plural: 'campuses and branches', idPrefix: 'br',
         fields: {
             code: { col: 'code', type: 'text', required: true, max: 30, upper: true },
             name: { col: 'name', type: 'text', required: true, max: 255 },
@@ -41,7 +41,7 @@ const ENTITIES = {
         }
     },
     departments: {
-        table: 'departments', label: 'department', idPrefix: 'dept',
+        table: 'departments', label: 'department', plural: 'departments', idPrefix: 'dept',
         fields: {
             code: { col: 'code', type: 'text', required: true, max: 50, upper: true },
             name: { col: 'name', type: 'text', required: true, max: 255 },
@@ -50,7 +50,7 @@ const ENTITIES = {
         }
     },
     programs: {
-        table: 'academic_programs', label: 'programme', idPrefix: 'prog',
+        table: 'academic_programs', label: 'programme', plural: 'programmes', idPrefix: 'prog',
         fields: {
             departmentId: { col: 'department_id', type: 'text', required: true, max: 50 },
             code: { col: 'code', type: 'text', required: true, max: 50, upper: true },
@@ -62,7 +62,7 @@ const ENTITIES = {
         }
     },
     sessions: {
-        table: 'academic_sessions', label: 'academic session', idPrefix: 'sess',
+        table: 'academic_sessions', label: 'academic session', plural: 'academic sessions', idPrefix: 'sess',
         fields: {
             name: { col: 'name', type: 'text', required: true, max: 100 },
             startDate: { col: 'start_date', type: 'date', required: true },
@@ -164,8 +164,8 @@ async function handleMasterWrite(req, res, url, deps) {
     const id = decodeURIComponent(url.pathname.slice(base.length + 1));
     const m = req.method;
 
-    if (!deps.can(req, 'settings.master_data')) {
-        deps.sendJson(res, 403, { success: false, error: 'You are not allowed to change branches, programmes, departments or sessions.' });
+    if (!deps.can(req, `setup.${kind}.manage`)) {
+        deps.sendJson(res, 403, { success: false, error: `You are not allowed to change ${entity.plural}.` });
         return;
     }
     if ((m === 'POST' && id) || (m !== 'POST' && !id)) {
@@ -281,7 +281,7 @@ async function handleInstitution(req, res, deps) {
         deps.sendJson(res, 200, { success: true, institution: await getInstitution(deps) });
         return;
     }
-    if (!deps.can(req, 'settings.master_data')) {
+    if (!deps.can(req, 'setup.profile.manage')) {
         deps.sendJson(res, 403, { success: false, error: 'You are not allowed to change the institution profile.' });
         return;
     }

@@ -61,8 +61,9 @@ const InstitutionSetupModule = {
         }
     },
 
-    canManage() {
-        return Lms.can('settings.master_data');
+    // kind: 'branches' | 'programs' | 'departments' | 'sessions' | 'profile'
+    canManage(kind) {
+        return Lms.can(`setup.${kind}.manage`);
     },
 
     isSuperAdmin() {
@@ -159,12 +160,12 @@ const InstitutionSetupModule = {
         return `
             <div class="card-header">
                 <div style="font-size: 0.85rem; color: var(--text-secondary);">${hint}</div>
-                ${this.canManage() ? `<button class="btn btn-primary btn-sm" onclick="InstitutionSetupModule.openForm('${kind}')"><i class="fas fa-plus"></i> Add ${this.FORMS[kind].title}</button>` : ''}
+                ${this.canManage(kind) ? `<button class="btn btn-primary btn-sm" onclick="InstitutionSetupModule.openForm('${kind}')"><i class="fas fa-plus"></i> Add ${this.FORMS[kind].title}</button>` : ''}
             </div>`;
     },
 
     rowActions(kind, id) {
-        if (!this.canManage()) return '';
+        if (!this.canManage(kind)) return '';
         return `
             <button class="btn btn-secondary btn-sm" title="Edit" onclick="InstitutionSetupModule.openForm('${kind}', '${Lms.esc(id)}')"><i class="fas fa-edit"></i></button>
             <button class="btn btn-secondary btn-sm" title="Delete" onclick="InstitutionSetupModule.remove('${kind}', '${Lms.esc(id)}')"><i class="fas fa-trash" style="color: var(--danger);"></i></button>`;
@@ -257,7 +258,7 @@ const InstitutionSetupModule = {
                         <td>${Lms.fmtDate(s.startDate)}</td>
                         <td>${Lms.fmtDate(s.endDate)}</td>
                         <td>${s.isCurrent ? '<span class="status-pill success"><i class="fas fa-check-circle"></i> Current</span>'
-                            : (this.canManage() ? `<button class="btn btn-secondary btn-sm" onclick="InstitutionSetupModule.makeCurrent('${Lms.esc(s.id)}')">Make current</button>` : '')}</td>
+                            : (this.canManage('sessions') ? `<button class="btn btn-secondary btn-sm" onclick="InstitutionSetupModule.makeCurrent('${Lms.esc(s.id)}')">Make current</button>` : '')}</td>
                         <td style="text-align: end; white-space: nowrap;">${this.rowActions('sessions', s.id)}</td>
                     </tr>`), 'No academic sessions set up yet.', 'setup-sessions-table', {
                     search: 'Search session name...',
@@ -271,7 +272,7 @@ const InstitutionSetupModule = {
     // Add / edit / delete
     // ---------------------------------------------------------------------
     openForm(kind, id) {
-        if (!this.canManage()) return;
+        if (!this.canManage(kind)) return;
         const form = this.FORMS[kind];
         const rec = id ? this.lists[kind].find(r => r.id === id) : null;
         const d = rec || {};
@@ -348,7 +349,7 @@ const InstitutionSetupModule = {
     // ---------------------------------------------------------------------
     renderProfile() {
         const p = this.institution || {};
-        const edit = this.canManage();
+        const edit = this.canManage('profile');
         const field = (key, label, opts = {}) => `
             <div class="form-group"><label for="ip-${key}">${label}</label>
                 <input type="${opts.type || 'text'}" id="ip-${key}" class="form-control" value="${Lms.esc(p[key] === null || p[key] === undefined ? '' : p[key])}" ${opts.rtl ? 'dir="rtl"' : ''} ${edit ? '' : 'disabled'}></div>`;

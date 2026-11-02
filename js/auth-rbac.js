@@ -85,8 +85,9 @@ const MODULE_ACCESS = {
     library: ['library.catalog.view'],
     notifications: [],
     security: ['settings.architecture'],
-    // Branches, programmes, sessions, profile; the data clean-up tab is for the Super Admin only
-    setup: ['settings.master_data']
+    // Branches, programmes, sessions, profile (each changed under its own permission); the data clean-up tab
+    // is for the Super Admin only
+    setup: ['setup.view']
 };
 
 // Old capability names still used in a few places; they map onto catalog permissions

@@ -114,6 +114,7 @@ async function ensureRolesSchema() {
         granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     await ensureDomainSchema();
+    await migrateRenamedPermissions();
 
     const [[{ n }]] = await db.query(`SELECT COUNT(*) AS n FROM roles`);
     if (!Number(n)) await importLegacyRoles();
@@ -157,6 +158,28 @@ async function ensureDomainSchema() {
         granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, permission)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+}
+
+// A permission split into several (e.g. settings.master_data -> the setup.* permissions): whoever held the old
+// key, through a role or an individual override, now holds every new one. Runs on each start; does nothing once moved.
+async function migrateRenamedPermissions() {
+    for (const [oldKey, newKeys] of Object.entries(catalog.RENAMED_PERMISSIONS)) {
+        const [rolesWith] = await db.query(`SELECT role_id FROM role_permissions WHERE permission = ?`, [oldKey]);
+        for (const { role_id: roleId } of rolesWith) {
+            for (const k of newKeys) await db.query(`INSERT IGNORE INTO role_permissions (role_id, permission) VALUES (?, ?)`, [roleId, k]);
+        }
+        const [usersWith] = await db.query(`SELECT user_id, effect, granted_by FROM user_permission_overrides WHERE permission = ?`, [oldKey]);
+        for (const o of usersWith) {
+            for (const k of newKeys) {
+                await db.query(`INSERT IGNORE INTO user_permission_overrides (user_id, permission, effect, granted_by) VALUES (?, ?, ?, ?)`, [o.user_id, k, o.effect, o.granted_by]);
+            }
+        }
+        await db.query(`DELETE FROM role_permissions WHERE permission = ?`, [oldKey]);
+        await db.query(`DELETE FROM user_permission_overrides WHERE permission = ?`, [oldKey]);
+        if (rolesWith.length || usersWith.length) {
+            console.log(`[Roles] Moved ${oldKey} onto ${newKeys.join(', ')} (${rolesWith.length} role(s), ${usersWith.length} override(s))`);
+        }
+    }
 }
 
 async function getSettingJson(key) {
