@@ -15,6 +15,7 @@
     "test:campus": "node test_campus_access.js",
     "test:recordings": "node test_class_recordings.js",
     "test:locations": "node test_role_locations.js",
+    "test:public-meetings": "node test_public_meetings.js",
     "i18n:check": "node tools/i18n-check.js"
   },
   "keywords": [

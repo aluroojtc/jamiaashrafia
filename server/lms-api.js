@@ -25,6 +25,7 @@ const masterData = require('./master-data');
 const sampleData = require('./sample-data');
 const campus = require('./campus');
 const classRecordings = require('./class-recordings');
+const publicMeetings = require('./public-meetings');
 
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -214,6 +215,7 @@ function ensureSchema() {
             // Existing records get a campus (idempotent; see server/campus.js)
             await campus.migrate(msg => console.log(msg));
             await classRecordings.ensureSchema();
+            await publicMeetings.ensureSchema();
         })().catch(err => {
             schemaPromise = null;
             throw err;
@@ -1039,10 +1041,15 @@ async function getMeetingSettings() {
 
 // Token for one person and one class; null when the service does not use sign-in
 function meetingToken(settings, secrets, session, user, isHost) {
+    return roomToken(settings, secrets, meetingRoomName(session), user, isHost);
+}
+
+// Token for one person and one meeting room (a class, or a public meeting in server/public-meetings.js)
+function roomToken(settings, secrets, roomName, user, isHost, ttlSeconds = 12 * 3600) {
     const now = Math.floor(Date.now() / 1000);
-    const exp = now + 12 * 3600;
+    const exp = now + ttlSeconds;
     // Jitsi compares the room claim with its (lower-case) room name
-    const room = meetingRoomName(session).toLowerCase();
+    const room = roomName.toLowerCase();
     const name = user.name || user.id;
     if (settings.authMode === 'JWT') {
         // sub '*': the server's internal XMPP domain (e.g. meet.jitsi in Docker) often differs from its public name
@@ -1387,6 +1394,8 @@ async function route(req, res) {
     if (p === '/api/virtual-class/join-token' && m === 'POST') { await handleMeetingToken(req, res); return true; }
     // Live class recording: start / stop / save or discard, and the protected video stream
     if (await classRecordings.route(req, res, url, RECORDING_DEPS)) return true;
+    // Public meetings: started by an administrator, joined by anyone with the link (server/public-meetings.js)
+    if (await publicMeetings.route(req, res, url, PUBLIC_MEETING_DEPS)) return true;
 
     // Institution setup (branches, programmes, sessions, profile), recording retention, sample data clean-up
     if (await masterData.route(req, res, url, DEPS)) return true;
@@ -1402,6 +1411,9 @@ const RECORDING_DEPS = {
     sendJson, readJson, can, caller, effective, loadCollection, loadRecord, getSetting, newId, insertNotification,
     decideVirtualAccess, getMeetingSettings, meetingRoomName
 };
+
+// Helpers handed to server/public-meetings.js
+const PUBLIC_MEETING_DEPS = { sendJson, readJson, can, caller, newId, getSetting, getMeetingSettings, roomToken };
 
 // DELETE /api/admissions/:id  removes an application (duplicates, test entries); an enrolled student's account stays
 async function handleAdmissionDelete(req, res, url) {

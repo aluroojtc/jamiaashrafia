@@ -104,6 +104,11 @@ const VirtualClassModule = {
                             <i class="fas fa-plus-circle"></i> Schedule Single Lecture
                         </button>
                     ` : ''}
+                    ${this.canPublicMeeting() ? `
+                        <button class="btn btn-gold btn-sm" onclick="VirtualClassModule.openPublicMeetingModal()" title="A meeting anyone can join with the link, without signing in">
+                            <i class="fas fa-globe"></i> Start Public Meeting
+                        </button>
+                    ` : ''}
                     ${this.currentTab === 'studio' ? `
                         <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.switchTab('lobby')">
                             <i class="fas fa-th-large"></i> Back to Classrooms Lobby
@@ -264,6 +269,9 @@ const VirtualClassModule = {
                     </span>
                 </div>
             </div>
+
+            <!-- OPEN PUBLIC MEETINGS (filled by loadPublicMeetings) -->
+            <div id="vc-public-meetings">${this.publicMeetingsPanelHtml()}</div>
 
             <!-- TOOLBAR: FILTER TABS & SEARCH -->
             <div class="vc-filter-toolbar">
@@ -1600,6 +1608,149 @@ const VirtualClassModule = {
         }
     },
 
+    // =========================================================================
+    // PUBLIC MEETINGS: a meeting with a link anyone can join without signing in (server/public-meetings.js).
+    // Separate from the classes: no class, timetable or attendance record is created.
+    // =========================================================================
+    publicMeetings: [],
+
+    canPublicMeeting() {
+        return !this.inLiveRoom && window.AuthRBAC.can('virtual_classes.public_meeting');
+    },
+
+    async loadPublicMeetings() {
+        if (!this.canPublicMeeting()) return;
+        try {
+            const data = await Lms.api('GET', '/api/public-meetings');
+            this.publicMeetings = data.meetings || [];
+        } catch (e) { /* keep the last list */ }
+        const box = document.getElementById('vc-public-meetings');
+        if (box) box.innerHTML = this.publicMeetingsPanelHtml();
+    },
+
+    publicMeetingsPanelHtml() {
+        if (!this.canPublicMeeting()) return '';
+        const open = this.publicMeetings.filter(m => m.status === 'ACTIVE');
+        if (!open.length) return '';
+        return `
+            <div class="vc-public-panel">
+                <div class="vc-public-panel-head"><i class="fas fa-globe" style="color: #0ea5e9;"></i> Open Public Meetings <span class="badge-pill">${open.length}</span></div>
+                ${open.map(m => `
+                    <div class="vc-public-row">
+                        <div class="vc-public-row-info">
+                            <strong>${Lms.esc(m.title)}</strong>
+                            <small>Started by ${Lms.esc(m.createdByName)} · ${Lms.esc(Lms.fmtDateTime(m.createdAt))} · link works until ${Lms.esc(Lms.fmtDateTime(m.expiresAt))}</small>
+                        </div>
+                        <div class="vc-public-row-actions">
+                            ${CopyButton.html(m.link, 'Copy public link', { text: 'Copy link' })}
+                            <button class="btn btn-primary btn-sm" onclick="VirtualClassModule.hostPublicMeeting('${Lms.esc(m.id)}')"><i class="fas fa-sign-in-alt"></i> Join as Host</button>
+                            <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.endPublicMeeting('${Lms.esc(m.id)}', this)"><i class="fas fa-stop-circle"></i> End</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    openPublicMeetingModal() {
+        Lms.openModal(
+            `<i class="fas fa-globe" style="color: #0ea5e9;"></i> Start Public Meeting`,
+            `<div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+                Starts a meeting with a public link. Anyone who has the link can join as a guest by typing their name, without an LMS account.
+                You join as the host (moderator). Scheduled classes and timetables are not affected.
+            </div>
+            <div class="form-grid">
+                <div class="form-group"><label>Meeting title *</label><input type="text" id="pm-title" class="form-control" maxlength="200" placeholder="e.g. Parents' Meeting, Public Bayan"></div>
+                <div class="form-group"><label>Link works for</label>
+                    <select id="pm-hours" class="form-control">
+                        ${[1, 2, 3, 4, 6, 8, 12].map(h => `<option value="${h}" ${h === 2 ? 'selected' : ''}>${h} hour${h > 1 ? 's' : ''}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <div style="font-size: 0.78rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px;">
+                <i class="fas fa-exclamation-triangle"></i> Share the link only with the people you want in the meeting. It stops working when you end the meeting or the time runs out.
+            </div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-primary" onclick="VirtualClassModule.startPublicMeeting(this)"><i class="fas fa-play"></i> Start Meeting</button>`
+        );
+        setTimeout(() => document.getElementById('pm-title')?.focus(), 50);
+    },
+
+    publicMeetingUrl(join, title) {
+        const me = window.AuthRBAC?.currentUser || {};
+        const name = `${me.name || 'Host'} (Host)`;
+        return `https://${join.domain}/${join.roomPath}${join.token ? `?jwt=${encodeURIComponent(join.token)}` : ''}#userInfo.displayName=${encodeURIComponent(JSON.stringify(name))}&config.subject=${encodeURIComponent(JSON.stringify(title || ''))}&config.prejoinConfig.enabled=false&config.defaultLanguage=${encodeURIComponent(JSON.stringify(this.meetingLang()))}`;
+    },
+
+    // The meeting opens in a new tab; the tab is opened straight from the click so pop-up blockers allow it
+    openPublicMeetingTab(win, join, title) {
+        if (!win) {
+            window.App?.showToast('Your browser blocked the new tab. Allow pop-ups for this site, then use Join as Host.', 'warning');
+            return;
+        }
+        win.opener = null;
+        win.location.href = this.publicMeetingUrl(join, title);
+    },
+
+    async startPublicMeeting(btn) {
+        const title = Lms.val('pm-title').trim();
+        if (!title) {
+            window.App?.showToast('Enter a title for the meeting.', 'warning');
+            return;
+        }
+        const win = window.open('about:blank', '_blank');
+        btn.disabled = true;
+        try {
+            const data = await Lms.api('POST', '/api/public-meetings', { title, hours: Number(Lms.val('pm-hours')) });
+            this.openPublicMeetingTab(win, data.join, data.meeting.title);
+            this.showPublicMeetingLink(data.meeting);
+            this.loadPublicMeetings();
+        } catch (e) {
+            if (win) win.close();
+            btn.disabled = false;
+            window.App?.showToast(e.message, 'error');
+        }
+    },
+
+    showPublicMeetingLink(meeting) {
+        Lms.openModal(
+            `<i class="fas fa-check-circle" style="color: var(--primary-500);"></i> Public Meeting Started`,
+            `<p style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 0;">
+                <strong>${Lms.esc(meeting.title)}</strong> is open in a new tab. Share this link; anyone who has it can join without signing in until ${Lms.esc(Lms.fmtDateTime(meeting.expiresAt))}.
+            </p>
+            <div class="vc-public-link-box"><span>${Lms.esc(meeting.link)}</span>${CopyButton.html(meeting.link, 'Copy public link', { text: 'Copy' })}</div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0;">The meeting stays listed under Open Public Meetings in the Classrooms Lobby, where you can copy the link again, rejoin as host or end it.</p>`,
+            `<a class="btn btn-secondary" href="https://wa.me/?text=${encodeURIComponent(`${meeting.title}: ${meeting.link}`)}" target="_blank" rel="noopener noreferrer"><i class="fab fa-whatsapp"></i> Share on WhatsApp</a>
+             <button class="btn btn-primary" onclick="App.closeModal()">Done</button>`
+        );
+    },
+
+    async hostPublicMeeting(id) {
+        const win = window.open('about:blank', '_blank');
+        try {
+            const data = await Lms.api('POST', `/api/public-meetings/${encodeURIComponent(id)}/host`);
+            this.openPublicMeetingTab(win, data.join, data.meeting.title);
+        } catch (e) {
+            if (win) win.close();
+            window.App?.showToast(e.message, 'error');
+            this.loadPublicMeetings();
+        }
+    },
+
+    async endPublicMeeting(id, btn) {
+        const m = this.publicMeetings.find(x => x.id === id);
+        if (!confirm(`End "${m ? m.title : 'this meeting'}"? The public link stops working at once. Use "End meeting for all" in the meeting to remove people still inside.`)) return;
+        if (btn) btn.disabled = true;
+        try {
+            await Lms.api('POST', `/api/public-meetings/${encodeURIComponent(id)}/end`);
+            window.App?.showToast('Public meeting ended. The link no longer works.', 'success');
+        } catch (e) {
+            if (btn) btn.disabled = false;
+            window.App?.showToast(e.message, 'error');
+        }
+        this.loadPublicMeetings();
+    },
+
     roomNameFor(session) {
         return `JamiaAshrafia${String(session.meetingUuid || session.id).replace(/[^a-zA-Z0-9]/g, '')}${String(session.id).replace(/[^a-zA-Z0-9]/g, '').slice(-6)}`;
     },
@@ -1607,6 +1758,7 @@ const VirtualClassModule = {
     inLiveRoom: false, // true in the class's own tab (js/live-room.js)
 
     initAfterRender() {
+        if (this.currentTab === 'lobby' && !this.inLiveRoom) this.loadPublicMeetings();
         if (this.inLiveRoom && this.currentTab === 'studio' && this.activeSession && !this.accessBlocked && !(this.activeSession.platform === 'EXTERNAL' && this.activeSession.externalUrl) && this.canEmbed()) {
             this.mountMeeting();
         } else {

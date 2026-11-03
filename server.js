@@ -792,7 +792,7 @@ function legacyHandler(req, res) {
 }
 
 // Paths that may be served as static files. Everything else (source, .env, .git, SQL, archives) stays private.
-const PUBLIC_FILES = new Set(['/index.html', '/login.html', '/live.html']);
+const PUBLIC_FILES = new Set(['/index.html', '/login.html', '/live.html', '/meet.html']);
 const PUBLIC_DIRS = ['/css/', '/js/', '/assets/', '/uploads/'];
 const INLINE_UPLOAD_EXT = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp3', '.m4a', '.mp4', '.webm', '.txt']);
 
@@ -816,7 +816,10 @@ const PUBLIC_API = new Set([
     'GET /api/programs',
     'GET /api/sessions',
     // The recorder's finalize script on this server asks the LMS to pick up a finished recording
-    'POST /api/class-recordings/scan'
+    'POST /api/class-recordings/scan',
+    // Guests open a public meeting link (/meet/<code>); the code itself is checked there
+    'POST /api/public-meetings/lookup',
+    'POST /api/public-meetings/join'
 ]);
 // While previewing a role, nothing can be changed; only these are reachable besides reading
 const PREVIEW_ALLOWED = new Set(['DELETE /api/preview', 'POST /api/auth/logout', 'POST /api/auth/language']);
@@ -897,6 +900,10 @@ const server = http.createServer(async (req, res) => {
             return;
         }
         if (await lmsApi.handle(req, res)) return;
+    } else if (/^\/meet\/[A-Za-z0-9_-]{20,64}\/?$/.test(pathname)) {
+        // Public meeting link: the join page reads the code from its own address
+        req.url = '/meet.html';
+        res.setHeader('Referrer-Policy', 'no-referrer');
     } else if (!['/', '', '/login'].includes(pathname) && !isPublicPath(pathname)) {
         if (path.extname(pathname) || pathname.split('/').some(seg => seg.startsWith('.'))) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });

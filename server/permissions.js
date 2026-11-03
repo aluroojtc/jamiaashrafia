@@ -169,6 +169,7 @@ const P = [
     ['virtual_classes.join', 'Join online classes', 'Attend live classes of one\'s own class.', { implies: ['virtual_classes.view'] }],
     ['virtual_classes.host', 'Host online classes', 'Schedule and teach live classes (within the role\'s data scope).', { implies: ['virtual_classes.view'] }],
     ['virtual_classes.manage', 'Manage all online classes', 'Host or end any class.', { implies: ['virtual_classes.host'] }],
+    ['virtual_classes.public_meeting', 'Start public meetings', 'Start a meeting with a public link that anyone can join without signing in, and end it.', { dangerous: true, implies: ['virtual_classes.view'] }],
     ['recordings.view', 'Watch recordings', 'Watch lecture recordings (within the role\'s data scope).'],
     ['recordings.download', 'Download recordings', 'Download lecture recordings.', { implies: ['recordings.view'] }],
     ['recordings.manage', 'Manage recordings', 'Add and remove recordings.', { implies: ['recordings.view'] }],
