@@ -39,7 +39,6 @@ const MODULES = [
     ['assignments', 'Assignments', 'Homework and checking'],
     ['exams', 'Exams & Results', 'Papers, marking and results'],
     ['fees', 'Fees', 'Fee structures, challans and payments'],
-    ['donations', 'Donations', 'Zakat, Sadaqah and other donations'],
     ['library', 'Library', 'Maktaba catalogue and loans'],
     ['notifications', 'Notifications', 'Sending notices and announcements'],
     ['virtual_classes', 'Online Classes', 'Live classes and recordings'],
@@ -147,12 +146,6 @@ const P = [
     ['fees.waivers.grant', 'Grant waivers', 'Give scholarships and fee concessions.', { dangerous: true, implies: ['fees.challans.generate'] }],
     ['fees.export', 'Export fee records', 'Download fee records.', { implies: ['fees.challans.view'] }],
 
-    ['donations.view', 'View donations ledger', 'See donations (anonymous donors stay hidden).'],
-    ['donations.view_donor_identity', 'See anonymous donors', 'See who gave anonymous donations.', { dangerous: true, implies: ['donations.view'] }],
-    ['donations.record', 'Record donations', 'Enter donations received by the office.', { implies: ['donations.view'] }],
-    ['donations.confirm', 'Confirm donations', 'Confirm that a reported donation was received.', { dangerous: true, implies: ['donations.view'] }],
-    ['donations.give', 'Donate through the portal', 'Report one\'s own donation for confirmation.'],
-
     ['library.catalog.view', 'Search the library', 'See the catalogue.'],
     ['library.catalog.manage', 'Manage the catalogue', 'Add, edit and remove books.', { implies: ['library.catalog.view'] }],
     ['library.loans.view', 'View all loans', 'See who has which book.', { implies: ['library.catalog.view'] }],
@@ -176,7 +169,7 @@ const P = [
 
     ['reports.academic', 'Academic reports', 'Student, faculty and results reports.'],
     ['reports.attendance', 'Attendance reports', 'Attendance summaries.'],
-    ['reports.finance', 'Finance reports', 'Fee and donation summaries.'],
+    ['reports.finance', 'Finance reports', 'Fee summaries.'],
     ['reports.admissions', 'Admission reports', 'Admission statistics.'],
     ['reports.library', 'Library reports', 'Library statistics.'],
     ['reports.export', 'Export reports', 'Download reports.'],
@@ -255,7 +248,6 @@ const DEFAULT_PERMISSIONS = {
         'exams.results.approve', 'exams.results.publish', 'exams.results.unpublish',
         'fees.structures.view', 'fees.structures.manage', 'fees.challans.view', 'fees.challans.generate', 'fees.challans.verify',
         'fees.waivers.grant', 'fees.export',
-        'donations.view', 'donations.record', 'donations.confirm', 'donations.give',
         'library.catalog.view', 'library.catalog.manage', 'library.loans.view', 'library.loans.issue', 'library.fines.manage', 'library.request',
         'notifications.send_individual', 'notifications.send_class', 'notifications.broadcast_role', 'notifications.broadcast_all',
         'virtual_classes.view', 'virtual_classes.join', 'virtual_classes.host', 'virtual_classes.manage',
@@ -273,7 +265,7 @@ const DEFAULT_PERMISSIONS = {
         'library.catalog.view', 'library.request',
         'notifications.send_individual', 'notifications.send_class',
         'virtual_classes.view', 'virtual_classes.join', 'virtual_classes.host', 'recordings.view', 'recordings.manage',
-        'donations.give', 'heritage.view'
+        'heritage.view'
     ],
     STUDENT: [
         'classes.view', 'timetable.view',
@@ -290,7 +282,6 @@ const DEFAULT_PERMISSIONS = {
     ACCOUNTANT: [
         'fees.structures.view', 'fees.structures.manage', 'fees.challans.view', 'fees.challans.generate', 'fees.challans.verify',
         'fees.waivers.grant', 'fees.export',
-        'donations.view', 'donations.view_donor_identity', 'donations.record', 'donations.confirm', 'donations.give',
         'attendance.view', 'attendance.self_checkin',
         'notifications.send_individual', 'notifications.broadcast_role',
         'reports.finance', 'reports.attendance', 'heritage.view'
@@ -336,7 +327,7 @@ const LEGACY_MODULE_PERMISSIONS = {
     library: ['library.catalog.view', 'library.loans.view', 'library.request'],
     admissions: ['admissions.view'],
     teachers: ['teachers.view'],
-    fees: ['fees.structures.view', 'fees.challans.view', 'donations.view'],
+    fees: ['fees.structures.view', 'fees.challans.view'],
     heritage: ['heritage.view'],
     security: ['settings.architecture']
 };
@@ -346,6 +337,9 @@ const RENAMED_PERMISSIONS = {
     'settings.master_data': ['setup.view', 'setup.branches.manage', 'setup.programs.manage', 'setup.departments.manage',
         'setup.sessions.manage', 'setup.profile.manage']
 };
+
+// Permissions of features that were removed; stored grants of them are deleted
+const RETIRED_PERMISSIONS = ['donations.view', 'donations.view_donor_identity', 'donations.record', 'donations.confirm', 'donations.give'];
 
 // Old capability names still used by pages that have not been converted (accepted for one release)
 const LEGACY_ALIASES = {
@@ -359,8 +353,8 @@ const LEGACY_ALIASES = {
     'virtual_class:host': 'virtual_classes.host', 'virtual_class:join': 'virtual_classes.join',
     'library:view': 'library.catalog.view', 'library:borrow': 'library.request', 'library:search_reserve': 'library.request',
     'library:manage': 'library.loans.issue', 'fees:manage': 'fees.structures.manage', 'challan:generate': 'fees.challans.generate',
-    'challan:verify': 'fees.challans.verify', 'challan:download': 'fees.challans.view', 'donations:record': 'donations.record',
-    'donations:receipt': 'donations.view', 'zakat:audit': 'reports.finance', 'results:view': 'exams.view',
+    'challan:verify': 'fees.challans.verify', 'challan:download': 'fees.challans.view',
+    'zakat:audit': 'reports.finance', 'results:view': 'exams.view',
     'classes:view_assigned': 'classes.view', 'classes:view_enrolled': 'classes.view'
 };
 
@@ -370,14 +364,13 @@ const SCOPE_RANK = { SELF: 1, TEACHING: 2, ALL: 3 };
 // Things people do for themselves. They give no power over anyone else, so they are left out when deciding
 // whether one person (or role) is more powerful than another.
 const SELF_SERVICE = new Set(['assignments.submit', 'exams.attempt', 'fees.challans.submit_proof', 'attendance.self_checkin',
-    'donations.give', 'library.request', 'virtual_classes.join', 'notifications.send_individual', 'heritage.view']);
+    'library.request', 'virtual_classes.join', 'notifications.send_individual', 'heritage.view']);
 
 // Pairs one person should preferably not hold together (the institution may still choose to allow it)
 const SOD_PAIRS = [
     ['exams.mark', 'exams.results.publish', 'The same person marks papers and publishes the results.'],
     ['fees.challans.generate', 'fees.challans.verify', 'The same person issues challans and confirms they were paid.'],
     ['fees.waivers.grant', 'fees.challans.verify', 'The same person grants waivers and confirms payments.'],
-    ['donations.record', 'donations.confirm', 'The same person records donations and confirms they were received.'],
     ['roles.update', 'users.assign_roles', 'The same person defines what roles may do and gives roles to people.']
 ];
 
@@ -421,5 +414,6 @@ module.exports = {
     DOMAIN_CEILING,
     LEGACY_MODULE_PERMISSIONS,
     RENAMED_PERMISSIONS,
+    RETIRED_PERMISSIONS,
     LEGACY_ALIASES
 };

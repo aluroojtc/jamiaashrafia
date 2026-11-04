@@ -38,14 +38,13 @@ const OWN_PROTECTED = {
     examSubmissions: ['isMarked', 'questionMarks', 'marksObtained', 'remarks', 'markedBy', 'markedAt'],
     libraryLoans: ['issuedAt', 'issuedBy', 'dueDate', 'returnedAt', 'fine', 'finePaid'],
     feeChallans: ['tuitionFee', 'hostelMessFee', 'examFee', 'registrationFee', 'admissionFee', 'otherFee', 'items',
-        'scholarshipWaiver', 'netPayable', 'paidAt', 'bankRef', 'verifiedBy', 'verifiedAt', 'studentId', 'challanNumber', 'dueDate'],
-    donations: ['confirmedBy', 'confirmedAt', 'verifiedBy', 'verifiedAt']
+        'scholarshipWaiver', 'netPayable', 'paidAt', 'bankRef', 'verifiedBy', 'verifiedAt', 'studentId', 'challanNumber', 'dueDate']
 };
 const SELF_SCOPE_PROTECTED = ['role', 'additionalRoles', 'permissionGroup', 'status', 'classId', 'rollNo', 'branchId', 'program', 'assignedCourses',
     'designation', 'email', 'username', 'allCampuses', 'campusIds'];
 const STAFF_SELF_PROTECTED = ['role', 'additionalRoles', 'permissionGroup', 'status', 'assignedCourses', 'branchId', 'designation', 'classId', 'rollNo',
     'email', 'username', 'allCampuses', 'campusIds'];
-const IMMUTABLE_LINKS = ['assignmentId', 'examId', 'bookId', 'studentId', 'userId', 'donorUserId'];
+const IMMUTABLE_LINKS = ['assignmentId', 'examId', 'bookId', 'studentId', 'userId'];
 const ENROLMENT_FIELDS = ['classId', 'branchId', 'program'];
 const IGNORED_DIFF_FIELDS = ['password', 'updatedAt', 'lastSeenAt'];
 
@@ -55,8 +54,7 @@ const OWNER_FIELD = {
     examSubmissions: 'studentId',
     libraryLoans: 'userId',
     feeChallans: 'studentId',
-    attendance: 'userId',
-    donations: 'donorUserId'
+    attendance: 'userId'
 };
 
 // Low-sensitivity reference data every signed-in user may read
@@ -67,7 +65,7 @@ const STUDENT_DIRECTORY_PERMISSIONS = ['fees.challans.view', 'fees.challans.gene
 const ATTENDANCE_EDIT_WINDOW_DAYS = 7;
 
 // Records of the whole institution, not of a campus
-const INSTITUTION_WIDE = ['libraryBooks', 'feeStructures', 'donations'];
+const INSTITUTION_WIDE = ['libraryBooks', 'feeStructures'];
 // Records that follow the campus of their class
 const CLASS_BOUND = ['timetables', 'virtualClasses', 'virtualClassRecordings', 'assignments', 'exams', 'courseMaterials'];
 // Records about one person: they follow that person's campus
@@ -337,10 +335,6 @@ function withoutAnswerKey(exam) {
     return { ...exam, questions: exam.questions.map(q => without(q, ['correctIndex', 'answerKey', 'modelAnswer'])) };
 }
 
-function anonymousDonation(d) {
-    return { ...without(d, ['email', 'phone', 'donorUserId', 'reference', 'proof']), donorName: 'Anonymous' };
-}
-
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
@@ -416,10 +410,6 @@ function readableByScope(ctx, collection, rec) {
         case 'feeChallans':
             if (owns(ctx, collection, rec)) return rec;
             return ctx.wide('fees.challans.view') ? rec : null;
-        case 'donations':
-            if (owns(ctx, collection, rec)) return rec;
-            if (!ctx.wide('donations.view')) return null;
-            return rec.isAnonymous && !ctx.wide('donations.view_donor_identity') ? anonymousDonation(rec) : rec;
         case 'libraryLoans':
             if (owns(ctx, collection, rec)) return rec;
             return ctx.wide('library.loans.view') ? rec : null;
@@ -602,9 +592,6 @@ function canWriteByScope(ctx, collection, incoming, existing) {
     if (collection === 'attendance' && (incoming.userId === ctx.id || (existing && existing.userId === ctx.id))) {
         return selfAttendanceAllowed(ctx, incoming, existing);
     }
-    if (collection === 'donations' && !wide('donations.record')) {
-        return can('donations.give') && !existing && (incoming.donorUserId === undefined || incoming.donorUserId === null || incoming.donorUserId === ctx.id);
-    }
     if (collection === 'libraryLoans' && !wide('library.loans.issue')) {
         return can('library.request') && incoming.userId === ctx.id && (!existing || existing.userId === ctx.id);
     }
@@ -703,11 +690,6 @@ function canWriteByScope(ctx, collection, incoming, existing) {
             if (changed.every(f => verification.includes(f))) return wide('fees.challans.verify') || wide('fees.challans.generate');
             return wide('fees.challans.generate');
         }
-        case 'donations': {
-            if (!existing) return true; // donations.record checked above
-            const confirming = existing.status === 'PENDING_CONFIRMATION' && incoming.status && incoming.status !== 'PENDING_CONFIRMATION';
-            return !confirming || wide('donations.confirm') || deny(ctx, 'You are not allowed to confirm donations.');
-        }
         case 'libraryBooks':
             return wide('library.catalog.manage');
         case 'libraryLoans': {
@@ -759,7 +741,6 @@ function prepareWrite(ctx, collection, incoming, existing) {
     const manages = {
         libraryLoans: wide('library.loans.issue'),
         feeChallans: wide('fees.challans.generate'),
-        donations: wide('donations.record'),
         assignmentSubmissions: false,
         examSubmissions: false
     };
@@ -772,11 +753,6 @@ function prepareWrite(ctx, collection, incoming, existing) {
     if (collection === 'libraryLoans' && !manages.libraryLoans) {
         merged.status = ['REQUESTED', 'CANCELLED'].includes(incoming.status) ? incoming.status : (existing ? existing.status : 'REQUESTED');
         if (!existing) merged.userId = ctx.id;
-    }
-    if (collection === 'donations' && !manages.donations) {
-        keep(OWN_PROTECTED.donations);
-        merged.donorUserId = ctx.id;
-        merged.status = 'PENDING_CONFIRMATION';
     }
     if (collection === 'attendance' && (existing ? existing.userId : incoming.userId) === ctx.id) {
         if (existing) {
@@ -856,7 +832,6 @@ function canDeleteByScope(ctx, collection, existing) {
         case 'timetables': return wide('timetable.manage');
         case 'feeStructures': return wide('fees.structures.manage');
         case 'feeChallans': return wide('fees.challans.generate');
-        case 'donations': return wide('donations.record');
         case 'libraryBooks': return wide('library.catalog.manage');
         case 'libraryLoans': return wide('library.loans.issue');
         case 'virtualClasses': {

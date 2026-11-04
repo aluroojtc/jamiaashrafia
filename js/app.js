@@ -596,13 +596,11 @@ const App = {
         const inst = window.LmsData.institution || {};
         const liveClass = (window.LmsData.virtualClasses || []).find(vc => vc.isLive || vc.status === 'LIVE')
             || (window.LmsData.virtualClasses || []).find(vc => vc.status === 'UPCOMING');
-        const totalDonations = (window.LmsData.donations || []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
         const pendingFees = (window.LmsData.feeChallans || []).filter(c => c.status !== 'PAID');
         const verifyQueue = (window.LmsData.feeChallans || []).filter(c => c.status === 'VERIFICATION_PENDING').length;
         const can = (m) => window.AuthRBAC.canAccessModule(m);
-        // Finance figures only for those allowed to see fee and donation records
+        // Finance figures only for those allowed to see fee records
         const seesFees = window.AuthRBAC.can('fees.challans.view');
-        const seesDonations = window.AuthRBAC.can('donations.view');
 
         return `
             <!-- WELCOME HEADER -->
@@ -689,14 +687,6 @@ const App = {
                         <span class="metric-hint">${Lms.money(pendingFees.reduce((s, c) => s + (Number(c.netPayable) || 0), 0))} outstanding</span>
                     </div>
                 </div>` : ''}
-                ${seesDonations ? `<div class="metric-card danger">
-                    <div class="metric-icon-box"><i class="fas fa-hand-holding-heart"></i></div>
-                    <div class="metric-content">
-                        <span class="metric-label">Zakat & Sadaqat</span>
-                        <span class="metric-value">${Lms.money(totalDonations)}</span>
-                        <span class="metric-hint" style="color: var(--text-muted);">Kafalat-e-Talib-e-Ilm</span>
-                    </div>
-                </div>` : ''}
             </div>
 
             <!-- TWO COLUMN WORKSPACE -->
@@ -740,7 +730,7 @@ const App = {
                                 ['students', 'fas fa-user-graduate', 'Students Management'],
                                 ['exams', 'fas fa-award', 'Exams & Results'],
                                 ['timetable', 'fas fa-calendar-alt', 'Schedules & Timetable'],
-                                ['fees', 'fas fa-file-invoice', 'Fee Structure, Challans & Donations'],
+                                ['fees', 'fas fa-file-invoice', 'Fee Structure & Challans'],
                                 ['library', 'fas fa-book-reader', 'Library (Maktaba)'],
                                 ['reports', 'fas fa-chart-line', 'Executive Reports'],
                                 ['roles', 'fas fa-sliders-h', 'Roles & Permissions']
@@ -1184,7 +1174,6 @@ const App = {
                         <span class="status-pill gold">exams</span>
                         <span class="status-pill gold">wifaq_results</span>
                         <span class="status-pill gold">fee_challans</span>
-                        <span class="status-pill gold">donations</span>
                         <span class="status-pill gold">library_books</span>
                         <span class="status-pill gold">virtual_classes</span>
                         <span class="status-pill gold">audit_logs</span>

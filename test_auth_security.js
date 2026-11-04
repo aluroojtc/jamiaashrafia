@@ -247,7 +247,6 @@ async function run() {
         check('Student does not receive other students', !has(sPull.users, ids.s2));
         check('Student receives own record with own CNIC', (sPull.users || []).some(u => u.id === ids.s1 && u.cnic));
         check('Student does not receive another class\'s exam', !has(sPull.exams, ids.examB));
-        check('Student does not receive donations of others', !has(sPull.donations, ids.donation));
         const spoofPull = await request('GET', '/api/store', { cookie: sess.s1, headers: { 'X-User-Role': 'SUPER_ADMIN', 'X-User-Id': ids.superAdmin } });
         check('Student session with Super Admin headers still gets student data', !has(spoofPull.body.collections.users, ids.s2));
 
@@ -255,19 +254,18 @@ async function run() {
         check('Teacher receives students of own class without CNIC', (tPull.users || []).some(u => u.id === ids.s1 && !u.cnic));
         check('Teacher does not receive students of other classes', !has(tPull.users, ids.s2));
         check('Teacher does not receive another class\'s exam', !has(tPull.exams, ids.examB));
-        check('Teacher does not receive the donation ledger', !has(tPull.donations, ids.donation));
         const t2Pull = await pull('t2');
         check('Teacher receives own class exam with answer key', (t2Pull.exams || []).some(e => e.id === ids.examB && e.questions[0].correctIndex === 1));
 
         const aPull = await pull('acct');
-        check('Finance role receives the donation ledger', has(aPull.donations, ids.donation));
+        check('Donations are no longer served, even to the finance role', !has(aPull.donations, ids.donation));
         check('Finance role receives no exam answer keys', !(aPull.exams || []).some(e => (e.questions || []).some(q => 'correctIndex' in q)));
         check('Finance role receives no unpublished results', !has(aPull.examResults, ids.resultB));
         check('Finance role does not receive student CNICs', !(aPull.users || []).some(u => u.role === 'STUDENT' && u.cnic));
 
         const cPull = await pull('custom');
         check('Custom role without modules receives no students', !(cPull.users || []).some(u => u.role === 'STUDENT'));
-        check('Custom role without modules receives no donations or exams', !has(cPull.donations, ids.donation) && !has(cPull.exams, ids.examB));
+        check('Custom role without modules receives no exams', !has(cPull.exams, ids.examB));
         check('Nobody receives password fields', ![sPull, tPull, aPull, cPull].some(c => (c.users || []).some(u => 'password' in u)));
 
         // --- Writes -----------------------------------------------------------------------
@@ -284,8 +282,6 @@ async function run() {
         check('Teacher cannot publish another class\'s results', rejected(publish, 'examResults', ids.resultB) && !(await stored('examResults', ids.resultB)).published);
         const delExam = await sync('t1', {}, { exams: [ids.examB] });
         check('Teacher cannot delete another class\'s exam', rejected(delExam, 'exams', ids.examB));
-        const donationEdit = await sync('t1', { donations: [{ id: ids.donation, amount: 1 }] });
-        check('Teacher cannot edit the donation ledger', rejected(donationEdit, 'donations', ids.donation) && (await stored('donations', ids.donation)).amount === 1000);
 
         const attEdit = await sync('s1', { attendance: [{ ...(await stored('attendance', ids.attS1)), status: 'PRESENT' }] });
         check('Student cannot change attendance a teacher marked', (await stored('attendance', ids.attS1)).status === 'ABSENT', JSON.stringify(attEdit.body));
@@ -297,13 +293,6 @@ async function run() {
         const ci = await sync('s1', { attendance: [{ id: checkin, userId: ids.s1, date: today, status: 'PRESENT', userName: '<img src=x onerror=alert(1)>' }] });
         check('Student can check in for today', accepted(ci, 'attendance', checkin));
         check('Self check-in stores the account name, not a typed one', (await stored('attendance', checkin)).userName === `Test ${ids.s1.slice(-6)}`);
-        const foreignPledge = `${P}pledgeX`;
-        const fp = await sync('s1', { donations: [{ id: foreignPledge, amount: 500, donorUserId: ids.s2 }] });
-        check('Student cannot record a donation in someone else\'s name', rejected(fp, 'donations', foreignPledge));
-        const pledge = `${P}pledge`;
-        await sync('s1', { donations: [{ id: pledge, amount: 500, status: 'RECEIVED', confirmedBy: ids.s1 }] });
-        const pledgeRec = await stored('donations', pledge);
-        check('Student donation is a pending pledge in their own name', pledgeRec && pledgeRec.status === 'PENDING_CONFIRMATION' && pledgeRec.donorUserId === ids.s1 && !pledgeRec.confirmedBy);
         const otherUser = await sync('s1', { users: [{ ...(await stored('users', ids.s2)), name: 'Changed' }] });
         check('Student cannot edit another user', rejected(otherUser, 'users', ids.s2));
         await sync('s1', { users: [{ ...(await stored('users', ids.s1)), role: 'ACADEMIC_ADMIN', password: 'SelfSet-12345' }] });
@@ -457,18 +446,13 @@ async function run() {
 
         // A custom office role gets real powers from its permissions alone
         const finId = `${R}FIN`;
-        await api('superAdmin', 'POST', '/api/roles', { id: finId, name: 'Sectest fees clerk', scope: 'ALL', permissions: ['fees.challans.view', 'fees.challans.generate', 'donations.view'] });
+        await api('superAdmin', 'POST', '/api/roles', { id: finId, name: 'Sectest fees clerk', scope: 'ALL', permissions: ['fees.challans.view', 'fees.challans.generate'] });
         await insertRecord('users', { ...(await stored('users', ids.custom)), role: finId });
         const chId = `${P}ch1`;
         const mkCh = await sync('custom', { feeChallans: [{ id: chId, studentId: ids.s1, status: 'PENDING', netPayable: 100 }] });
         check('Custom role with fee permissions can issue a challan', accepted(mkCh, 'feeChallans', chId), JSON.stringify(mkCh.body));
         const payCh = await sync('custom', { feeChallans: [{ ...(await stored('feeChallans', chId)), status: 'PAID' }] });
         check('Marking a challan paid needs the verify permission (with a reason)', rejected(payCh, 'feeChallans', chId) && /verify/i.test((payCh.body.errors.feeChallans || {})[chId] || ''));
-        const finPull = (await request('GET', '/api/store', { cookie: sess.custom })).body.collections || {};
-        const anon = (finPull.donations || []).find(d => d.id === ids.donation);
-        check('Anonymous donors stay hidden without the donor-identity permission', anon && anon.donorName === 'Anonymous');
-        const acctPull = (await request('GET', '/api/store', { cookie: sess.acct })).body.collections || {};
-        check('Finance role with the donor-identity permission sees anonymous donors', (acctPull.donations || []).some(d => d.id === ids.donation && d.donorName === 'Sectest donor'));
         check('A role somebody holds cannot be deleted', (await api('superAdmin', 'DELETE', `/api/roles/${finId}`)).status === 409);
         await api('superAdmin', 'POST', '/api/roles', { id: `${R}EMPTY`, name: 'Sectest empty', permissions: [] });
         check('An unused custom role can be deleted', (await api('superAdmin', 'DELETE', `/api/roles/${R}EMPTY`)).status === 200);
@@ -652,8 +636,6 @@ async function run() {
         });
         check('Admin can still edit students and classes it is allowed to', accepted(adminWork, 'users', stuId) && accepted(adminWork, 'classes', clsId), JSON.stringify(adminWork.body));
         check('Admin cannot purge recordings', (await api('admin', 'POST', '/api/virtual-class/cleanup', {})).status === 403);
-        const adminDonations = (await request('GET', '/api/store', { cookie: sess.admin })).body.collections || {};
-        check('Admin does not see who gave anonymous donations', (adminDonations.donations || []).some(d => d.id === ids.donation && d.donorName === 'Anonymous'));
 
         const saDelete = await sync('superAdmin', {}, { users: [stuId, teaId], classes: [clsId], courses: [crsId] });
         check('Super Admin can delete students, teachers, classes and courses',

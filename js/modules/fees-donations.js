@@ -1,12 +1,12 @@
 /**
- * JAMIA ASHRAFIA LAHORE - FEES, PAYMENTS & DONATIONS
+ * JAMIA ASHRAFIA LAHORE - FEES & PAYMENTS
  * Fee structure per program (registration, admission, monthly tuition, exam),
  * challan generation for a student / class / program, student payment proof upload,
- * accountant verification, 3-part bank vouchers, and the donations (Zakat / Sadaqah) ledger.
+ * accountant verification and 3-part bank vouchers.
  */
 
 const FeesDonationsModule = {
-    tab: 'challans',          // challans | structure | donations
+    tab: 'challans',          // challans | structure
 
     FEE_TYPES: {
         MONTHLY: 'Monthly Fee',
@@ -16,18 +16,10 @@ const FeesDonationsModule = {
         OTHER: 'Other Charges'
     },
 
-    DONATION_TYPES: {
-        ZAKAT: 'Zakat',
-        SADAQAH: 'Sadaqah Jariyah',
-        KAFALAT_E_TALIB_E_ILM: 'Kafalat-e-Talib-e-Ilm (Student Sponsorship)',
-        HOSPITAL_FREE_MEDICINE: 'Ashrafia Free Hospital Medicine Fund',
-        GENERAL_FUND: 'General Fund (Construction & Library)'
-    },
-
     // Date / month inputs open the calendar on click and can't be typed into
     PICK_ONLY: `onkeydown="return event.key === 'Tab'" onpaste="return false" onclick="try { this.showPicker(); } catch (e) {}" style="cursor: pointer;"`,
 
-    // Bank account for fee and donation payments (Institution Setup -> Institution Profile)
+    // Bank account for fee payments (Institution Setup -> Institution Profile)
     get BANK() {
         const inst = window.LmsData.institution || {};
         return { name: inst.bankName || '', title: inst.bankAccountTitle || inst.name || '', account: inst.bankAccountNumber || '' };
@@ -41,11 +33,6 @@ const FeesDonationsModule = {
     // The office view of every student's challans
     seesAllChallans() {
         return window.AuthRBAC.wide('fees.challans.view');
-    },
-
-    // The whole donations ledger (anonymous donors stay hidden by the server without the identity permission)
-    seesLedger() {
-        return window.AuthRBAC.wide('donations.view');
     },
 
     challans() {
@@ -74,7 +61,7 @@ const FeesDonationsModule = {
         const isStudent = Lms.portal() === 'student';
         const canManage = this.canManage();
         const seesChallans = this.seesAllChallans();
-        if (this.tab === 'donations' || (!seesChallans && !isStudent && this.tab === 'challans')) this.tab = 'structure';
+        if (!seesChallans && !isStudent && this.tab === 'challans') this.tab = 'structure';
 
         return `
             <div class="view-header">
@@ -660,174 +647,6 @@ const FeesDonationsModule = {
         window.App.closeModal();
         window.App.showToast('Fee structure saved', 'success');
         window.App.navigate('fees');
-    },
-
-    // ---------------------------------------------------------------------
-    // DONATIONS
-    // ---------------------------------------------------------------------
-    renderDonations() {
-        const canManage = this.seesLedger();
-        const me = Lms.me();
-        const list = (window.LmsData.donations || []).filter(d => canManage || d.donorUserId === me.id)
-            .sort((a, b) => String(b.receivedAt).localeCompare(String(a.receivedAt)));
-        return `
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-donate"></i> ${canManage ? 'Donations & Zakat Ledger' : 'My Donations'}</h3>
-                    <span class="status-pill success"><i class="fas fa-certificate"></i> Zakat kept separate from general funds</span>
-                </div>
-                ${Lms.filterBar('donations-table', {
-                    search: canManage ? 'Search donor, receipt no, purpose or reference...' : 'Search receipt no, purpose or reference...',
-                    selects: [
-                        { key: 'type', label: 'All categories', options: Object.entries(this.DONATION_TYPES).map(([v, l]) => [v, l.split(' (')[0]]) },
-                        { key: 'status', label: 'All statuses', options: [['PENDING_CONFIRMATION', 'Awaiting confirmation'], ['RECEIVED', 'Received']] },
-                        { key: 'channel', label: 'All channels', options: Array.from(new Set(list.map(d => d.paymentChannel).filter(Boolean))).sort().map(c => [c, c]) }
-                    ],
-                    date: { key: 'date', label: 'Date received' }
-                })}
-                <div class="table-responsive">
-                    <table class="data-table" id="donations-table">
-                        <thead><tr><th>Receipt & Donor</th><th>Category</th><th>Purpose</th><th>Amount</th><th>Date & Channel</th><th>Status</th><th></th></tr></thead>
-                        <tbody>
-                            ${list.length ? list.map(d => `
-                                <tr data-f-person="${d.isAnonymous && !canManage ? '' : Lms.esc(d.donorUserId || '')}" data-f-type="${Lms.esc(d.donationType || '')}" data-f-status="${d.status === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : 'RECEIVED'}"
-                                    data-f-channel="${Lms.esc(d.paymentChannel || '')}" data-f-date="${Lms.isoDate(d.receivedAt)}">
-                                    <td>
-                                        <div style="font-weight: 700;">${d.isAnonymous && !canManage ? 'Anonymous' : Lms.esc(Lms.personName(d.donorUserId, d.donorName))}${d.isAnonymous ? ' <i class="fas fa-user-secret" title="Anonymous in public ledger" style="color: var(--text-muted);"></i>' : ''}</div>
-                                        <div style="font-family: monospace; font-size: 0.78rem; color: var(--gold-700);">${Lms.esc(d.receiptNo)}</div>
-                                    </td>
-                                    <td><span class="status-pill ${d.donationType === 'ZAKAT' ? 'gold' : 'info'}">${Lms.esc((this.DONATION_TYPES[d.donationType] || d.donationType).split(' (')[0])}</span></td>
-                                    <td style="font-size: 0.82rem; color: var(--text-secondary);">${Lms.esc(d.purpose)}</td>
-                                    <td><strong>${Lms.money(d.amount)}</strong></td>
-                                    <td style="font-size: 0.78rem;">${Lms.fmtDate(d.receivedAt)}<div style="color: var(--primary-700);">${Lms.esc(d.paymentChannel || '')}${d.reference ? ' • ' + Lms.esc(d.reference) : ''}</div></td>
-                                    <td>${d.status === 'PENDING_CONFIRMATION' ? '<span class="status-pill warning">Awaiting confirmation</span>' : '<span class="status-pill success">Received</span>'}</td>
-                                    <td>
-                                        <div style="display: flex; gap: 6px;">
-                                            ${d.status === 'PENDING_CONFIRMATION' && Lms.can('donations.confirm') ? `<button class="btn btn-gold btn-sm" onclick="FeesDonationsModule.confirmDonation('${d.id}')"><i class="fas fa-check"></i> Confirm</button>` : ''}
-                                            ${d.proof ? Lms.fileLinks([d.proof]) : ''}
-                                            ${d.status !== 'PENDING_CONFIRMATION' ? `<button class="btn btn-secondary btn-sm" onclick="FeesDonationsModule.printDonationReceipt('${d.id}')"><i class="fas fa-receipt"></i> Receipt</button>` : ''}
-                                        </div>
-                                    </td>
-                                </tr>`).join('') : `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">${canManage ? 'No donations recorded.' : 'You have not made a donation through the portal yet.'}</td></tr>`}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    },
-
-    openDonateModal() {
-        // Office staff record donations received; everyone else reports their own gift for confirmation
-        const canManage = Lms.can('donations.record');
-        const me = Lms.me();
-        Lms.openModal(
-            `<i class="fas fa-hand-holding-heart" style="color: var(--gold-400);"></i> ${canManage ? 'Record Donation Received' : 'Donate Zakat, Sadaqah or Waqf'}`,
-            `${!canManage ? `
-                <div style="background: var(--primary-50); border: 1px solid var(--primary-200); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 0.84rem; line-height: 1.6;">
-                    ${I18n.t('Transfer your donation to {account} ({bank}, Raast, JazzCash or EasyPaisa), then fill this form with the transaction reference. The accounts office confirms it and your official receipt becomes available here. Zakat is used only for eligible (Mustahiq) students and free medicine.', {
-                        account: `<strong>${Lms.esc(this.BANK.title)} — A/C ${Lms.esc(this.BANK.account)}</strong>`,
-                        bank: Lms.esc(this.BANK.name)
-                    })}
-                </div>` : ''}
-            <div class="form-grid">
-                <div class="form-group"><label>Category *</label>
-                    <select id="don-type" class="form-control">${Object.entries(this.DONATION_TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
-                </div>
-                <div class="form-group"><label>Amount (PKR) *</label><input type="number" id="don-amount" min="1" class="form-control" placeholder="e.g. 50000"></div>
-                <div class="form-group"><label>Donor Name *</label><input type="text" id="don-name" class="form-control" value="${canManage ? '' : Lms.esc(me.name || '')}"></div>
-                <div class="form-group"><label>Mobile / WhatsApp</label><input type="tel" id="don-phone" class="form-control" value="${canManage ? '' : Lms.esc(me.phone || '')}" placeholder="+92 300 1234567"></div>
-                <div class="form-group"><label>Paid Through *</label>
-                    <select id="don-channel" class="form-control"><option>Bank transfer / Raast</option><option>JazzCash</option><option>EasyPaisa</option><option>Cash at Jamia office</option><option>Cheque</option><option>International wire (SWIFT)</option></select>
-                </div>
-                <div class="form-group"><label>Transaction Reference ${canManage ? '' : '*'}</label><input type="text" id="don-ref" class="form-control" placeholder="Bank / wallet reference"></div>
-            </div>
-            <div class="form-group"><label>Purpose / Note</label><input type="text" id="don-purpose" class="form-control" placeholder="e.g. Kafalat of one student for a year"></div>
-            ${!canManage ? `<div class="form-group" style="margin-top: 10px;"><label>Transfer screenshot (optional)</label>${Lms.fileInput('don-proof', { accept: '.pdf,.jpg,.jpeg,.png,.webp' })}</div>` : ''}
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 10px;">
-                <input type="checkbox" id="don-anon" style="width: 18px; height: 18px;"> Keep my name anonymous in the ledger
-            </label>`,
-            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-             <button class="btn btn-gold" onclick="FeesDonationsModule.saveDonation(this)"><i class="fas fa-heart"></i> ${canManage ? 'Record & Issue Receipt' : 'Submit Donation'}</button>`
-        );
-    },
-
-    async saveDonation(btn) {
-        const canManage = Lms.can('donations.record');
-        const amount = Number(Lms.val('don-amount'));
-        const name = Lms.val('don-name');
-        const ref = Lms.val('don-ref');
-        if (!(amount > 0) || !name || (!canManage && !ref)) {
-            window.App.showToast(canManage ? 'Enter the donor name and a valid amount' : 'Enter your name, the amount and the transaction reference', 'warning');
-            return;
-        }
-        await Lms.busy(btn, async () => {
-            const [proof] = canManage ? [] : await Lms.uploadFromInput('don-proof');
-            const type = Lms.val('don-type');
-            const prefix = { ZAKAT: 'ZKT', SADAQAH: 'SDQ', KAFALAT_E_TALIB_E_ILM: 'KFL', HOSPITAL_FREE_MEDICINE: 'HSP' }[type] || 'GEN';
-            const don = {
-                id: Lms.uid('don'), receiptNo: `REC-${prefix}-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`,
-                donorName: name, donorUserId: canManage ? null : Lms.me().id, phone: Lms.val('don-phone'), amount, currency: 'PKR',
-                donationType: type, purpose: Lms.val('don-purpose') || `Contribution towards ${(this.DONATION_TYPES[type] || type).split(' (')[0]}`,
-                branchId: Lms.defaultBranchId() || null, paymentChannel: Lms.val('don-channel'), reference: ref, proof: proof || null,
-                receivedAt: Lms.today(), isAnonymous: document.getElementById('don-anon').checked,
-                status: canManage ? 'RECEIVED' : 'PENDING_CONFIRMATION', recordedBy: Lms.me().id
-            };
-            window.LmsData.donations = window.LmsData.donations || [];
-            window.LmsData.donations.unshift(don);
-            Lms.save();
-            if (!canManage) {
-                Lms.notify({ targetRole: 'ACCOUNTANT', category: 'FEE', linkRoute: 'fees', title: `Donation to confirm: ${Lms.money(amount)}`, message: `${name} reported a ${type.replace(/_/g, ' ')} donation (ref ${ref}).` });
-            }
-            window.App.closeModal();
-            this.tab = 'donations';
-            window.App.navigate('fees');
-            if (canManage) {
-                window.App.showToast(`Recorded. Receipt ${don.receiptNo}`, 'gold');
-                this.printDonationReceipt(don.id);
-            } else {
-                window.App.showToast('JazakAllah Khair! Your donation will be confirmed by the accounts office.', 'gold');
-            }
-        });
-    },
-
-    confirmDonation(donId) {
-        const d = (window.LmsData.donations || []).find(x => x.id === donId);
-        if (!d || !confirm(`Confirm ${Lms.money(d.amount)} from ${d.donorName} was received (ref ${d.reference || '—'})?`)) return;
-        Object.assign(d, { status: 'RECEIVED', confirmedBy: Lms.me().id, confirmedAt: new Date().toISOString() });
-        Lms.save();
-        if (d.donorUserId) Lms.notifyUser(d.donorUserId, 'Donation received — JazakAllah Khair', `Receipt ${d.receiptNo} for ${Lms.money(d.amount)} is available in Fees & Donations.`, 'FEE', 'fees');
-        window.App.navigate('fees');
-    },
-
-    printDonationReceipt(donId) {
-        const don = (window.LmsData.donations || []).find(d => d.id === donId);
-        if (!don) return;
-        Lms.openModal(
-            `<i class="fas fa-receipt" style="color: var(--gold-400);"></i> Official Donation Receipt`,
-            `<div style="background: #ffffff; color: var(--text-primary); border: 3px double var(--primary-800); border-radius: 8px; padding: 24px;">
-                <div style="text-align: center; border-bottom: 2px solid var(--primary-800); padding-bottom: 12px; margin-bottom: 16px;">
-                    <img src="assets/images/logo.png" style="width: 52px; height: 52px; object-fit: contain; margin: 0 auto 6px;">
-                    <h2 style="color: var(--primary-900); font-size: 1.25rem; font-weight: 800;">JAMIA ASHRAFIA LAHORE</h2>
-                    <div style="font-size: 1.1rem; color: var(--gold-600);">Jamia Ashrafia Lahore — Finance Department & Bait-ul-Maal</div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 16px;">
-                    <div><strong>Receipt No:</strong> <span style="color: var(--primary-700); font-weight: 700;">${Lms.esc(don.receiptNo)}</span></div>
-                    <div><strong>Date:</strong> ${Lms.fmtDate(don.receivedAt)}</div>
-                </div>
-                <div style="font-size: 0.88rem; line-height: 1.9; margin-bottom: 20px;">
-                    <div>Received with gratitude from: <strong>${don.isAnonymous ? 'Respected Anonymous Donor (Fi Sabilillah)' : Lms.esc(don.donorName)}</strong></div>
-                    <div>Category: <strong>${Lms.esc(this.DONATION_TYPES[don.donationType] || don.donationType)}</strong></div>
-                    <div>Purpose: <em>${Lms.esc(don.purpose)}</em></div>
-                    <div>Payment Channel: ${Lms.esc(don.paymentChannel || '')}${don.reference ? ' • Ref ' + Lms.esc(don.reference) : ''}</div>
-                    <div style="margin-top: 10px; font-size: 1.2rem; font-weight: 800; color: var(--primary-800); background: var(--primary-50); border: 1px solid var(--primary-100); padding: 8px 14px; border-radius: 6px; display: inline-block;">Amount: ${Lms.money(don.amount)}</div>
-                </div>
-                <div style="border-top: 1px solid #cbd5e1; padding-top: 16px; display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b;">
-                    <div>Computer generated receipt</div><div>Nazim-e-Maliyat / Treasurer</div>
-                </div>
-            </div>`,
-            `<button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
-             <button class="btn btn-gold" onclick="window.print()"><i class="fas fa-print"></i> Print Receipt</button>`
-        );
     }
 };
 

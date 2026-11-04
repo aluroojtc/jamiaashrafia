@@ -41,7 +41,7 @@ const ALLOWED_UPLOAD_EXT = new Set([
 const SYNC_COLLECTIONS = [
     'users', 'classes', 'courses', 'courseMaterials', 'assignments', 'assignmentSubmissions',
     'exams', 'examSubmissions', 'examResults', 'timetables', 'libraryBooks', 'libraryLoans',
-    'feeStructures', 'feeChallans', 'donations', 'virtualClasses', 'virtualClassRecordings', 'attendance'
+    'feeStructures', 'feeChallans', 'virtualClasses', 'virtualClassRecordings', 'attendance'
 ];
 
 // Private per-student collections: tells a student's browser to drop other people's copies (e.g. seed data)
@@ -50,8 +50,7 @@ const STUDENT_SCOPED = {
     examSubmissions: 'studentId',
     feeChallans: 'studentId',
     libraryLoans: 'userId',
-    attendance: 'userId',
-    donations: 'donorUserId'
+    attendance: 'userId'
 };
 
 // ---------------------------------------------------------------------------
@@ -390,9 +389,6 @@ function auditRecordChange(req, collection, existing, record, extra = {}) {
     }
     if (collection === 'feeChallans' && existing && JSON.stringify(before.scholarshipWaiver || 0) !== JSON.stringify(record.scholarshipWaiver || 0)) {
         entry('fee.waiver', `Waiver on challan ${record.challanNumber || record.id}`, { scholarshipWaiver: before.scholarshipWaiver }, { scholarshipWaiver: record.scholarshipWaiver });
-    }
-    if (collection === 'donations' && existing && before.status === 'PENDING_CONFIRMATION' && record.status !== 'PENDING_CONFIRMATION') {
-        entry('donation.confirm', `Confirmed donation ${record.receiptNo || record.id} (${record.amount})`, { status: before.status }, { status: record.status });
     }
     if (collection === 'attendance' && existing && JSON.stringify(before.status) !== JSON.stringify(record.status)) {
         const ageDays = Math.floor((Date.now() - Date.parse(`${String(record.date || '').slice(0, 10)}T00:00:00Z`)) / 86400000);

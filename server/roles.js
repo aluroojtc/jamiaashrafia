@@ -48,11 +48,11 @@ const LEGACY_DEFAULT_MODULES = {
 const LEGACY_MODULE_TO_CATALOG = {
     students: ['students'], teachers: ['teachers'], classes: ['classes'], timetable: ['timetable'], attendance: ['attendance'],
     assignments: ['assignments'], exams: ['exams'], virtual_class: ['virtual_classes'], library: ['library'],
-    fees: ['fees', 'donations'], admissions: ['admissions'], reports: ['reports'], roles: ['roles'], users: ['users'],
+    fees: ['fees'], admissions: ['admissions'], reports: ['reports'], roles: ['roles'], users: ['users'],
     heritage: ['general'], security: ['settings']
 };
-// Permissions everyone in the role keeps whatever modules were switched off (receiving and own giving)
-const ALWAYS_KEPT = new Set(['donations.give', 'attendance.self_checkin', 'notifications.send_individual']);
+// Permissions everyone in the role keeps whatever modules were switched off (receiving and own check-in)
+const ALWAYS_KEPT = new Set(['attendance.self_checkin', 'notifications.send_individual']);
 
 let cache = null; // Map id -> role
 let assignments = new Map(); // user id -> [role ids] (main role first)
@@ -161,7 +161,8 @@ async function ensureDomainSchema() {
 }
 
 // A permission split into several (e.g. settings.master_data -> the setup.* permissions): whoever held the old
-// key, through a role or an individual override, now holds every new one. Runs on each start; does nothing once moved.
+// key, through a role or an individual override, now holds every new one. Grants of retired permissions are removed.
+// Runs on each start; does nothing once moved.
 async function migrateRenamedPermissions() {
     for (const [oldKey, newKeys] of Object.entries(catalog.RENAMED_PERMISSIONS)) {
         const [rolesWith] = await db.query(`SELECT role_id FROM role_permissions WHERE permission = ?`, [oldKey]);
@@ -179,6 +180,10 @@ async function migrateRenamedPermissions() {
         if (rolesWith.length || usersWith.length) {
             console.log(`[Roles] Moved ${oldKey} onto ${newKeys.join(', ')} (${rolesWith.length} role(s), ${usersWith.length} override(s))`);
         }
+    }
+    for (const key of catalog.RETIRED_PERMISSIONS) {
+        await db.query(`DELETE FROM role_permissions WHERE permission = ?`, [key]);
+        await db.query(`DELETE FROM user_permission_overrides WHERE permission = ?`, [key]);
     }
 }
 
@@ -231,7 +236,7 @@ async function importLegacyRoles() {
         const sys = catalog.SYSTEM_ROLES[id] || {};
         const legacyAccountant = id === 'ACCOUNTANT' ? {
             name: 'Finance Officer (Accountant)', urduTitle: 'ناظم مالیات', badgeClass: 'warning',
-            description: 'Fee structures, challans, payment verification and the donations ledger.'
+            description: 'Fee structures, challans and payment verification.'
         } : {};
         const role = {
             id,

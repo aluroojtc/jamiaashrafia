@@ -43,7 +43,6 @@ const EMPTY_DATA = {
     examResults: [],
     feeStructures: [],
     feeChallans: [],
-    donations: [],
     libraryBooks: [],
     libraryLoans: [],
     timetables: [],
@@ -63,7 +62,7 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const SYNC_COLLECTIONS = [
     'users', 'classes', 'courses', 'courseMaterials', 'assignments', 'assignmentSubmissions',
     'exams', 'examSubmissions', 'examResults', 'timetables', 'libraryBooks', 'libraryLoans',
-    'feeStructures', 'feeChallans', 'donations', 'virtualClasses', 'virtualClassRecordings', 'attendance'
+    'feeStructures', 'feeChallans', 'virtualClasses', 'virtualClassRecordings', 'attendance'
 ];
 
 // ---------------------------------------------------------------------------

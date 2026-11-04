@@ -81,7 +81,7 @@ const MODULE_ACCESS = {
     reports: ['reports.academic', 'reports.attendance', 'reports.finance', 'reports.admissions', 'reports.library'],
     users: ['users.view'],
     roles: ['roles.view'],
-    fees: ['fees.challans.view', 'fees.structures.view', 'donations.view'],
+    fees: ['fees.challans.view', 'fees.structures.view'],
     library: ['library.catalog.view'],
     notifications: [],
     security: ['settings.architecture'],
@@ -99,7 +99,7 @@ const LEGACY_PERMISSION_ALIASES = {
     'assignments:grade': 'assignments.grade', 'attendance:mark': 'attendance.mark',
     'notifications:broadcast': 'notifications.broadcast_role', 'notifications:class': 'notifications.send_class',
     'virtual_class:host': 'virtual_classes.host', 'library:manage': 'library.loans.issue', 'fees:manage': 'fees.challans.generate',
-    'challan:generate': 'fees.challans.generate', 'challan:verify': 'fees.challans.verify', 'donations:record': 'donations.record'
+    'challan:generate': 'fees.challans.generate', 'challan:verify': 'fees.challans.verify'
 };
 
 const AuthRBAC = {
