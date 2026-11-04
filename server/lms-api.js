@@ -26,6 +26,7 @@ const sampleData = require('./sample-data');
 const campus = require('./campus');
 const classRecordings = require('./class-recordings');
 const publicMeetings = require('./public-meetings');
+const studentImport = require('./student-import');
 
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -353,12 +354,13 @@ function identifierClash(record, users) {
     return other ? 'This email, username or roll number is already used by another account.' : null;
 }
 
-// Audit entries for record changes that matter (accounts, results, payments, old attendance)
+// Audit entries for record changes that matter (accounts, results, payments, old attendance). extra.conn: save them in
+// that connection's transaction.
 function auditRecordChange(req, collection, existing, record, extra = {}) {
     const by = a => a || {};
     const before = by(existing);
     const pending = [];
-    const entry = (action, summary, b, a) => pending.push({ req, action, entityType: collection, entityId: record.id, summary, before: b, after: a });
+    const entry = (action, summary, b, a) => pending.push({ req, action, entityType: collection, entityId: record.id, summary, before: b, after: a, conn: extra.conn });
 
     if (collection === 'users') {
         const label = `${record.name || record.id} (${record.role})`;
@@ -397,6 +399,82 @@ function auditRecordChange(req, collection, existing, record, extra = {}) {
     return Promise.all(pending.map(e => audit.log(e)));
 }
 
+// Saves one record the way every save goes: campus, access policy, protected fields, login identifiers, temporary
+// password, roles / type and the audit entry (queued on st.audits). st = { allUsers, revoke: Set, audits: [], hashes?: Map
+// id -> password hash made beforehand } is shared by the records of one request. Returns { id, record } or { id, error }. Used by the record store sync and
+// by the bulk student import (server/student-import.js), so both create accounts in exactly the same way.
+async function writeRecord(conn, ctx, who, collection, raw, st) {
+    const id = String(raw.id).slice(0, 120);
+    const [rows] = await conn.execute(`SELECT data, deleted FROM lms_records WHERE collection = ? AND id = ?`, [collection, id]);
+    const existing = rows.length && !rows[0].deleted ? JSON.parse(rows[0].data) : null;
+    const incoming = { ...raw, id };
+
+    if (!superAdminWriteAllowed(collection, who, incoming, existing, ctx)) {
+        return { id, error: incoming.role === 'SUPER_ADMIN' && !(existing && existing.role === 'SUPER_ADMIN')
+            ? 'Super Admin can only be given with "Make Super Admin" on the Users page.'
+            : 'Only the Super Admin can change a Super Admin account.' };
+    }
+    policy.assignCampus(ctx, collection, incoming, existing);
+    if (!policy.canWrite(ctx, collection, incoming, existing)) return { id, error: ctx.reason };
+
+    let record = policy.prepareWrite(ctx, collection, incoming, existing);
+    if (collection === 'users' && existing && existing.role === 'SUPER_ADMIN') {
+        // Super Admin's profile is editable, but the account always stays an active Super Admin
+        record.role = 'SUPER_ADMIN';
+        record.status = 'ACTIVE';
+    }
+
+    let passwordSet = false;
+    let rolesChange = null;
+    if (collection === 'users') {
+        st.allUsers = st.allUsers || await loadCollection('users');
+        const clash = identifierClash(record, st.allUsers);
+        if (clash) return { id, error: clash };
+        const password = record.password !== undefined && record.password !== null ? String(record.password) : '';
+        delete record.password;
+        // Staff with the reset-password permission set temporary passwords for other people; the person must
+        // change it at next sign-in. Everyone changes their own through /api/auth/change-password.
+        if (password && id !== who.id) {
+            if (!policy.canSetPassword(ctx, existing || record, !existing)) return { id, error: 'You are not allowed to set this person\'s password.' };
+            const problem = auth.passwordProblem(password);
+            if (problem) return { id, error: problem };
+            await auth.setPassword(conn, id, password, true, st.hashes && st.hashes.get(id));
+            passwordSet = true;
+            st.revoke.add(id);
+        }
+        if (auth.INACTIVE_STATUSES.includes(record.status)) st.revoke.add(id);
+        // Additional roles and a student's / teacher's type live in user_roles; the record only carries them
+        // as a request (checked by the access policy). People never choose their own type.
+        const domain = roles.accountDomain(record.role);
+        const isGroupAccount = roles.GROUP_DOMAINS.includes(domain);
+        const groupBefore = existing && isGroupAccount ? roles.groupOf(existing) : null;
+        const groupAfter = !isGroupAccount ? null : (id === who.id ? groupBefore : policy.requestedGroup(record, existing));
+        if (groupAfter) record.permissionGroup = groupAfter;
+        else delete record.permissionGroup;
+        const extraBefore = existing ? roles.additionalRolesOf(existing) : [];
+        const extraAfter = domain === 'STUDENT' ? [] : (Array.isArray(record.additionalRoles)
+            ? Array.from(new Set(record.additionalRoles.map(r => String(r).toUpperCase())))
+            : extraBefore);
+        delete record.additionalRoles;
+        if (record.role !== 'SUPER_ADMIN' || !existing) await roles.setUserRoles(conn, id, groupAfter || record.role, extraAfter, who.id);
+        // "Every campus" follows the roles (all locations / own locations only)
+        roles.applyCampusScope(record);
+        rolesChange = JSON.stringify(extraBefore.slice().sort()) !== JSON.stringify(extraAfter.slice().sort()) ? { before: extraBefore, after: extraAfter } : null;
+        if (existing && groupBefore !== groupAfter) rolesChange = { ...(rolesChange || {}), group: { before: groupBefore, after: groupAfter } };
+        st.allUsers = st.allUsers.filter(u => u.id !== id).concat(record);
+    }
+
+    await conn.execute(
+        `INSERT INTO lms_records (collection, id, data, deleted, updated_by, updated_at)
+         VALUES (?, ?, ?, 0, ?, NOW(3))
+         ON DUPLICATE KEY UPDATE data = VALUES(data), deleted = 0, updated_by = VALUES(updated_by), updated_at = NOW(3)`,
+        [collection, id, JSON.stringify(record), who.id]
+    );
+    policy.noteWrite(ctx, collection, record);
+    st.audits.push([collection, existing, record, { passwordSet, rolesChange }]);
+    return { id, record };
+}
+
 async function handleStoreSync(req, res) {
     const who = caller(req);
     if (!who.id) {
@@ -413,9 +491,8 @@ async function handleStoreSync(req, res) {
         if (message) (result.errors[collection] = result.errors[collection] || {})[id] = message;
     };
     const ctx = await policy.buildContext(who, loadCollection);
-    let allUsers = null;
-    const revoke = new Set();
-    const audits = [];
+    const st = { allUsers: null, revoke: new Set(), audits: [] };
+    const { revoke, audits } = st;
 
     const conn = await db.getConnection();
     try {
@@ -423,88 +500,12 @@ async function handleStoreSync(req, res) {
             if (!SYNC_COLLECTIONS.includes(collection) || !Array.isArray(upserts[collection])) continue;
             for (const raw of upserts[collection]) {
                 if (!raw || typeof raw !== 'object' || !raw.id) continue;
-                const id = String(raw.id).slice(0, 120);
-                const [rows] = await conn.execute(`SELECT data, deleted FROM lms_records WHERE collection = ? AND id = ?`, [collection, id]);
-                const existing = rows.length && !rows[0].deleted ? JSON.parse(rows[0].data) : null;
-                const incoming = { ...raw, id };
-
-                if (!superAdminWriteAllowed(collection, who, incoming, existing, ctx)) {
-                    reject(collection, id, incoming.role === 'SUPER_ADMIN' && !(existing && existing.role === 'SUPER_ADMIN')
-                        ? 'Super Admin can only be given with "Make Super Admin" on the Users page.'
-                        : 'Only the Super Admin can change a Super Admin account.');
+                const r = await writeRecord(conn, ctx, who, collection, raw, st);
+                if (r.error !== undefined) {
+                    reject(collection, r.id, r.error);
                     continue;
                 }
-                policy.assignCampus(ctx, collection, incoming, existing);
-                if (!policy.canWrite(ctx, collection, incoming, existing)) {
-                    reject(collection, id, ctx.reason);
-                    continue;
-                }
-
-                let record = policy.prepareWrite(ctx, collection, incoming, existing);
-                if (collection === 'users' && existing && existing.role === 'SUPER_ADMIN') {
-                    // Super Admin's profile is editable, but the account always stays an active Super Admin
-                    record.role = 'SUPER_ADMIN';
-                    record.status = 'ACTIVE';
-                }
-
-                let passwordSet = false;
-                let rolesChange = null;
-                if (collection === 'users') {
-                    allUsers = allUsers || await loadCollection('users');
-                    const clash = identifierClash(record, allUsers);
-                    if (clash) {
-                        reject(collection, id, clash);
-                        continue;
-                    }
-                    const password = record.password !== undefined && record.password !== null ? String(record.password) : '';
-                    delete record.password;
-                    // Staff with the reset-password permission set temporary passwords for other people; the person must
-                    // change it at next sign-in. Everyone changes their own through /api/auth/change-password.
-                    if (password && id !== who.id) {
-                        if (!policy.canSetPassword(ctx, existing || record, !existing)) {
-                            reject(collection, id, 'You are not allowed to set this person\'s password.');
-                            continue;
-                        }
-                        const problem = auth.passwordProblem(password);
-                        if (problem) {
-                            reject(collection, id, problem);
-                            continue;
-                        }
-                        await auth.setPassword(conn, id, password, true);
-                        passwordSet = true;
-                        revoke.add(id);
-                    }
-                    if (auth.INACTIVE_STATUSES.includes(record.status)) revoke.add(id);
-                    // Additional roles and a student's / teacher's type live in user_roles; the record only carries them
-                    // as a request (checked by the access policy). People never choose their own type.
-                    const domain = roles.accountDomain(record.role);
-                    const isGroupAccount = roles.GROUP_DOMAINS.includes(domain);
-                    const groupBefore = existing && isGroupAccount ? roles.groupOf(existing) : null;
-                    const groupAfter = !isGroupAccount ? null : (id === who.id ? groupBefore : policy.requestedGroup(record, existing));
-                    if (groupAfter) record.permissionGroup = groupAfter;
-                    else delete record.permissionGroup;
-                    const extraBefore = existing ? roles.additionalRolesOf(existing) : [];
-                    const extraAfter = domain === 'STUDENT' ? [] : (Array.isArray(record.additionalRoles)
-                        ? Array.from(new Set(record.additionalRoles.map(r => String(r).toUpperCase())))
-                        : extraBefore);
-                    delete record.additionalRoles;
-                    if (record.role !== 'SUPER_ADMIN' || !existing) await roles.setUserRoles(conn, id, groupAfter || record.role, extraAfter, who.id);
-                    // "Every campus" follows the roles (all locations / own locations only)
-                    roles.applyCampusScope(record);
-                    rolesChange = JSON.stringify(extraBefore.slice().sort()) !== JSON.stringify(extraAfter.slice().sort()) ? { before: extraBefore, after: extraAfter } : null;
-                    if (existing && groupBefore !== groupAfter) rolesChange = { ...(rolesChange || {}), group: { before: groupBefore, after: groupAfter } };
-                    allUsers = allUsers.filter(u => u.id !== id).concat(record);
-                }
-
-                await conn.execute(
-                    `INSERT INTO lms_records (collection, id, data, deleted, updated_by, updated_at)
-                     VALUES (?, ?, ?, 0, ?, NOW(3))
-                     ON DUPLICATE KEY UPDATE data = VALUES(data), deleted = 0, updated_by = VALUES(updated_by), updated_at = NOW(3)`,
-                    [collection, id, JSON.stringify(record), who.id]
-                );
-                policy.noteWrite(ctx, collection, record);
-                audits.push([collection, existing, record, { passwordSet, rolesChange }]);
-                (result.accepted[collection] = result.accepted[collection] || []).push(id);
+                (result.accepted[collection] = result.accepted[collection] || []).push(r.id);
             }
         }
 
@@ -1396,6 +1397,8 @@ async function route(req, res) {
     // Institution setup (branches, programmes, sessions, profile), recording retention, sample data clean-up
     if (await masterData.route(req, res, url, DEPS)) return true;
     if (await sampleData.route(req, res, url, DEPS)) return true;
+    // Bulk student import from an Excel file (Student Management -> Import Students)
+    if (await studentImport.route(req, res, url, IMPORT_DEPS)) return true;
 
     return false;
 }
@@ -1407,6 +1410,9 @@ const RECORDING_DEPS = {
     sendJson, readJson, can, caller, effective, loadCollection, loadRecord, getSetting, newId, insertNotification,
     decideVirtualAccess, getMeetingSettings, meetingRoomName
 };
+
+// Helpers handed to server/student-import.js
+const IMPORT_DEPS = { sendJson, readJson, can, caller, newId, ensureSchema, loadCollection, writeRecord, auditRecordChange };
 
 // Helpers handed to server/public-meetings.js
 const PUBLIC_MEETING_DEPS = { sendJson, readJson, can, caller, newId, getSetting, getMeetingSettings, roomToken };

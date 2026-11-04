@@ -16,6 +16,7 @@
     "test:recordings": "node test_class_recordings.js",
     "test:locations": "node test_role_locations.js",
     "test:public-meetings": "node test_public_meetings.js",
+    "test:import": "node test_student_import.js",
     "i18n:check": "node tools/i18n-check.js"
   },
   "keywords": [

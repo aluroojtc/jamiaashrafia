@@ -67,6 +67,14 @@ function hashPassword(password) {
     return `scrypt$${salt}$${hash}`;
 }
 
+// Same hash without blocking the server (bulk imports hash hundreds of passwords at once)
+function hashPasswordAsync(password) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    return new Promise((resolve, reject) => {
+        crypto.scrypt(String(password), salt, 64, (err, key) => (err ? reject(err) : resolve(`scrypt$${salt}$${key.toString('hex')}`)));
+    });
+}
+
 function verifyPassword(password, stored) {
     const [scheme, salt, hash] = String(stored || '').split('$');
     if (scheme !== 'scrypt' || !salt || !hash) return false;
@@ -91,12 +99,12 @@ function temporaryPassword(length = 10) {
     return Array.from(bytes, b => chars[b % chars.length]).join('');
 }
 
-// mustChange: the user has to choose a new password at next sign-in
-async function setPassword(conn, userId, password, mustChange) {
+// mustChange: the user has to choose a new password at next sign-in; hash: the password already hashed (hashPasswordAsync)
+async function setPassword(conn, userId, password, mustChange, hash) {
     await (conn || db).query(
         `INSERT INTO user_credentials (user_id, password_hash, must_change) VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), must_change = VALUES(must_change)`,
-        [userId, hashPassword(password), mustChange ? 1 : 0]
+        [userId, hash || hashPassword(password), mustChange ? 1 : 0]
     );
 }
 
@@ -298,6 +306,7 @@ module.exports = {
     INACTIVE_STATUSES,
     ensureAuthSchema,
     hashPassword,
+    hashPasswordAsync,
     verifyPassword,
     passwordProblem,
     temporaryPassword,

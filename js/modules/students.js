@@ -59,6 +59,9 @@ const StudentsModule = {
                     ${Lms.can('students.export') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.exportStudentsCSV()">
                         <i class="fas fa-file-csv"></i> Export Students CSV
                     </button>` : ''}
+                    ${Lms.can('students.create') ? `<button class="btn btn-secondary btn-sm" onclick="StudentsModule.openImportModal()">
+                        <i class="fas fa-file-import"></i> Import Students
+                    </button>` : ''}
                     ${Lms.can('students.create') ? `<button class="btn btn-gold btn-sm" onclick="StudentsModule.openDirectEnrollmentModal()">
                         <i class="fas fa-user-plus"></i> Direct Student Enrollment
                     </button>` : ''}
@@ -1448,6 +1451,261 @@ const StudentsModule = {
         });
         Lms.downloadCsv(`Jamia_Ashrafia_Students_Roster_${new Date().toISOString().split('T')[0]}.csv`, rows);
         App.showToast("Students Roster CSV successfully downloaded!", "gold");
+    },
+
+    // ---------------------------------------------------------------------
+    // BULK IMPORT (Excel): template -> upload -> preview -> confirm -> login details (server/student-import.js)
+    // ---------------------------------------------------------------------
+    importState: null,
+    importFile: null,
+
+    openImportModal() {
+        this.importState = null;
+        this.importFile = null;
+        Lms.openModal(
+            `<i class="fas fa-file-import" style="color: var(--gold-400);"></i> Import Students from Excel`,
+            `<div style="display: grid; gap: 16px;">
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px 16px;">
+                    <div style="font-weight: 700; color: var(--primary-950); margin-bottom: 6px;"><span class="status-pill gold" style="margin-inline-end: 6px;">1</span> Download the template</div>
+                    <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 10px;">It has the registration fields as columns, drop-down lists for category, gender, class, campus, country and student type, and an Instructions sheet. Orange columns are required.</p>
+                    <a class="btn btn-secondary btn-sm" href="/api/students/import/template" download><i class="fas fa-file-excel" style="color: #15803d;"></i> Download Excel Template</a>
+                </div>
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px 16px;">
+                    <div style="font-weight: 700; color: var(--primary-950); margin-bottom: 6px;"><span class="status-pill gold" style="margin-inline-end: 6px;">2</span> Upload the filled file</div>
+                    <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 10px;">Excel Workbook (.xlsx), up to 3000 students and 5 MB. Every row is checked and you see a preview first: nothing is saved until you confirm.</p>
+                    <label for="import-file" id="import-drop" style="display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 12px; border: 2px dashed var(--border-prominent); border-radius: var(--radius-sm); cursor: pointer; text-align: center;">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 1.8rem; color: var(--primary-600);"></i>
+                        <span id="import-file-name" style="font-weight: 600; color: var(--text-primary); word-break: break-all;">Choose an .xlsx file or drop it here</span>
+                    </label>
+                    <input type="file" id="import-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display: none;" onchange="StudentsModule.importFileChosen(this.files[0])">
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-muted);"><i class="fas fa-shield-alt"></i> Existing students are never changed. Rows whose roll number, Wifaq registration number, email, CNIC / B-Form or passport is already registered are reported as duplicates.</div>
+            </div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+             <button class="btn btn-gold" id="import-check-btn" disabled onclick="StudentsModule.checkImportFile()"><i class="fas fa-search"></i> Check File</button>`,
+            { wide: true }
+        );
+        const drop = document.getElementById('import-drop');
+        if (drop) {
+            drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--gold-500)'; });
+            drop.addEventListener('dragleave', () => { drop.style.borderColor = ''; });
+            drop.addEventListener('drop', e => {
+                e.preventDefault();
+                drop.style.borderColor = '';
+                if (e.dataTransfer.files[0]) this.importFileChosen(e.dataTransfer.files[0]);
+            });
+        }
+    },
+
+    importFileChosen(file) {
+        const btn = document.getElementById('import-check-btn');
+        const label = document.getElementById('import-file-name');
+        this.importFile = null;
+        if (btn) btn.disabled = true;
+        if (!file) return;
+        if (!/\.xlsx$/i.test(file.name)) {
+            App.showToast('Choose an Excel .xlsx file. For .xls or .csv, open it in Excel and use Save As -> Excel Workbook (*.xlsx).', 'warning');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            App.showToast('The file is larger than 5 MB. Split it into smaller files.', 'warning');
+            return;
+        }
+        this.importFile = file;
+        if (label) label.textContent = `${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB)`;
+        if (btn) btn.disabled = false;
+    },
+
+    readFileBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+            reader.onerror = () => reject(new Error('The file could not be read.'));
+            reader.readAsDataURL(file);
+        });
+    },
+
+    async checkImportFile() {
+        const file = this.importFile;
+        if (!file) return;
+        const btn = document.getElementById('import-check-btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...'; }
+        try {
+            const data = await this.readFileBase64(file);
+            const result = await Lms.api('POST', '/api/students/import/preview', { file: data, fileName: file.name });
+            this.importState = { data, fileName: file.name, result, filter: result.summary.invalid ? 'errors' : 'valid' };
+            this.renderImportPreview();
+        } catch (e) {
+            App.showToast(e.message, 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-search"></i> Check File'; }
+        }
+    },
+
+    renderImportPreview() {
+        const st = this.importState;
+        const r = st.result;
+        const s = r.summary;
+        const esc = v => Lms.esc(v === undefined || v === null ? '' : v);
+        const card = (cls, icon, label, value) => `<div class="metric-card ${cls}" style="padding: 12px;"><div class="metric-icon-box"><i class="fas ${icon}"></i></div><div class="metric-content"><span class="metric-label">${label}</span><span class="metric-value">${value}</span></div></div>`;
+        const LIMIT = 300;
+        const warningCount = r.rows.reduce((n, x) => n + x.warnings.length, 0);
+
+        let table = '';
+        if (r.fileErrors.length) {
+            table = `<div style="border: 1px solid var(--danger); background: rgba(220, 38, 38, 0.06); border-radius: var(--radius-sm); padding: 14px 16px;">
+                <div style="font-weight: 700; color: var(--danger); margin-bottom: 6px;"><i class="fas fa-times-circle"></i> The file cannot be imported</div>
+                <ul style="margin: 0; padding-inline-start: 18px; font-size: 0.85rem; color: var(--text-primary);">${r.fileErrors.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>`;
+        } else if (st.filter === 'errors') {
+            const problems = [];
+            r.rows.forEach(row => {
+                row.errors.forEach(e => problems.push({ row: row.row, name: row.name, ...e, kind: 'error' }));
+                row.warnings.forEach(w => problems.push({ row: row.row, name: row.name, ...w, kind: 'warning' }));
+            });
+            table = problems.length ? `<div style="overflow-x: auto; max-height: 46vh; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                <table class="data-table" style="font-size: 0.8rem;">
+                    <thead><tr><th>Row</th><th>Student</th><th>Column</th><th>Value entered</th><th>What to fix</th></tr></thead>
+                    <tbody>${problems.slice(0, LIMIT).map(p => `<tr>
+                        <td><strong>${p.row}</strong></td>
+                        <td>${esc(p.name) || '<span style="color: var(--text-muted);">(no name)</span>'}</td>
+                        <td>${esc(p.column) || '—'}</td>
+                        <td style="font-family: monospace; word-break: break-all;">${esc(p.value) || '<span style="color: var(--text-muted);">(empty)</span>'}</td>
+                        <td>${p.kind === 'error' ? '<span class="status-pill danger" style="font-size: 0.65rem;">Error</span>' : '<span class="status-pill warning" style="font-size: 0.65rem;">Warning</span>'} ${esc(p.message)}</td>
+                    </tr>`).join('')}</tbody>
+                </table></div>${problems.length > LIMIT ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">Showing the first ${LIMIT} of ${problems.length}. Download the error report for the full list.</div>` : ''}`
+                : '<div style="padding: 18px; text-align: center; color: var(--success);"><i class="fas fa-check-circle"></i> No problems found.</div>';
+        } else {
+            const rows = r.rows.filter(x => x.ok);
+            const auto = '<span class="status-pill info" style="font-size: 0.6rem; padding: 0 6px;">auto</span>';
+            table = rows.length ? `<div style="overflow-x: auto; max-height: 46vh; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                <table class="data-table" style="font-size: 0.8rem;">
+                    <thead><tr><th>Row</th><th>Name</th><th>Father Name</th><th>Roll No</th><th>Login Email</th><th>Class</th><th>Campus</th><th>Type</th></tr></thead>
+                    <tbody>${rows.slice(0, LIMIT).map(x => `<tr>
+                        <td>${x.row}</td>
+                        <td><strong>${esc(x.name)}</strong>${x.warnings.length ? ` <i class="fas fa-exclamation-triangle" style="color: var(--warning);" title="${esc(x.warnings.map(w => w.message).join(' '))}"></i>` : ''}</td>
+                        <td>${esc(x.fatherName)}</td>
+                        <td style="font-family: monospace;">${esc(x.rollNo)} ${x.rollAuto ? auto : ''}</td>
+                        <td style="word-break: break-all;">${esc(x.email)} ${x.emailAuto ? auto : ''}</td>
+                        <td>${esc(x.className) || '<span style="color: var(--text-muted);">Assign later</span>'}</td>
+                        <td>${esc(x.campus)}</td>
+                        <td>${esc(x.group)}</td>
+                    </tr>`).join('')}</tbody>
+                </table></div>${rows.length > LIMIT ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">Showing the first ${LIMIT} of ${rows.length} students.</div>` : ''}`
+                : '<div style="padding: 18px; text-align: center; color: var(--text-muted);">No rows are ready to import yet.</div>';
+        }
+
+        const tab = (key, label, n) => `<button class="tab-btn ${st.filter === key ? 'active' : ''}" onclick="StudentsModule.importState.filter = '${key}'; StudentsModule.renderImportPreview()">${label} (${n})</button>`;
+        const body = `
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 10px;"><i class="fas fa-file-excel" style="color: #15803d;"></i> <strong>${esc(st.fileName)}</strong>${r.sheet ? ` · sheet "${esc(r.sheet)}"` : ''}</div>
+            ${r.fileErrors.length ? '' : `<div class="metrics-grid" style="margin-bottom: 12px;">
+                ${card('info', 'fa-list-ol', 'Rows in file', s.total)}
+                ${card('primary', 'fa-user-check', 'Ready to import', s.valid)}
+                ${card('danger', 'fa-times-circle', 'Rows with errors', s.invalid)}
+                ${card('gold', 'fa-exclamation-triangle', 'Rows with warnings', s.withWarnings)}
+            </div>`}
+            ${(r.fileWarnings || []).length ? `<div style="font-size: 0.78rem; color: var(--warning); margin-bottom: 10px;">${r.fileWarnings.map(m => `<div><i class="fas fa-info-circle"></i> ${esc(m)}</div>`).join('')}</div>` : ''}
+            ${r.fileErrors.length ? '' : `<div class="tabs-nav" style="margin-bottom: 10px;">${tab('errors', 'Problems', s.errorCount + warningCount)}${tab('valid', 'Ready to import', s.valid)}</div>`}
+            ${table}
+            ${!r.fileErrors.length && s.invalid && s.valid ? `<label style="display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="import-skip-invalid" style="margin-top: 3px; accent-color: var(--gold-500);" onchange="document.getElementById('import-go-btn').disabled = !this.checked">
+                <span>Import only the <strong>${s.valid}</strong> valid row${s.valid === 1 ? '' : 's'} and leave out the <strong>${s.invalid}</strong> row${s.invalid === 1 ? '' : 's'} with errors (fix ${s.invalid === 1 ? 'it' : 'them'} and import later).</span>
+            </label>` : ''}`;
+        const canGo = !r.fileErrors.length && s.valid > 0;
+        const footer = `
+            <button class="btn btn-secondary" onclick="StudentsModule.openImportModal()"><i class="fas fa-arrow-left"></i> Choose Another File</button>
+            ${r.errorReport ? `<button class="btn btn-secondary" onclick="StudentsModule.downloadImportErrors()"><i class="fas fa-file-download"></i> Download Error Report</button>` : ''}
+            ${canGo ? `<button class="btn btn-gold" id="import-go-btn" ${s.invalid ? 'disabled' : ''} onclick="StudentsModule.confirmImport()"><i class="fas fa-file-import"></i> Import ${s.valid} Student${s.valid === 1 ? '' : 's'}</button>` : ''}`;
+        Lms.openModal(`<i class="fas fa-clipboard-check" style="color: var(--gold-400);"></i> Check Before Importing`, body, footer, { wide: true });
+    },
+
+    downloadBase64(b64, fileName) {
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    },
+
+    downloadImportErrors() {
+        const st = this.importState;
+        if (!st || !st.result.errorReport) return;
+        this.downloadBase64(st.result.errorReport, `Import_Errors_${st.fileName.replace(/\.xlsx$/i, '')}.xlsx`);
+    },
+
+    async confirmImport() {
+        const st = this.importState;
+        if (!st) return;
+        const s = st.result.summary;
+        const skip = !!(document.getElementById('import-skip-invalid') || {}).checked;
+        if (s.invalid && !skip) return;
+        if (!confirm(I18n.t('Create {n} student accounts now? Each gets a temporary password.', { n: s.valid }))) return;
+        const btn = document.getElementById('import-go-btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...'; }
+        try {
+            const res = await Lms.api('POST', '/api/students/import/commit', {
+                file: st.data, fileName: st.fileName, confirm: true, skipInvalid: skip, expectedCount: s.valid, fingerprint: st.result.fingerprint
+            });
+            st.jobId = res.jobId;
+            this.renderImportProgress({ status: 'running', phase: 'Starting', done: 0, total: res.total });
+            this.pollImport();
+        } catch (e) {
+            App.showToast(e.message, 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fas fa-file-import"></i> Import ${s.valid} Students`; }
+        }
+    },
+
+    renderImportProgress(job) {
+        const pct = job.total ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0;
+        Lms.openModal(`<i class="fas fa-cog fa-spin" style="color: var(--gold-400);"></i> Importing Students`,
+            `<div style="padding: 10px 0;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;"><span>${Lms.esc(job.phase || '')}</span><strong>${pct}%</strong></div>
+                <div style="height: 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 999px; overflow: hidden;">
+                    <div style="height: 100%; width: ${pct}%; background: linear-gradient(90deg, var(--primary-600), var(--gold-500)); transition: width 0.4s;"></div>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 12px;">${job.total} students. Keep this window open. All students are saved together at the end, so if anything goes wrong nothing is half-imported.</p>
+            </div>`,
+            '<span style="font-size: 0.8rem; color: var(--text-muted);">Please wait...</span>', { wide: true });
+    },
+
+    async pollImport() {
+        const st = this.importState;
+        if (!st || !st.jobId) return;
+        let job;
+        try {
+            job = (await Lms.api('GET', `/api/students/import/jobs/${encodeURIComponent(st.jobId)}`)).job;
+        } catch (e) {
+            App.showToast(e.message, 'error');
+            return;
+        }
+        if (job.status === 'running') {
+            this.renderImportProgress(job);
+            setTimeout(() => this.pollImport(), 1000);
+            return;
+        }
+        if (job.status === 'failed') {
+            Lms.openModal(`<i class="fas fa-times-circle" style="color: var(--danger);"></i> Import Not Completed`,
+                `<p style="color: var(--text-primary);">${Lms.esc(job.error)}</p><p style="font-size: 0.85rem; color: var(--text-secondary);">No students were saved from this file.</p>`,
+                `<button class="btn btn-secondary" onclick="App.closeModal()">Close</button><button class="btn btn-gold" onclick="StudentsModule.openImportModal()">Start Again</button>`);
+            return;
+        }
+        // Done: fetch the new accounts, then show where to get the login details
+        try { await window.DataStore.syncNow(); } catch (e) { /* the next sync brings them */ }
+        const viewport = document.getElementById('main-content-viewport');
+        if (viewport && App.currentRoute === 'students') viewport.innerHTML = this.render();
+        Lms.openModal(`<i class="fas fa-check-circle" style="color: var(--success);"></i> Students Imported`,
+            `<div style="text-align: center; padding: 8px 0 4px;">
+                <div style="font-size: 2.4rem; font-weight: 800; color: var(--primary-700);">${job.imported}</div>
+                <div style="color: var(--text-secondary); margin-bottom: 14px;">student account${job.imported === 1 ? '' : 's'} created${job.skipped ? ` · ${job.skipped} row${job.skipped === 1 ? '' : 's'} with errors left out` : ''}</div>
+            </div>
+            <div style="background: rgba(217, 119, 6, 0.08); border-inline-start: 4px solid var(--gold-500); padding: 12px 14px; border-radius: 4px; font-size: 0.85rem; color: var(--text-primary);">
+                <strong><i class="fas fa-key"></i> Download the login details now.</strong> The file lists each student's roll number, login email and temporary password. It is available for 30 minutes. Every student must choose a new password at first sign-in.
+            </div>`,
+            `<button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
+             <a class="btn btn-gold" href="/api/students/import/jobs/${encodeURIComponent(job.id)}/credentials" download><i class="fas fa-file-download"></i> Download Login Details</a>`,
+            { wide: true });
+        App.showToast(`${job.imported} students imported`, 'success');
     }
 };
 

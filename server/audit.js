@@ -51,14 +51,15 @@ function requestInfo(req) {
 }
 
 /**
- * log({ req, actor: { id, role }, action, entityType, entityId, summary, before, after })
+ * log({ req, actor: { id, role }, action, entityType, entityId, summary, before, after, conn })
  * Never throws: an audit failure is reported on the console and does not undo the action.
+ * conn: a database connection in a transaction, so the entry is saved (or rolled back) with the change it records.
  */
 async function log(entry) {
     try {
         const { ip, ua } = requestInfo(entry.req);
         const actor = entry.actor || (entry.req && entry.req.auth) || {};
-        await db.query(
+        await (entry.conn || db).query(
             `INSERT INTO audit_log (actor_id, actor_role, action, entity_type, entity_id, summary, before_json, after_json, ip, user_agent)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [actor.id || null, actor.role || null, String(entry.action).slice(0, 64), entry.entityType || null,
