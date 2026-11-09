@@ -29,10 +29,13 @@ const db = require('./database/db');
 const auth = require('./server/auth');
 
 const P = `rectest_${Date.now().toString(36)}_`;
+const R = P.toUpperCase();
 const ids = {
     super: `${P}super`, teacherA: `${P}ta`, teacherB: `${P}tb`, studentA: `${P}sa`, studentB: `${P}sb`,
+    meetingOnly: `${P}mo`, meetingRecorder: `${P}mr`,
     clsA: `${P}clsA`, clsB: `${P}clsB`, vcA: `${P}vcA`, vcB: `${P}vcB`
 };
+const roleIds = { meetingOnly: `${R}MEETONLY`, meetingRecorder: `${R}MEETREC` };
 const passwords = {};
 const cookies = {};
 let failed = 0;
@@ -112,8 +115,9 @@ function dropJibriFile(session, bytes = 300 * 1024) {
     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
     const content = Buffer.alloc(bytes);
     for (let i = 0; i < bytes; i++) content[i] = i % 251;
-    fs.writeFileSync(path.join(dir, `${roomOf(session)}_${stamp}.mp4`), content);
-    fs.writeFileSync(path.join(dir, 'metadata.json'), JSON.stringify({ meeting_url: `https://meet.test.local/${roomOf(session)}`, participants: [] }));
+    const room = session.roomName ? session.roomName.toLowerCase() : roomOf(session); // a public meeting's room, or a class's
+    fs.writeFileSync(path.join(dir, `${room}_${stamp}.mp4`), content);
+    fs.writeFileSync(path.join(dir, 'metadata.json'), JSON.stringify({ meeting_url: `https://meet.test.local/${room}`, participants: [] }));
     fs.writeFileSync(path.join(dir, '.finalized'), '');
     return { dir, content };
 }
@@ -136,6 +140,15 @@ async function setupFixtures() {
     await put('meeting', { domain: 'meet.test.local', embed: true, authMode: 'JWT', appId: 'rectest', jaasKeyId: '' });
     await put('meetingSecrets', { appSecret: 'rectest-secret-0123456789abcdef' });
 
+    for (const [roleId, perms] of [
+        [roleIds.meetingOnly, ['virtual_classes.view', 'virtual_classes.public_meeting']],
+        [roleIds.meetingRecorder, ['virtual_classes.view', 'virtual_classes.public_meeting', 'recordings.view', 'recordings.manage']]
+    ]) {
+        await db.query(`INSERT INTO roles (id, name, scope, is_system, status, version, updated_by) VALUES (?, ?, 'ALL', 0, 'ACTIVE', 1, 'rectest')`, [roleId, roleId]);
+        for (const perm of perms) await db.query(`INSERT INTO role_permissions (role_id, permission) VALUES (?, ?)`, [roleId, perm]);
+    }
+    await createUser(ids.meetingOnly, { role: roleIds.meetingOnly });
+    await createUser(ids.meetingRecorder, { role: roleIds.meetingRecorder });
     await createUser(ids.super, { role: 'SUPER_ADMIN' });
     await createUser(ids.teacherA, { role: 'TEACHER' });
     await createUser(ids.teacherB, { role: 'TEACHER' });
@@ -150,6 +163,14 @@ async function setupFixtures() {
 
 async function cleanup() {
     const like = `${P}%`;
+    const [meetings] = await db.query(`SELECT id FROM public_meetings WHERE title LIKE ?`, [like]);
+    for (const m of meetings) {
+        await db.query(`DELETE FROM lms_records WHERE collection = 'virtualClassRecordings' AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.publicMeetingId')) = ?`, [m.id]);
+        await db.query(`DELETE FROM class_recording_captures WHERE session_id = ?`, [m.id]);
+    }
+    await db.query(`DELETE FROM public_meetings WHERE title LIKE ?`, [like]);
+    await db.query(`DELETE FROM role_permissions WHERE role_id LIKE ?`, [`${R}%`]);
+    await db.query(`DELETE FROM roles WHERE id LIKE ?`, [`${R}%`]);
     await db.query(`DELETE FROM lms_records WHERE id LIKE ? OR (collection = 'virtualClassRecordings' AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.sessionId')) LIKE ?)`, [like, like]);
     await db.query(`DELETE FROM class_recording_captures WHERE session_id LIKE ?`, [like]);
     const [notes] = await db.query(`SELECT id FROM notifications WHERE target_class_id LIKE ? OR sender_id LIKE ?`, [like, like]);
@@ -296,6 +317,117 @@ async function run() {
         r = await as('teacherB', 'POST', '/api/class-recordings/start', { sessionId: ids.vcB });
         check('After a failed start the recorder is free for others', r.status === 201, r.body);
         if (r.body.capture) await as('teacherB', 'POST', `/api/class-recordings/${r.body.capture.id}/fail`, { error: 'test' });
+
+        // --- Public meetings record through the same mechanism
+        const startMeeting = async title => {
+            const res = await as('super', 'POST', '/api/public-meetings', { title: `${P}${title}`, hours: 2 });
+            return { id: res.body.meeting.id, roomName: res.body.join.roomPath };
+        };
+        const pm1 = await startMeeting('Parents meeting');
+        r = await request('POST', '/api/class-recordings/start', { body: { publicMeetingId: pm1.id } });
+        check('Signed-out visitors cannot record a public meeting', r.status === 401, r.status);
+        r = await as('teacherA', 'POST', '/api/class-recordings/start', { publicMeetingId: pm1.id });
+        check('A teacher cannot record a public meeting', r.status === 403, r.status);
+        r = await as('studentA', 'POST', '/api/class-recordings/start', { publicMeetingId: pm1.id });
+        check('A student cannot record a public meeting', r.status === 403, r.status);
+        r = await as('meetingOnly', 'POST', '/api/class-recordings/start', { publicMeetingId: pm1.id });
+        check('Starting public meetings alone does not allow recording them', r.status === 403 && /Manage recordings/.test(r.body.error), r.body);
+        r = await as('super', 'POST', '/api/class-recordings/start', { publicMeetingId: 'pmeet_nosuch' });
+        check('An unknown public meeting cannot be recorded', r.status === 404, r.status);
+
+        r = await as('super', 'POST', '/api/class-recordings/start', { publicMeetingId: pm1.id });
+        check('The host starts recording a public meeting', r.status === 201 && r.body.capture.status === 'RECORDING' && r.body.capture.publicMeeting === true && r.body.capture.classId === null, r.body);
+        const pmCap1 = r.body.capture.id;
+        r = await as('super', 'POST', '/api/class-recordings/start', { publicMeetingId: pm1.id });
+        check('Pressing Start again returns the same recording', r.status === 200 && r.body.capture.id === pmCap1, r.body);
+        r = await as('teacherB', 'POST', '/api/class-recordings/start', { sessionId: ids.vcB });
+        check('A class is told the recorder is busy with the public meeting', r.status === 409, r.status);
+        r = await as('super', 'POST', `/api/class-recordings/${pmCap1}/stop`);
+        check('Stop Recording works as for a class', r.status === 200 && r.body.capture.status === 'STOPPED', r.body);
+        const pmFile = dropJibriFile(pm1);
+        await scanNow();
+        r = await as('super', 'GET', `/api/class-recordings/${pmCap1}`);
+        check('The recorder\'s file reaches the server', r.body.capture && r.body.capture.status === 'READY' && r.body.capture.fileBytes === pmFile.content.length && !fs.existsSync(pmFile.dir), r.body);
+        r = await as('super', 'POST', `/api/class-recordings/${pmCap1}/decision`, { save: true, title: `${P}Parents meeting recording` });
+        check('Save Recording publishes it', r.status === 200 && r.body.capture.status === 'SAVED' && !!r.body.capture.recordingId, r.body);
+        const pmRec = r.body.capture.recordingId;
+        const pmRecord = await stored('virtualClassRecordings', pmRec);
+        check('The recording says it is from a public meeting, with no class', pmRecord && !pmRecord.classId && pmRecord.className === 'Public Meeting' && pmRecord.publicMeetingId === pm1.id && pmRecord.source === 'LIVE_RECORDING', pmRecord);
+        check('Its video is stored privately on the server', fs.existsSync(path.join(process.env.CLASS_RECORDINGS_DIR, `${pmRec}.mp4`)) && pmRecord.videoUrl === `/api/class-recordings/video/${pmRec}`, pmRecord && pmRecord.videoUrl);
+        const [[pmNotes]] = await db.query(`SELECT COUNT(*) AS n FROM notifications WHERE title LIKE ?`, [`%${P}Parents meeting%`]);
+        check('Nobody is notified about it', Number(pmNotes.n) === 0, pmNotes);
+
+        r = await as('super', 'GET', '/api/store');
+        check('Staff who see recordings receive it', (r.body.collections.virtualClassRecordings || []).some(x => x.id === pmRec));
+        r = await as('super', 'GET', `/api/class-recordings/video/${pmRec}`);
+        check('… and can stream it', r.status === 200 && r.raw.equals(pmFile.content), r.status);
+        r = await as('studentA', 'GET', '/api/store');
+        check('Students do not receive it', !(r.body.collections.virtualClassRecordings || []).some(x => x.id === pmRec));
+        r = await as('studentA', 'GET', `/api/class-recordings/video/${pmRec}`);
+        check('… and cannot stream it', r.status === 404, r.status);
+        r = await as('teacherB', 'GET', '/api/store');
+        check('Teachers who did not host it do not receive it', !(r.body.collections.virtualClassRecordings || []).some(x => x.id === pmRec));
+        r = await as('teacherB', 'GET', `/api/class-recordings/video/${pmRec}`);
+        check('… and cannot stream it', r.status === 404, r.status);
+        r = await request('GET', `/api/class-recordings/video/${pmRec}`);
+        check('Signed-out visitors cannot stream it', r.status === 401, r.status);
+        r = await as('studentA', 'POST', '/api/store/sync', { deletes: { virtualClassRecordings: [pmRec] } });
+        check('A student cannot delete it', (r.body.rejected.virtualClassRecordings || []).includes(pmRec), r.body);
+
+        // A holder of both permissions other than the Super Admin, end to end
+        r = await as('meetingRecorder', 'POST', '/api/public-meetings', { title: `${P}Staff bayan`, hours: 1 });
+        const pmStaff = { id: r.body.meeting.id, roomName: r.body.join.roomPath };
+        r = await as('meetingRecorder', 'POST', '/api/class-recordings/start', { publicMeetingId: pmStaff.id });
+        check('A role with both permissions can record its meeting', r.status === 201, r.body);
+        const staffCap = r.body.capture.id;
+        await as('meetingRecorder', 'POST', `/api/class-recordings/${staffCap}/stop`);
+        r = await as('meetingRecorder', 'GET', '/api/class-recordings/pending');
+        check('It waits for that person\'s decision', r.body.captures.some(c => c.id === staffCap && c.publicMeeting === true && !c.decision), r.body);
+        r = await as('meetingRecorder', 'POST', `/api/class-recordings/${staffCap}/decision`, { save: true, title: `${P}Staff bayan saved early` });
+        check('Saving before the video is ready waits for it', r.status === 200 && r.body.capture.status === 'STOPPED' && r.body.capture.decision === 'SAVE', r.body);
+        dropJibriFile(pmStaff, 32 * 1024);
+        await scanNow();
+        const [[staffRow]] = await db.query(`SELECT status, recording_id FROM class_recording_captures WHERE id = ?`, [staffCap]);
+        check('It is published when the video arrives', staffRow.status === 'SAVED' && !!staffRow.recording_id, staffRow);
+        const staffRecord = await stored('virtualClassRecordings', staffRow.recording_id);
+        r = await as('meetingRecorder', 'GET', `/api/class-recordings/video/${staffRow.recording_id}`);
+        check('The person who made it can watch it', r.status === 200 && staffRecord.teacherId === ids.meetingRecorder, r.status);
+
+        // The meeting ending stops its recording; the decision waits in Class Recordings
+        const pm2 = await startMeeting('Ended while recording');
+        r = await as('super', 'POST', '/api/class-recordings/start', { publicMeetingId: pm2.id });
+        const pmCap2 = r.body.capture.id;
+        r = await as('super', 'POST', `/api/public-meetings/${pm2.id}/end`);
+        check('The meeting can be ended while recording', r.status === 200 && r.body.meeting.status === 'ENDED', r.body);
+        r = await as('super', 'GET', `/api/class-recordings/${pmCap2}`);
+        check('Ending the meeting stops its recording', r.body.capture && r.body.capture.status === 'STOPPED', r.body);
+        r = await as('super', 'POST', '/api/class-recordings/start', { publicMeetingId: pm2.id });
+        check('An ended meeting cannot be recorded', r.status === 410, r.status);
+        r = await as('teacherB', 'POST', '/api/class-recordings/start', { sessionId: ids.vcB });
+        check('The recorder is free for classes again', r.status === 201, r.body);
+        if (r.body.capture) await as('teacherB', 'POST', `/api/class-recordings/${r.body.capture.id}/fail`, { error: 'test' });
+        dropJibriFile(pm2);
+        await scanNow();
+        r = await as('super', 'GET', '/api/class-recordings/pending');
+        check('Its video arrives and waits for a decision', r.body.captures.some(c => c.id === pmCap2 && c.status === 'READY' && c.hasFile && !c.decision), r.body);
+        r = await as('super', 'POST', `/api/class-recordings/${pmCap2}/decision`, { save: false, confirmDiscard: true });
+        const pendingAfter = fs.readdirSync(path.join(process.env.CLASS_RECORDINGS_DIR, 'pending'));
+        check('Do Not Save deletes it from the server', r.status === 200 && r.body.capture.status === 'DISCARDED' && !pendingAfter.includes(`${pmCap2}.mp4`), r.body);
+
+        // A public meeting's file nobody started through the portal (from before this worked, or a moderator inside the meeting)
+        const pm3 = await startMeeting('Recorded from inside');
+        const orphan = dropJibriFile(pm3);
+        await scanNow();
+        r = await as('super', 'GET', '/api/class-recordings/pending');
+        const adopted = (r.body.captures || []).find(c => c.sessionId === pm3.id);
+        check('A public meeting\'s stray recording is collected and waits for a decision', adopted && adopted.status === 'READY' && adopted.hasFile && adopted.publicMeeting === true && !fs.existsSync(orphan.dir), r.body);
+        r = await as('teacherB', 'GET', '/api/class-recordings/pending');
+        check('Teachers do not see it', !r.body.captures.some(c => c.sessionId === pm3.id), r.body);
+        await as('super', 'POST', `/api/class-recordings/${adopted.id}/decision`, { save: false, confirmDiscard: true });
+        const strayClassFile = dropJibriFile(sessionB);
+        await scanNow();
+        check('A class\'s file with no recording started is still left alone', fs.existsSync(strayClassFile.dir));
+        fs.rmSync(strayClassFile.dir, { recursive: true, force: true });
 
         // --- Managing: deleting a recording removes its video
         r = await as('studentA', 'POST', '/api/store/sync', { deletes: { virtualClassRecordings: [rec1] } });

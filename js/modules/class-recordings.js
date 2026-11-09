@@ -79,7 +79,7 @@ const ClassRecordingsModule = {
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
                             <h4 style="color: var(--primary-950); margin: 0; font-size: 1.05rem; font-weight: 700;">${Lms.esc(Lms.localName(rec.title, rec.urduTitle, true))}</h4>
                             ${rec.className || rec.classId ? `<span class="status-pill neutral" style="font-size: 0.72rem;">${Lms.esc(rec.className || Lms.className(rec.classId))}</span>` : ''}
-                            ${live ? '<span class="status-pill info" style="font-size: 0.72rem;"><i class="fas fa-video"></i> Live class</span>' : ''}
+                            ${live && !rec.publicMeetingId ? '<span class="status-pill info" style="font-size: 0.72rem;"><i class="fas fa-video"></i> Live class</span>' : ''}
                             ${manage ? (left === null
                                 ? '<span class="vc-retention-pill"><i class="fas fa-lock"></i> Kept permanently</span>'
                                 : `<span class="vc-retention-pill ${left < 15 ? 'warning' : ''}"><i class="fas fa-hourglass-half"></i> ${I18n.t('{n} days remaining in vault', { n: left })}</span>`) : ''}
@@ -157,7 +157,7 @@ const ClassRecordingsModule = {
                     <div>
                         <div style="font-weight: 700; color: var(--primary-950);">${Lms.esc(c.title || 'Class recording')}</div>
                         <div style="font-size: 0.78rem; color: var(--text-muted);">
-                            ${Lms.esc(Lms.className(c.classId) || '')} • ${Lms.fmtDateTime(c.startedAt)}${c.durationSeconds ? ` • ${Lms.esc(this.duration(c.durationSeconds))}` : ''}${c.startedByName ? ` • ${Lms.esc(c.startedByName)}` : ''}
+                            ${c.publicMeeting ? 'Public meeting' : Lms.esc(Lms.className(c.classId) || '')} • ${Lms.fmtDateTime(c.startedAt)}${c.durationSeconds ? ` • ${Lms.esc(this.duration(c.durationSeconds))}` : ''}${c.startedByName ? ` • ${Lms.esc(c.startedByName)}` : ''}
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -226,18 +226,20 @@ const ClassRecordingsModule = {
         const seconds = c.durationSeconds || (c.startedAt ? Math.round(((c.stoppedAt ? Date.parse(c.stoppedAt) : Date.now()) - Date.parse(c.startedAt)) / 1000) : 0);
         this.decisionModal(`
             <div class="modal-header">
-                <div class="modal-title-group"><h3 style="margin: 0;"><i class="fas fa-film" style="color: var(--gold-500);"></i> Save this class recording?</h3></div>
+                <div class="modal-title-group"><h3 style="margin: 0;"><i class="fas fa-film" style="color: var(--gold-500);"></i> ${c.publicMeeting ? 'Save this meeting recording?' : 'Save this class recording?'}</h3></div>
             </div>
             <div class="modal-body">
                 <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.7;">
-                    <div><strong>Class:</strong> ${Lms.esc(Lms.className(c.classId) || '—')}</div>
+                    ${c.publicMeeting ? '<div><strong>Public meeting</strong></div>' : `<div><strong>Class:</strong> ${Lms.esc(Lms.className(c.classId) || '—')}</div>`}
                     <div><strong>Started:</strong> ${Lms.fmtDateTime(c.startedAt)}${seconds > 0 ? ` • <strong>Length:</strong> ${Lms.esc(this.duration(seconds))}` : ''}</div>
                 </div>
                 <div class="form-group" style="margin-bottom: 10px;">
-                    <label for="crec-title">Recording title (students see this)</label>
+                    <label for="crec-title">${c.publicMeeting ? 'Recording title' : 'Recording title (students see this)'}</label>
                     <input type="text" id="crec-title" class="form-control" maxlength="200" value="${Lms.esc(d.title)}" oninput="ClassRecordingsModule._decision && (ClassRecordingsModule._decision.title = this.value)">
                 </div>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Saved recordings appear in Class Recordings for the students of this class, and they are notified.</p>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">${c.publicMeeting
+                    ? 'Saved recordings appear in Class Recordings for staff who see recordings. Students do not see them, and nobody is notified.'
+                    : 'Saved recordings appear in Class Recordings for the students of this class, and they are notified.'}</p>
             </div>
             <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
                 <button class="btn btn-secondary" style="color: var(--danger);" onclick="ClassRecordingsModule.showDiscardStep()"><i class="fas fa-trash-alt"></i> Do Not Save</button>
@@ -253,8 +255,8 @@ const ClassRecordingsModule = {
                 <div class="modal-title-group"><h3 style="margin: 0; color: var(--danger);"><i class="fas fa-exclamation-triangle"></i> Discard this recording?</h3></div>
             </div>
             <div class="modal-body">
-                <p style="font-size: 0.9rem; line-height: 1.6; margin: 0 0 10px;">The recording of <strong>${Lms.esc(d.title || 'this class')}</strong> will be <strong>permanently deleted</strong> from the server.</p>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">This cannot be undone. Students will never see it.</p>
+                <p style="font-size: 0.9rem; line-height: 1.6; margin: 0 0 10px;">The recording of <strong>${Lms.esc(d.title || (d.capture.publicMeeting ? 'this meeting' : 'this class'))}</strong> will be <strong>permanently deleted</strong> from the server.</p>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">${d.capture.publicMeeting ? 'This cannot be undone.' : 'This cannot be undone. Students will never see it.'}</p>
             </div>
             <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
                 <button class="btn btn-secondary" data-autofocus onclick="ClassRecordingsModule.showSaveStep()"><i class="fas fa-arrow-left"></i> Cancel</button>
@@ -277,8 +279,9 @@ const ClassRecordingsModule = {
                 this.closeDecision();
                 const c = data.capture || {};
                 window.App?.showToast(!save ? 'Recording discarded and deleted.'
-                    : c.status === 'SAVED' ? 'Recording saved. Students of the class have been notified.'
-                        : 'Recording will be saved. It is published, and students are notified, as soon as the video finishes processing.', save ? 'success' : 'info');
+                    : c.publicMeeting ? (c.status === 'SAVED' ? 'Recording saved to Class Recordings.' : 'Recording will be saved. It appears in Class Recordings as soon as the video finishes processing.')
+                        : c.status === 'SAVED' ? 'Recording saved. Students of the class have been notified.'
+                            : 'Recording will be saved. It is published, and students are notified, as soon as the video finishes processing.', save ? 'success' : 'info');
                 window.DataStore?.syncNow();
                 if (window.App?.currentRoute === 'class-recordings') this.load();
             } catch (e) {

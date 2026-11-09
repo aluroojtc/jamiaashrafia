@@ -13,6 +13,10 @@
  * only students of the class (and staff within their scope) can see them, and the video itself is only
  * streamed through /api/class-recordings/video/<id>, which checks the same rules on every request.
  * The files are never under /uploads (any signed-in user can open those by link).
+ *
+ * Public meetings (server/public-meetings.js) are recorded the same way. Their recordings have no class, so the
+ * same rules leave them to staff who see recordings for the whole institution and to the host who made them;
+ * students never see them and nobody is notified.
  */
 
 const fs = require('fs');
@@ -21,6 +25,7 @@ const { execFile } = require('child_process');
 const db = require('../database/db');
 const policy = require('./access-policy');
 const audit = require('./audit');
+const publicMeetings = require('./public-meetings');
 
 const RECORDINGS_DIR = path.resolve(process.env.CLASS_RECORDINGS_DIR || path.resolve(__dirname, '..', 'recordings'));
 const PENDING_DIR = path.join(RECORDINGS_DIR, 'pending');
@@ -90,10 +95,16 @@ function removeRecordingFile(recordingId) {
     fs.promises.unlink(file).catch(() => {});
 }
 
+const PUBLIC_ROOM_PREFIX = publicMeetings.ROOM_PREFIX.toLowerCase();
+
+function isPublicMeetingCapture(row) {
+    return String(row.room_name || '').startsWith(PUBLIC_ROOM_PREFIX);
+}
+
 function captureOut(row) {
     if (!row) return null;
     return {
-        id: row.id, sessionId: row.session_id, classId: row.class_id, startedBy: row.started_by, startedByName: row.started_by_name,
+        id: row.id, sessionId: row.session_id, classId: row.class_id, publicMeeting: isPublicMeetingCapture(row), startedBy: row.started_by, startedByName: row.started_by_name,
         status: row.status, decision: row.decision, title: row.title, fileBytes: row.file_bytes ? Number(row.file_bytes) : 0,
         durationSeconds: row.duration_seconds || 0, recordingId: row.recording_id, error: row.error,
         startedAt: row.started_at, stoppedAt: row.stopped_at, fileAt: row.file_at, decidedAt: row.decided_at,
@@ -160,12 +171,21 @@ function mayDecide(req, deps, row) {
 // Publishing a saved recording
 // ---------------------------------------------------------------------------
 
+// A public meeting has no class: as for any class-less record, someone limited to some campuses makes it for their home campus
+async function publicRecordingCampus(row, deps) {
+    const starter = await deps.loadRecord('users', row.started_by);
+    if (!starter || starter.deleted) return undefined;
+    const ctx = await policy.buildContext({ id: row.started_by, role: starter.data.role, user: starter.data }, deps.loadCollection);
+    return policy.assignCampus(ctx, 'virtualClassRecordings', {}, null).branchId;
+}
+
 // req: the request of the person saving it, or null when the file arrived after their decision
 async function publish(row, deps, req) {
     const recordingId = `rec_${row.id.replace(/^cap_/, '')}`;
     await moveFile(pendingPath(row.id), videoPath(recordingId));
     const sessionRec = await deps.loadRecord('virtualClasses', row.session_id);
     const session = sessionRec && !sessionRec.deleted ? sessionRec.data : {};
+    const isPublic = isPublicMeetingCapture(row);
     const started = new Date(row.started_at);
     const pad = n => String(n).padStart(2, '0');
     const local = new Date(started.getTime() - started.getTimezoneOffset() * 60000).toISOString();
@@ -180,10 +200,11 @@ async function publish(row, deps, req) {
         teacherName: session.hostTeacher || row.started_by_name || '',
         recordedBy: row.started_by,
         classId: session.classId || row.class_id,
-        className: session.className || '',
+        className: session.className || (isPublic ? 'Public Meeting' : ''),
+        publicMeetingId: isPublic ? row.session_id : undefined,
         courseId: session.courseId || '',
         courseName: session.courseName || '',
-        branchId: session.branchId,
+        branchId: isPublic ? await publicRecordingCampus(row, deps) : session.branchId,
         campusIds: session.campusIds,
         recordedDate: local.slice(0, 10),
         recordedTime: `${pad(started.getHours())}:${pad(started.getMinutes())}`,
@@ -214,7 +235,7 @@ async function publish(row, deps, req) {
     await audit.log({
         req: req || null, actor: req ? undefined : { id: row.decided_by || row.started_by, role: 'SYSTEM' },
         action: 'recordings.save', entityType: 'virtualClassRecordings', entityId: recordingId,
-        summary: `Saved the live class recording "${record.title}" (${record.durationFormatted}, ${Math.round(record.fileSizeBytes / 1048576)} MB)`
+        summary: `Saved the ${isPublic ? 'public meeting' : 'live class'} recording "${record.title}" (${record.durationFormatted}, ${Math.round(record.fileSizeBytes / 1048576)} MB)`
     });
     return recordingId;
 }
@@ -269,7 +290,6 @@ async function runScan(deps) {
     await ensureSchema();
     const [waiting] = await db.query(
         `SELECT * FROM class_recording_captures WHERE file_at IS NULL AND status IN ('RECORDING', 'STOPPED', 'DISCARDED') ORDER BY started_at`);
-    if (!waiting.length) return;
     const folders = await fs.promises.readdir(JIBRI_DIR, { withFileTypes: true }).catch(() => []);
     const used = new Set();
     for (const entry of folders) {
@@ -280,11 +300,26 @@ async function runScan(deps) {
         if (!found) continue;
         // The capture of this room whose start is closest to the file's start
         const candidates = waiting.filter(w => !used.has(w.id) && w.room_name === found.room);
-        if (!candidates.length) continue;
-        const capture = candidates.sort((a, b) => Math.abs(new Date(a.started_at) - found.startedAt) - Math.abs(new Date(b.started_at) - found.startedAt))[0];
+        const capture = candidates.sort((a, b) => Math.abs(new Date(a.started_at) - found.startedAt) - Math.abs(new Date(b.started_at) - found.startedAt))[0]
+            || await adoptPublicRecording(found, deps);
+        if (!capture) continue;
         used.add(capture.id);
         await importFile(capture, found, deps);
     }
+}
+
+// A public meeting's file with no capture: recorded from inside the meeting by someone it was granted to (a guest made
+// moderator), or before public meetings could record through the portal. It waits for a decision like any other.
+async function adoptPublicRecording(found, deps) {
+    if (!found.room.startsWith(PUBLIC_ROOM_PREFIX)) return null;
+    const meeting = await publicMeetings.findByRoom(found.room);
+    if (!meeting) return null;
+    const id = deps.newId('cap');
+    await db.query(
+        `INSERT INTO class_recording_captures (id, session_id, class_id, room_name, started_by, started_by_name, status, title, started_at, stopped_at)
+         VALUES (?, ?, NULL, ?, ?, ?, 'STOPPED', ?, ?, NOW(3))`,
+        [id, meeting.id, found.room, meeting.created_by, meeting.created_by_name, String(meeting.title).slice(0, 255), new Date(found.startedAt)]);
+    return loadCapture(id);
 }
 
 async function importFile(capture, found, deps) {
@@ -307,13 +342,23 @@ async function importFile(capture, found, deps) {
 // API
 // ---------------------------------------------------------------------------
 
-async function handleStart(req, res, deps) {
-    const body = await deps.readJson(req);
+// What is being recorded: a public meeting, or an online class whose host is asking
+async function recordingTarget(req, deps, body) {
+    if (body.publicMeetingId) {
+        const meeting = await publicMeetings.recordingTarget(req, deps, body.publicMeetingId);
+        return { id: meeting.id, title: meeting.title, roomName: meeting.roomName, classId: null, publicMeeting: true };
+    }
     const access = await deps.decideVirtualAccess(req, body.sessionId);
     if (access.status !== 200) throw fail(access.status, access.message);
     if (!access.isHost) throw fail(403, 'Only the host of this class can record it.');
-    const session = access.session;
-    if (!(await mayRecord(req, deps, session))) throw fail(403, 'Your role is not allowed to record this class (it needs "Manage recordings").');
+    const s = access.session;
+    return { id: s.id, title: s.title, roomName: deps.meetingRoomName(s), classId: s.classId, branchId: s.branchId, publicMeeting: false };
+}
+
+async function handleStart(req, res, deps) {
+    const body = await deps.readJson(req);
+    const session = await recordingTarget(req, deps, body);
+    if (!(await mayRecord(req, deps, session))) throw fail(403, `Your role is not allowed to record this ${session.publicMeeting ? 'meeting' : 'class'} (it needs "Manage recordings").`);
     const settings = await deps.getMeetingSettings();
     if (settings.authMode === 'JAAS' || settings.domain === 'meet.jit.si') {
         throw fail(400, 'Recording works with the school\'s own Jitsi server.');
@@ -331,8 +376,8 @@ async function handleStart(req, res, deps) {
     await db.query(
         `INSERT INTO class_recording_captures (id, session_id, class_id, room_name, started_by, started_by_name, status, title, started_at)
          VALUES (?, ?, ?, ?, ?, ?, 'RECORDING', ?, NOW(3))`,
-        [id, session.id, session.classId || null, deps.meetingRoomName(session).toLowerCase(), who.id, (who.user && who.user.name) || null, String(session.title || '').slice(0, 255)]);
-    await audit.log({ req, action: 'recordings.start', entityType: 'virtualClasses', entityId: session.id, summary: `Started recording "${session.title || session.id}"` });
+        [id, session.id, session.classId || null, session.roomName.toLowerCase(), who.id, (who.user && who.user.name) || null, String(session.title || '').slice(0, 255)]);
+    await audit.log({ req, action: 'recordings.start', entityType: session.publicMeeting ? 'public_meeting' : 'virtualClasses', entityId: session.id, summary: `Started recording "${session.title || session.id}"` });
     deps.sendJson(res, 201, { success: true, capture: captureOut(await loadCapture(id)) });
 }
 
@@ -351,6 +396,12 @@ async function handleStop(req, res, deps, id) {
     }
     scan(deps);
     deps.sendJson(res, 200, { success: true, capture: captureOut(await loadCapture(row.id)) });
+}
+
+/** The meeting ended with a recording still running: it stops; the decision waits in Class Recordings. */
+async function stopRecordingsOf(sessionId) {
+    await ensureSchema();
+    await db.query(`UPDATE class_recording_captures SET status = 'STOPPED', stopped_at = NOW(3) WHERE session_id = ? AND status = 'RECORDING'`, [sessionId]);
 }
 
 // The meeting reported that recording could not start (e.g. the recorder is not running)
@@ -495,4 +546,4 @@ function startWatcher(deps) {
     return timer;
 }
 
-module.exports = { route, scan, startWatcher, removeRecordingFile, ensureSchema, RECORDINGS_DIR, JIBRI_DIR, formatDuration };
+module.exports = { route, scan, startWatcher, stopRecordingsOf, removeRecordingFile, ensureSchema, RECORDINGS_DIR, JIBRI_DIR, formatDuration };

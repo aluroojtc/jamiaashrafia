@@ -1415,7 +1415,7 @@ const RECORDING_DEPS = {
 const IMPORT_DEPS = { sendJson, readJson, can, caller, newId, ensureSchema, loadCollection, writeRecord, auditRecordChange };
 
 // Helpers handed to server/public-meetings.js
-const PUBLIC_MEETING_DEPS = { sendJson, readJson, can, caller, newId, getSetting, getMeetingSettings, roomToken };
+const PUBLIC_MEETING_DEPS = { sendJson, readJson, can, caller, newId, getSetting, getMeetingSettings, roomToken, stopRecordingsOf: classRecordings.stopRecordingsOf };
 
 // DELETE /api/admissions/:id  removes an application (duplicates, test entries); an enrolled student's account stays
 async function handleAdmissionDelete(req, res, url) {

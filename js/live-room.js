@@ -4,6 +4,9 @@
  * the host's Start / Stop Recording and End Class, and Leave. Sign-in, the access check, attendance, the meeting
  * token and recording all work as in the portal (js/modules/virtual-class.js runs here too, without the portal
  * around it). On the public meet.jit.si service, or for a class on Zoom / Meet / Teams, the tab goes straight there.
+ *
+ * The host of a public meeting uses this tab too (live.html?publicMeeting=<id>; guests use meet.html): recording
+ * works as for a class, and the tab tells the server and the portal's lobby when the meeting ends.
  */
 
 // What the portal's scripts expect from the page around them (js/app.js is not loaded here)
@@ -43,6 +46,7 @@ const LiveRoom = {
     sessionId: new URLSearchParams(location.search).get('session') || '',
     // A plain meeting link (meet.<domain>/<room>) opened without the portal: the meeting server sends it here
     room: new URLSearchParams(location.search).get('room') || '',
+    publicMeetingId: new URLSearchParams(location.search).get('publicMeeting') || '',
 
     message(icon, title, text, buttons = '') {
         const box = document.getElementById('jitsi-container');
@@ -185,8 +189,191 @@ const LiveRoom = {
             <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.leaveClass()"><i class="fas fa-sign-out-alt"></i> ${I18n.t('Leave')}</button>`;
     },
 
+    // -------------------------------------------------------------------------
+    // The host's tab of a public meeting
+    // -------------------------------------------------------------------------
+    publicMeeting: null, // { others: ids of the other people inside, joined, closing: null | 'leave' | 'end' }
+
+    async startPublicMeeting() {
+        const vc = VirtualClassModule;
+        let data;
+        try {
+            data = await Lms.api('POST', `/api/public-meetings/${encodeURIComponent(this.publicMeetingId)}/host`);
+        } catch (e) {
+            vc.tellPublicMeetingTabs('changed', this.publicMeetingId);
+            this.message('fa-door-closed', 'This meeting cannot be opened', e.message, this.closeButton());
+            return;
+        }
+        await vc.loadMeetingConfig();
+        const m = data.meeting;
+        // The fields a class has that the room code uses, so recording and the meeting itself run as for a class
+        const session = { id: m.id, title: m.title, link: m.link, status: 'LIVE', isLive: true, publicMeeting: true, join: data.join };
+        Object.assign(vc, { activeSessionId: session.id, activeSession: session, accessBlocked: false, isHost: true, currentTab: 'studio' });
+        // A service that cannot be embedded (public meet.jit.si): the tab goes straight to it
+        if (!vc.canEmbed()) {
+            location.replace(vc.publicMeetingUrl(data.join, m.title));
+            return;
+        }
+        this.publicMeeting = { others: new Set(), joined: false, closing: null };
+        this.renderPublicBar();
+        this.followPublicMeeting();
+        await vc.mountMeeting();
+    },
+
+    renderPublicBar() {
+        const vc = VirtualClassModule;
+        const session = vc.activeSession;
+        document.title = `${session.title} - Jamia Ashrafia Lahore`;
+        document.getElementById('live-title').textContent = session.title;
+        document.getElementById('live-subtitle').textContent = 'Public meeting • You are the host';
+        document.getElementById('live-actions').innerHTML = `
+            <span class="status-pill danger"><i class="fas fa-circle"></i> LIVE</span>
+            ${vc.canRecord(session) ? `<span id="vc-rec-controls" style="display: inline-flex; gap: 8px; align-items: center;">${vc.recordingControlsHtml()}</span>` : ''}
+            <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()"><i class="fas fa-link"></i> Copy Link</button>
+            <button class="btn btn-danger btn-sm" onclick="LiveRoom.endPublicMeeting(true)"><i class="fas fa-stop-circle"></i> End Meeting for Everyone</button>
+            <button class="btn btn-secondary btn-sm" onclick="LiveRoom.leavePublicMeeting()"><i class="fas fa-sign-out-alt"></i> Leave</button>`;
+    },
+
+    // Called by VirtualClassModule.mountMeeting with the meeting it opened
+    watchPublicMeeting(api) {
+        const vc = VirtualClassModule;
+        const pm = this.publicMeeting;
+        api.addListener('videoConferenceJoined', () => { pm.joined = true; });
+        api.addListener('participantJoined', e => pm.others.add(e.id));
+        api.addListener('participantLeft', e => pm.others.delete(e.id));
+        api.addListener('recordingStatusChanged', e => vc.onRecordingStatus(e));
+        api.addListener('toolbarButtonClicked', e => {
+            if (!e) return;
+            if (e.key === 'recording') vc.recording ? vc.stopRecording() : vc.startRecording();
+            if (e.key === 'hangup') this.leavePublicMeeting();
+            if (e.key === 'end-meeting') this.endPublicMeeting(false);
+        });
+        // Removed by another host: this person is out, the meeting goes on
+        api.addListener('participantKickedOut', e => {
+            if (e && e.kicked && e.kicked.local) pm.closing = pm.closing || 'leave';
+        });
+        api.addListener('readyToClose', () => this.publicMeetingClosed());
+    },
+
+    // Who is inside, just before this person goes (the meeting reports everyone as gone once they have left)
+    alonePublicMeeting() {
+        const pm = this.publicMeeting;
+        return !!pm && pm.joined && pm.others.size === 0;
+    },
+
+    // Waits for the meeting to confirm; a command the meeting no longer answers must not leave the tab stuck
+    awaitPublicMeetingClose() {
+        clearTimeout(this._publicCloseTimer);
+        this._publicCloseTimer = setTimeout(() => this.publicMeetingClosed(), 4000);
+    },
+
+    /** Leave (the bar's button or the meeting's own): with nobody else inside, the meeting is over. */
+    async leavePublicMeeting() {
+        const pm = this.publicMeeting;
+        const vc = VirtualClassModule;
+        if (!pm || pm.closing) return;
+        if (this.alonePublicMeeting()) {
+            await this.endPublicMeeting(false);
+            return;
+        }
+        pm.closing = 'leave';
+        if (vc.recording) await vc.stopRecording();
+        if (vc.jitsiApi) {
+            try { vc.jitsiApi.executeCommand('hangup'); } catch (e) { /* the meeting already closed */ }
+        }
+        this.awaitPublicMeetingClose();
+    },
+
+    /** End Meeting for Everyone (the bar's button or the meeting's own): the link stops working and everyone is out. */
+    async endPublicMeeting(ask) {
+        const pm = this.publicMeeting;
+        const vc = VirtualClassModule;
+        if (!pm || pm.closing === 'end') return;
+        if (ask && !confirm('End this meeting for everyone? The public link stops working at once.')) return;
+        pm.closing = 'end';
+        if (vc.recording) await vc.stopRecording();
+        await this.reportPublicMeetingEnded();
+        if (vc.jitsiApi) {
+            try { vc.jitsiApi.executeCommand('endConference'); } catch (e) { /* the meeting already closed */ }
+        }
+        this.awaitPublicMeetingClose();
+    },
+
+    async reportPublicMeetingEnded() {
+        const pm = this.publicMeeting;
+        const vc = VirtualClassModule;
+        try {
+            await Lms.api('POST', `/api/public-meetings/${encodeURIComponent(vc.activeSession.id)}/end`);
+            pm.reported = true;
+            vc.tellPublicMeetingTabs('ended', vc.activeSession.id);
+        } catch (e) {
+            pm.reportFailed = e.message;
+        }
+    },
+
+    // The meeting has closed in this tab: by this person, or from inside by another host ending it for everyone
+    async publicMeetingClosed() {
+        const pm = this.publicMeeting;
+        const vc = VirtualClassModule;
+        if (!pm || pm.closed) return;
+        clearTimeout(this._publicCloseTimer);
+        clearInterval(this._publicWatchTimer);
+        pm.closed = true;
+        const ended = pm.closing === 'end' || (!pm.closing && pm.joined);
+        if (vc.recording) await vc.stopRecording();
+        if (ended && !pm.reported && !pm.endedElsewhere) await this.reportPublicMeetingEnded();
+        vc.disposeMeeting();
+        if (pm.reportFailed) {
+            this.message('fa-exclamation-triangle', 'The meeting could not be marked as ended', `${pm.reportFailed} End it from Open Public Meetings in the Classrooms Lobby.`, this.closeButton());
+        } else if (ended) {
+            this.message('fa-door-closed', 'The meeting has ended', 'The public link no longer works. You can close this tab.', this.closeButton());
+        } else {
+            this.message('fa-door-open', 'You have left the meeting', 'The meeting stays open and the link still works. You can rejoin as host, or end it from Open Public Meetings in the Classrooms Lobby.',
+                `<button class="btn btn-gold" onclick="location.reload()"><i class="fas fa-sign-in-alt"></i> Rejoin as Host</button>${this.closeButton()}`);
+        }
+    },
+
+    // The meeting ended somewhere else (the lobby here, another administrator): close it here, which removes the people inside
+    publicMeetingEndedElsewhere() {
+        const pm = this.publicMeeting;
+        const vc = VirtualClassModule;
+        if (!pm || pm.closed || pm.closing === 'end') return;
+        pm.closing = 'end';
+        pm.endedElsewhere = true;
+        window.App.showToast('This public meeting was ended from the portal.', 'info');
+        if (vc.jitsiApi) {
+            try { vc.jitsiApi.executeCommand('endConference'); } catch (e) { /* the meeting already closed */ }
+        }
+        this.awaitPublicMeetingClose();
+    },
+
+    // News of this meeting while the tab is open: from the lobby in this browser at once, from anywhere else within seconds
+    followPublicMeeting() {
+        const vc = VirtualClassModule;
+        const id = vc.activeSession.id;
+        const channel = vc.publicMeetingChannel();
+        if (channel) {
+            channel.addEventListener('message', e => {
+                if (e.data && e.data.type === 'ended' && e.data.id === id) this.publicMeetingEndedElsewhere();
+            });
+        }
+        this._publicWatchTimer = setInterval(async () => {
+            try {
+                const { meeting } = await Lms.api('GET', `/api/public-meetings/${encodeURIComponent(id)}`);
+                if (meeting.status === 'ENDED') this.publicMeetingEndedElsewhere();
+            } catch (e) { /* offline for a moment: ask again next time */ }
+        }, PUBLIC_MEETING_POLL_MS);
+        // Closing the tab with nobody else inside ends the meeting, unless the host comes back at once (a reload)
+        window.addEventListener('pagehide', () => {
+            const pm = this.publicMeeting;
+            if (!pm || pm.closed || pm.closing || !this.alonePublicMeeting()) return;
+            navigator.sendBeacon(`/api/public-meetings/${encodeURIComponent(id)}/left`);
+            vc.tellPublicMeetingTabs('tab-closed', id);
+        });
+    },
+
     async start() {
-        if (!this.sessionId && !this.room) {
+        if (!this.sessionId && !this.room && !this.publicMeetingId) {
             this.message('fa-video-slash', 'No class chosen', 'Open the live class from Online Classes in the portal.', this.closeButton());
             return;
         }
@@ -214,6 +401,11 @@ const LiveRoom = {
             LiveRoom.message('fa-door-open', 'You have left the class', 'You can rejoin while the class is live, or close this tab.',
                 `<button class="btn btn-gold" onclick="location.reload()"><i class="fas fa-sign-in-alt"></i> ${I18n.t('Rejoin')}</button>${LiveRoom.closeButton()}`);
         };
+
+        if (this.publicMeetingId) {
+            await this.startPublicMeeting();
+            return;
+        }
 
         const access = await this.verify();
         if (!access.ok) {

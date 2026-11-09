@@ -15,6 +15,9 @@ const auth = require('./server/auth');
 
 const TEST_PORT = 3057;
 process.env.PORT = TEST_PORT;
+// How long a host's closed tab waits before an empty meeting ends (shortened for this run)
+const EMPTY_GRACE_MS = 400;
+process.env.PUBLIC_MEETING_EMPTY_GRACE_MS = String(EMPTY_GRACE_MS);
 
 const P = `pmtest_${Date.now().toString(36)}_`;
 const R = P.toUpperCase();
@@ -183,6 +186,40 @@ async function run() {
         const rejoin = await request('POST', `/api/public-meetings/${meeting.id}/host`, { cookie: sess.superAdmin });
         check('Another holder can join as host', rejoin.status === 200 && verifyJwt(rejoin.body.join.token).moderator === true);
         check('A teacher cannot join as host', (await request('POST', `/api/public-meetings/${meeting.id}/host`, { cookie: sess.teacher })).status === 403);
+
+        // --- The host's tab: its way in, and asking whether the meeting is still open ------------------
+        check('The host tab page opens', (await request('GET', `/live.html?publicMeeting=${meeting.id}`)).status === 200);
+        const status = await request('GET', `/api/public-meetings/${meeting.id}`, { cookie: sess.opener });
+        check('The host tab can ask whether it is still open', status.status === 200 && status.body.meeting.status === 'ACTIVE', JSON.stringify(status.body));
+        check('A teacher cannot ask', (await request('GET', `/api/public-meetings/${meeting.id}`, { cookie: sess.teacher })).status === 403);
+        check('Signed-out visitors cannot ask', (await request('GET', `/api/public-meetings/${meeting.id}`)).status === 401);
+        check('An unknown meeting is not found', (await request('GET', '/api/public-meetings/pmeet_nosuch', { cookie: sess.opener })).status === 404);
+
+        // --- The host's tab closing with nobody else inside --------------------------------------------
+        const emptyMeeting = (await request('POST', '/api/public-meetings', { cookie: sess.opener, body: { title: `${P}Empty room`, hours: 1 } })).body.meeting;
+        const emptyCode = (/\/meet\/([A-Za-z0-9_-]+)$/.exec(emptyMeeting.link) || [])[1];
+        const statusOf = async id => (await request('GET', `/api/public-meetings/${id}`, { cookie: sess.opener })).body.meeting.status;
+        const pause = ms => new Promise(r => setTimeout(r, ms));
+        check('A teacher cannot report the tab closing', (await request('POST', `/api/public-meetings/${emptyMeeting.id}/left`, { cookie: sess.teacher })).status === 403);
+        check('Signed-out visitors cannot report it', (await request('POST', `/api/public-meetings/${emptyMeeting.id}/left`)).status === 401);
+        check('The tab closing is accepted', (await request('POST', `/api/public-meetings/${emptyMeeting.id}/left`, { cookie: sess.opener })).status === 202);
+        check('The meeting does not end at once (it could be a reload)', await statusOf(emptyMeeting.id) === 'ACTIVE');
+        await request('POST', `/api/public-meetings/${emptyMeeting.id}/host`, { cookie: sess.opener });
+        await pause(EMPTY_GRACE_MS + 300);
+        check('The host coming back keeps it open', await statusOf(emptyMeeting.id) === 'ACTIVE');
+        await request('POST', `/api/public-meetings/${emptyMeeting.id}/left`, { cookie: sess.opener });
+        await request('POST', '/api/public-meetings/join', { body: { code: emptyCode, name: 'Early guest' } });
+        await pause(EMPTY_GRACE_MS + 300);
+        check('A guest coming in keeps it open', await statusOf(emptyMeeting.id) === 'ACTIVE');
+        await request('POST', `/api/public-meetings/${emptyMeeting.id}/left`, { cookie: sess.opener });
+        await pause(EMPTY_GRACE_MS + 300);
+        check('Otherwise it ends by itself', await statusOf(emptyMeeting.id) === 'ENDED');
+        check('The link then stops working', (await request('POST', '/api/public-meetings/join', { body: { code: emptyCode, name: 'Late guest' } })).status === 410);
+        const auditRows = (await db.query(`SELECT actor_id FROM audit_log WHERE action = 'public_meeting.end' AND entity_id = ?`, [emptyMeeting.id]))[0];
+        check('Ending it by itself is logged against the host', auditRows.length === 1 && auditRows[0].actor_id === ids.opener, JSON.stringify(auditRows));
+        const endedList = await request('GET', '/api/public-meetings', { cookie: sess.opener });
+        const endedRow = endedList.body.meetings.find(m => m.id === emptyMeeting.id);
+        check('The lobby list shows it ended, with the time', endedRow && endedRow.status === 'ENDED' && !!endedRow.endedAt, JSON.stringify(endedRow));
 
         // --- Ending it -----------------------------------------------------------------------------
         check('A teacher cannot end it', (await request('POST', `/api/public-meetings/${meeting.id}/end`, { cookie: sess.teacher })).status === 403);

@@ -4,6 +4,10 @@
  * Attendance Check-In, Recordings Vault, and Super Admin Storage Retention Management.
  */
 
+const PUBLIC_MEETING_POLL_MS = 15 * 1000;
+const PUBLIC_MEETING_TAB_CLOSED_MS = 21 * 1000; // just after the server's wait in server/public-meetings.js (EMPTY_TAB_GRACE_MS)
+const PUBLIC_MEETING_ENDED_SHOWN_MS = 24 * 3600 * 1000; // ended meetings stay listed in the lobby this long
+
 const VirtualClassModule = {
     // Current Active View State
     currentTab: 'lobby', // 'lobby' | 'studio' | 'recordings' | 'attendance' | 'retention'
@@ -1528,12 +1532,14 @@ const VirtualClassModule = {
 
     // Room path on the meeting service (JaaS rooms sit under the account's App ID)
     roomPath(session) {
+        if (session.publicMeeting) return session.join.roomPath;
         const room = this.roomNameFor(session);
         return this.meetingConfig.authMode === 'JAAS' ? `${this.meetingConfig.appId}/${room}` : room;
     },
 
     // Signed join token for this user and class (null when the service does not use sign-in)
     async joinToken(session) {
+        if (session.publicMeeting) return session.join.token || null;
         if (!this.signInRequired()) return null;
         const data = await Lms.api('POST', '/api/virtual-class/join-token', { sessionId: session.id });
         return data.token || null;
@@ -1618,22 +1624,79 @@ const VirtualClassModule = {
         return !this.inLiveRoom && window.AuthRBAC.can('virtual_classes.public_meeting');
     },
 
+    // Between the lobby and a meeting's own tab in this browser: a meeting ended in one shows at once in the other
+    publicMeetingChannel() {
+        if (this._publicChannel === undefined) {
+            this._publicChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('jamia-public-meetings') : null;
+        }
+        return this._publicChannel;
+    },
+
+    tellPublicMeetingTabs(type, id) {
+        const channel = this.publicMeetingChannel();
+        if (channel) channel.postMessage({ type, id });
+    },
+
+    // The lobby keeps its list current: at once for this browser's meeting tabs, and every few seconds for
+    // meetings ended elsewhere (another administrator or device, or the time running out)
+    watchPublicMeetings() {
+        clearTimeout(this._publicPoll);
+        this._publicPoll = setTimeout(() => {
+            if (!document.getElementById('vc-public-meetings')) return; // left the lobby; initAfterRender starts this again
+            if (document.visibilityState === 'visible') this.loadPublicMeetings();
+            else this.watchPublicMeetings();
+        }, PUBLIC_MEETING_POLL_MS);
+        if (this._publicWatching) return;
+        this._publicWatching = true;
+        const refresh = () => {
+            if (document.getElementById('vc-public-meetings')) this.loadPublicMeetings();
+        };
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') refresh();
+        });
+        const channel = this.publicMeetingChannel();
+        if (channel) {
+            channel.addEventListener('message', e => {
+                // A tab closed with nobody else inside ends the meeting shortly afterwards (server/public-meetings.js)
+                if (e.data && e.data.type === 'tab-closed') setTimeout(refresh, PUBLIC_MEETING_TAB_CLOSED_MS);
+                else refresh();
+            });
+        }
+    },
+
     async loadPublicMeetings() {
         if (!this.canPublicMeeting()) return;
+        this.watchPublicMeetings();
+        const seq = this._publicSeq = (this._publicSeq || 0) + 1;
+        const before = this._publicLoaded ? this.publicMeetings : [];
         try {
             const data = await Lms.api('GET', '/api/public-meetings');
+            if (seq !== this._publicSeq) return; // a newer answer is on its way
             this.publicMeetings = data.meetings || [];
+            this._publicLoaded = true;
         } catch (e) { /* keep the last list */ }
         const box = document.getElementById('vc-public-meetings');
-        if (box) box.innerHTML = this.publicMeetingsPanelHtml();
+        if (!box) return;
+        before.filter(m => m.status === 'ACTIVE').forEach(m => {
+            const now = this.publicMeetings.find(x => x.id === m.id);
+            if (now && now.status !== 'ACTIVE') window.App?.showToast(`Public meeting "${now.title}" has ended.`, 'info');
+        });
+        // Only when something changed, so a button being pressed is not replaced under the pointer
+        const html = this.publicMeetingsPanelHtml();
+        if (box._shownHtml !== html) {
+            box.innerHTML = html;
+            box._shownHtml = html;
+        }
     },
 
     publicMeetingsPanelHtml() {
         if (!this.canPublicMeeting()) return '';
         const open = this.publicMeetings.filter(m => m.status === 'ACTIVE');
-        if (!open.length) return '';
+        const ended = this.publicMeetings.filter(m => m.status !== 'ACTIVE' && Date.now() - Date.parse(m.endedAt || m.expiresAt) < PUBLIC_MEETING_ENDED_SHOWN_MS).slice(0, 3);
+        if (!open.length && !ended.length) return '';
         return `
             <div class="vc-public-panel">
+                ${open.length ? `
                 <div class="vc-public-panel-head"><i class="fas fa-globe" style="color: #0ea5e9;"></i> Open Public Meetings <span class="badge-pill">${open.length}</span></div>
                 ${open.map(m => `
                     <div class="vc-public-row">
@@ -1647,7 +1710,18 @@ const VirtualClassModule = {
                             <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.endPublicMeeting('${Lms.esc(m.id)}', this)"><i class="fas fa-stop-circle"></i> End</button>
                         </div>
                     </div>
-                `).join('')}
+                `).join('')}` : ''}
+                ${ended.length ? `
+                <div class="vc-public-panel-head vc-public-panel-subhead"><i class="fas fa-door-closed" style="color: var(--text-muted);"></i> Ended Public Meetings</div>
+                ${ended.map(m => `
+                    <div class="vc-public-row">
+                        <div class="vc-public-row-info">
+                            <strong>${Lms.esc(m.title)}</strong>
+                            <small>Started by ${Lms.esc(m.createdByName)} · ${Lms.esc(Lms.fmtDateTime(m.createdAt))} · ${m.endedAt ? `ended ${Lms.esc(Lms.fmtDateTime(m.endedAt))}` : `time ran out ${Lms.esc(Lms.fmtDateTime(m.expiresAt))}`}</small>
+                        </div>
+                        <div class="vc-public-row-actions"><span class="status-pill neutral"><i class="fas fa-check-circle"></i> Ended</span></div>
+                    </div>
+                `).join('')}` : ''}
             </div>
         `;
     },
@@ -1668,7 +1742,7 @@ const VirtualClassModule = {
                 </div>
             </div>
             <div style="font-size: 0.78rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px;">
-                <i class="fas fa-exclamation-triangle"></i> Share the link only with the people you want in the meeting. It stops working when you end the meeting or the time runs out.
+                <i class="fas fa-exclamation-triangle"></i> Share the link only with the people you want in the meeting. It stops working when you end the meeting, when you leave it with nobody else inside, or when the time runs out.
             </div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-primary" onclick="VirtualClassModule.startPublicMeeting(this)"><i class="fas fa-play"></i> Start Meeting</button>`
@@ -1676,20 +1750,25 @@ const VirtualClassModule = {
         setTimeout(() => document.getElementById('pm-title')?.focus(), 50);
     },
 
+    // The meeting service itself, for a service that cannot be embedded in the host's tab (see LiveRoom.startPublicMeeting)
     publicMeetingUrl(join, title) {
         const me = window.AuthRBAC?.currentUser || {};
         const name = `${me.name || 'Host'} (Host)`;
         return `https://${join.domain}/${join.roomPath}${join.token ? `?jwt=${encodeURIComponent(join.token)}` : ''}#userInfo.displayName=${encodeURIComponent(JSON.stringify(name))}&config.subject=${encodeURIComponent(JSON.stringify(title || ''))}&config.prejoinConfig.enabled=false&config.defaultLanguage=${encodeURIComponent(JSON.stringify(this.meetingLang()))}`;
     },
 
-    // The meeting opens in a new tab; the tab is opened straight from the click so pop-up blockers allow it
-    openPublicMeetingTab(win, join, title) {
-        if (!win) {
-            window.App?.showToast('Your browser blocked the new tab. Allow pop-ups for this site, then use Join as Host.', 'warning');
-            return;
-        }
-        win.opener = null;
-        win.location.href = this.publicMeetingUrl(join, title);
+    // The host's tab for a meeting: the portal's live room, as for a class (js/live-room.js)
+    publicMeetingRoomUrl(id) {
+        return `live.html?publicMeeting=${encodeURIComponent(id)}`;
+    },
+
+    // One tab per meeting: pressing Join as Host again brings the same tab back
+    publicMeetingTabName(id) {
+        return `jamia-public-${String(id).replace(/[^A-Za-z0-9_-]/g, '')}`;
+    },
+
+    publicMeetingTabBlocked() {
+        window.App?.showToast('Your browser blocked the new tab. Allow pop-ups for this site, then use Join as Host.', 'warning');
     },
 
     async startPublicMeeting(btn) {
@@ -1698,11 +1777,17 @@ const VirtualClassModule = {
             window.App?.showToast('Enter a title for the meeting.', 'warning');
             return;
         }
+        // The tab is opened straight from the click so pop-up blockers allow it; the meeting's id comes afterwards
         const win = window.open('about:blank', '_blank');
         btn.disabled = true;
         try {
             const data = await Lms.api('POST', '/api/public-meetings', { title, hours: Number(Lms.val('pm-hours')) });
-            this.openPublicMeetingTab(win, data.join, data.meeting.title);
+            if (win) {
+                win.name = this.publicMeetingTabName(data.meeting.id);
+                win.location.href = new URL(this.publicMeetingRoomUrl(data.meeting.id), location.href).href;
+            } else {
+                this.publicMeetingTabBlocked();
+            }
             this.showPublicMeetingLink(data.meeting);
             this.loadPublicMeetings();
         } catch (e) {
@@ -1719,22 +1804,15 @@ const VirtualClassModule = {
                 <strong>${Lms.esc(meeting.title)}</strong> is open in a new tab. Share this link; anyone who has it can join without signing in until ${Lms.esc(Lms.fmtDateTime(meeting.expiresAt))}.
             </p>
             <div class="vc-public-link-box"><span>${Lms.esc(meeting.link)}</span>${CopyButton.html(meeting.link, 'Copy public link', { text: 'Copy' })}</div>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0;">The meeting stays listed under Open Public Meetings in the Classrooms Lobby, where you can copy the link again, rejoin as host or end it.</p>`,
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0;">The meeting stays listed under Open Public Meetings in the Classrooms Lobby, where you can copy the link again, rejoin as host or end it. If you leave it with nobody else inside, it ends.</p>`,
             `<a class="btn btn-secondary" href="https://wa.me/?text=${encodeURIComponent(`${meeting.title}: ${meeting.link}`)}" target="_blank" rel="noopener noreferrer"><i class="fab fa-whatsapp"></i> Share on WhatsApp</a>
              <button class="btn btn-primary" onclick="App.closeModal()">Done</button>`
         );
     },
 
-    async hostPublicMeeting(id) {
-        const win = window.open('about:blank', '_blank');
-        try {
-            const data = await Lms.api('POST', `/api/public-meetings/${encodeURIComponent(id)}/host`);
-            this.openPublicMeetingTab(win, data.join, data.meeting.title);
-        } catch (e) {
-            if (win) win.close();
-            window.App?.showToast(e.message, 'error');
-            this.loadPublicMeetings();
-        }
+    // The tab asks the server for the way in, and says so if the meeting has ended meanwhile
+    hostPublicMeeting(id) {
+        if (!window.open(this.publicMeetingRoomUrl(id), this.publicMeetingTabName(id))) this.publicMeetingTabBlocked();
     },
 
     async endPublicMeeting(id, btn) {
@@ -1743,6 +1821,8 @@ const VirtualClassModule = {
         if (btn) btn.disabled = true;
         try {
             await Lms.api('POST', `/api/public-meetings/${encodeURIComponent(id)}/end`);
+            if (m) m.status = 'ENDED'; // reported just below; not worth a second message from the list
+            this.tellPublicMeetingTabs('ended', id); // the meeting's tab, if open here, closes the meeting
             window.App?.showToast('Public meeting ended. The link no longer works.', 'success');
         } catch (e) {
             if (btn) btn.disabled = false;
@@ -1802,7 +1882,7 @@ const VirtualClassModule = {
                 parentNode: container,
                 width: '100%',
                 height: '100%',
-                userInfo: { displayName: `${me.name || 'Guest'}${this.isHost ? ' (Ustad)' : me.rollNo ? ' • ' + me.rollNo : ''}`, email: me.email || '' },
+                userInfo: { displayName: `${me.name || 'Guest'}${session.publicMeeting ? ' (Host)' : this.isHost ? ' (Ustad)' : me.rollNo ? ' • ' + me.rollNo : ''}`, email: me.email || '' },
                 configOverwrite: {
                     subject: session.title,
                     prejoinPageEnabled: false,
@@ -1814,13 +1894,20 @@ const VirtualClassModule = {
                     disableInviteFunctions: true,
                     // Jitsi's own record button runs the portal's Start / Stop Recording instead, and a host
                     // hanging up stops the recording first (once out of the meeting it can no longer be stopped)
+                    // In a public meeting, ending it for everyone also closes its link (LiveRoom.endPublicMeeting)
                     buttonsWithNotifyClick: this.isHost
-                        ? [{ key: 'recording', preventExecution: true }, { key: 'hangup', preventExecution: true }]
+                        ? [{ key: 'recording', preventExecution: true }, { key: 'hangup', preventExecution: true },
+                            ...(session.publicMeeting ? [{ key: 'end-meeting', preventExecution: true }] : [])]
                         : []
                 },
                 interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
             });
             this.jitsiApi = api;
+            // The host's public meeting tab follows who is inside and how the meeting closes (js/live-room.js)
+            if (session.publicMeeting) {
+                window.LiveRoom.watchPublicMeeting(api);
+                return;
+            }
             // Host locks the room with the session passcode; participants supply it automatically
             api.addListener('participantRoleChanged', e => {
                 if (e.role === 'moderator' && session.passcode) api.executeCommand('password', session.passcode);
@@ -1901,14 +1988,14 @@ const VirtualClassModule = {
         const session = this.activeSession;
         if (!session || !this.jitsiApi) return;
         if (!this.canRecord(session)) {
-            window.App?.showToast('Your role is not allowed to record classes.', 'warning');
+            window.App?.showToast(session.publicMeeting ? 'Your role is not allowed to record meetings.' : 'Your role is not allowed to record classes.', 'warning');
             return;
         }
         if (this.recording) return;
         this.recording = { captureId: null, sessionId: session.id, state: 'starting', since: Date.now() };
         this.refreshRecordingControls();
         try {
-            const data = await Lms.api('POST', '/api/class-recordings/start', { sessionId: session.id });
+            const data = await Lms.api('POST', '/api/class-recordings/start', session.publicMeeting ? { publicMeetingId: session.id } : { sessionId: session.id });
             if (!this.recording) return; // cancelled meanwhile
             this.recording.captureId = data.capture.id;
             this.jitsiApi.executeCommand('startRecording', { mode: 'file' });
@@ -1932,7 +2019,7 @@ const VirtualClassModule = {
                 clearTimeout(this._recStartTimeout);
                 Object.assign(r, { state: 'on', since: Date.now() });
                 this.refreshRecordingControls();
-                window.App?.showToast('Recording started. Everyone in the class sees that it is being recorded.', 'success');
+                window.App?.showToast(this.activeSession?.publicMeeting ? 'Recording started. Everyone in the meeting sees that it is being recorded.' : 'Recording started. Everyone in the class sees that it is being recorded.', 'success');
             }
             return;
         }
@@ -2085,7 +2172,7 @@ const VirtualClassModule = {
         const session = this.activeSession || {};
         // The portal's class link: it signs the person in and checks the class before the meeting opens
         // (a bare meeting-server link has no sign-in token, so the meeting server refuses it)
-        const url = session.platform === 'EXTERNAL' && session.externalUrl
+        const url = session.publicMeeting ? session.link : session.platform === 'EXTERNAL' && session.externalUrl
             ? session.externalUrl
             : new URL(this.liveRoomUrl(session), location.href).href;
         navigator.clipboard.writeText(url).then(
