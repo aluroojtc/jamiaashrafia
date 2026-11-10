@@ -7,6 +7,9 @@
  *
  * The host of a public meeting uses this tab too (live.html?publicMeeting=<id>; guests use meet.html): recording
  * works as for a class, and the tab tells the server and the portal's lobby when the meeting ends.
+ *
+ * The bar also holds the Meeting Settings (host) and Record to Computer / Ask to Record (js/meeting-controls.js),
+ * and, under it, the participants asking the host to record (#mc-requests).
  */
 
 // What the portal's scripts expect from the page around them (js/app.js is not loaded here)
@@ -184,9 +187,11 @@ const LiveRoom = {
         document.getElementById('live-subtitle').textContent = [session.className || Lms.className(session.classId), vc.isHost ? I18n.t('You are the host') : ''].filter(Boolean).join(' • ');
         document.getElementById('live-actions').innerHTML = `
             ${live ? '<span class="status-pill danger"><i class="fas fa-circle"></i> LIVE</span>' : ''}
+            <span id="mc-tools" class="mc-tools"></span>
             ${vc.canRecord(session) ? `<span id="vc-rec-controls" style="display: inline-flex; gap: 8px; align-items: center;">${vc.recordingControlsHtml()}</span>` : ''}
             ${vc.isHost && live ? `<button class="btn btn-danger btn-sm" onclick="VirtualClassModule.endSession('${Lms.esc(session.id)}')"><i class="fas fa-stop-circle"></i> ${I18n.t('End Class for Everyone')}</button>` : ''}
             <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.leaveClass()"><i class="fas fa-sign-out-alt"></i> ${I18n.t('Leave')}</button>`;
+        if (window.MeetingControls && MeetingControls.current) MeetingControls.current.render();
     },
 
     // -------------------------------------------------------------------------
@@ -228,10 +233,12 @@ const LiveRoom = {
         document.getElementById('live-subtitle').textContent = 'Public meeting • You are the host';
         document.getElementById('live-actions').innerHTML = `
             <span class="status-pill danger"><i class="fas fa-circle"></i> LIVE</span>
+            <span id="mc-tools" class="mc-tools"></span>
             ${vc.canRecord(session) ? `<span id="vc-rec-controls" style="display: inline-flex; gap: 8px; align-items: center;">${vc.recordingControlsHtml()}</span>` : ''}
             <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()"><i class="fas fa-link"></i> Copy Link</button>
             <button class="btn btn-danger btn-sm" onclick="LiveRoom.endPublicMeeting(true)"><i class="fas fa-stop-circle"></i> End Meeting for Everyone</button>
             <button class="btn btn-secondary btn-sm" onclick="LiveRoom.leavePublicMeeting()"><i class="fas fa-sign-out-alt"></i> Leave</button>`;
+        if (window.MeetingControls && MeetingControls.current) MeetingControls.current.render();
     },
 
     // Called by VirtualClassModule.mountMeeting with the meeting it opened

@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Join Meeting - Jamia Ashrafia Lahore</title>
-    <!-- Public meeting link (/meet/<code>): no portal sign-in. The server checks the code and signs a guest token. -->
+    <!-- Public meeting link (/meet/<code>): no portal sign-in. The server checks the code and signs a guest token.
+         The meeting then opens in this page, under a slim bar, so the host's Meeting Settings apply (js/meeting-controls.js). -->
     <link rel="icon" type="image/png" href="/assets/images/favicon.png?v=3.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,6 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/css/main.css?v=4.1">
     <link rel="stylesheet" href="/css/components.css?v=6.2">
+    <link rel="stylesheet" href="/css/meeting-controls.css?v=1.0">
     <style>
         html, body { min-height: 100%; margin: 0; background: #0b1114; }
         .meet-shell { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
@@ -29,6 +31,23 @@
         .meet-note { margin-top: 14px; font-size: 0.78rem; color: #64748b; text-align: center; line-height: 1.5; }
         .meet-state { text-align: center; color: #475569; }
         .meet-state i { font-size: 2rem; color: #94a3b8; }
+        /* In the meeting: the meeting fills the page under a slim bar */
+        body.in-meeting { height: 100%; overflow: hidden; }
+        .meet-live { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+        .meet-bar {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+            padding: 8px 16px; background: #0d1418; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #e2e8f0;
+        }
+        .meet-bar-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .meet-bar-title img { width: 34px; height: 34px; flex-shrink: 0; }
+        .meet-bar-title strong { color: #ffffff; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .meet-bar-title small { color: #94a3b8; font-size: 0.75rem; display: block; }
+        .meet-bar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        #jitsi-container { flex: 1; min-height: 0; background: #0b1114; display: flex; align-items: center; justify-content: center; color: #cbd5e1; }
+        @media (max-width: 600px) {
+            .meet-bar { padding: 6px 10px; }
+            .meet-bar-title img { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -45,7 +64,9 @@
             </div>
         </div>
     </main>
+    <div id="toast-container"></div>
 
+    <script src="/js/meeting-controls.js?v=1.0"></script>
     <script>
     (function () {
         'use strict';
@@ -77,6 +98,106 @@
 
         function savedName() {
             try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; }
+        }
+
+        function toast(message, type) {
+            var box = document.getElementById('toast-container');
+            if (!box) return;
+            var icon = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle' }[type] || 'fa-info-circle';
+            var el = document.createElement('div');
+            el.className = 'toast ' + (type || 'info');
+            el.innerHTML = '<i class="fas ' + icon + '" style="font-size: 1.1rem;"></i> <span></span>';
+            el.querySelector('span').textContent = String(message == null ? '' : message);
+            box.appendChild(el);
+            setTimeout(function () {
+                el.style.transition = 'all 0.3s ease';
+                el.style.opacity = '0';
+                setTimeout(function () { el.remove(); }, 300);
+            }, 4000);
+        }
+
+        // After the meeting: the card again, with a way back in
+        function showAfter(icon, title, text, rejoin) {
+            document.body.classList.remove('in-meeting');
+            var live = document.getElementById('meet-live');
+            if (live) live.remove();
+            document.querySelector('.meet-shell').style.display = '';
+            document.getElementById('meet-title').textContent = title;
+            document.getElementById('meet-sub').textContent = '';
+            body.innerHTML = '<div class="meet-state"><i class="fas ' + icon + '"></i><p>' + esc(text) + '</p></div>'
+                + (rejoin ? '<button type="button" class="btn btn-primary" onclick="location.reload()"><i class="fas fa-sign-in-alt"></i> Rejoin Meeting</button>' : '');
+        }
+
+        function loadMeetingScript(domain) {
+            if (window.JitsiMeetExternalAPI) return Promise.resolve();
+            return new Promise(function (resolve, reject) {
+                var s = document.createElement('script');
+                s.src = 'https://' + domain + '/external_api.js';
+                s.async = true;
+                s.onload = resolve;
+                s.onerror = function () { reject(new Error('The meeting service could not be reached. Check your internet connection.')); };
+                document.head.appendChild(s);
+            });
+        }
+
+        // The meeting in this page, so the host's settings (chat, names, recording) apply here too
+        function openMeeting(data) {
+            var join = data.join;
+            var target = { code: code, guestId: data.guest.id, guestName: data.guest.name, guestKey: data.guest.key };
+            var closed = false;
+            var api = null;
+            function close(icon, title, text, rejoin) {
+                if (closed) return;
+                closed = true;
+                window.MeetingControls.detach();
+                if (api) { try { api.dispose(); } catch (e) { /* already closed */ } }
+                showAfter(icon, title, text, rejoin);
+            }
+            return window.MeetingControls.load(target, 'omit').then(function (settings) {
+                return loadMeetingScript(join.domain).then(function () { return settings; });
+            }).then(function (settings) {
+                document.querySelector('.meet-shell').style.display = 'none';
+                document.body.classList.add('in-meeting');
+                var live = document.createElement('div');
+                live.className = 'meet-live';
+                live.id = 'meet-live';
+                live.innerHTML = '<header class="meet-bar">'
+                    + '<div class="meet-bar-title"><img src="/assets/images/crest.png" alt=""><div style="min-width: 0;"><strong id="meet-live-title"></strong><small id="meet-live-sub"></small></div></div>'
+                    + '<div class="meet-bar-actions"><span id="mc-tools" class="mc-tools"></span>'
+                    + '<button type="button" class="btn btn-secondary btn-sm" id="meet-leave"><i class="fas fa-sign-out-alt"></i> Leave</button></div>'
+                    + '</header><div id="jitsi-container"></div>';
+                document.body.insertBefore(live, document.body.firstChild);
+                document.getElementById('meet-live-title').textContent = data.title;
+                document.getElementById('meet-live-sub').textContent = data.displayName;
+                document.title = data.title + ' - Jamia Ashrafia Lahore';
+                api = new window.JitsiMeetExternalAPI(join.domain, {
+                    roomName: join.roomPath,
+                    jwt: join.token || undefined,
+                    parentNode: document.getElementById('jitsi-container'),
+                    width: '100%',
+                    height: '100%',
+                    userInfo: { displayName: data.displayName },
+                    configOverwrite: Object.assign({
+                        subject: data.title,
+                        prejoinPageEnabled: false,
+                        prejoinConfig: { enabled: false },
+                        startWithAudioMuted: true,
+                        startWithVideoMuted: true,
+                        disableDeepLinking: true,
+                        disableInviteFunctions: true
+                    }, window.MeetingControls.config(settings, false)),
+                    interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
+                });
+                window.MeetingControls.attach({
+                    api: api, target: target, isHost: false, settings: settings, title: data.title, credentials: 'omit', toast: toast,
+                    onEnded: function () { close('fa-door-closed', data.title, 'This meeting has ended.', false); }
+                });
+                api.addListener('readyToClose', function () { close('fa-door-open', data.title, 'You have left the meeting.', true); });
+                document.getElementById('meet-leave').addEventListener('click', function () {
+                    try { api.executeCommand('hangup'); } catch (e) { /* closed */ }
+                    setTimeout(function () { close('fa-door-open', data.title, 'You have left the meeting.', true); }, 1500);
+                });
+            });
         }
 
         function meetingUrl(join, name, title) {
@@ -114,7 +235,12 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Joining...';
                 post('/api/public-meetings/join', { code: code, name: name }).then(function (data) {
                     try { localStorage.setItem(NAME_KEY, name); } catch (e2) { /* private window */ }
-                    location.assign(meetingUrl(data.join, data.displayName, data.title));
+                    // The public meet.jit.si service cannot be embedded for long: guests go to it directly
+                    if (data.join.domain === 'meet.jit.si' || !data.guest || !window.MeetingControls) {
+                        location.assign(meetingUrl(data.join, data.displayName, data.title));
+                        return;
+                    }
+                    return openMeeting(data);
                 }).catch(function (e2) {
                     err.textContent = e2.message;
                     err.style.display = 'block';

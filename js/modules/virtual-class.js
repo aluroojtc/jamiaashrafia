@@ -1870,8 +1870,12 @@ const VirtualClassModule = {
         this.disposeMeeting();
         const domain = this.meetingDomain();
         const me = window.AuthRBAC?.currentUser || {};
+        // The host's Meeting Settings (chat, names, unmute, camera, recording to a computer; js/meeting-controls.js)
+        const controls = window.MeetingControls;
+        const controlTarget = session.publicMeeting ? { publicMeetingId: session.id } : { sessionId: session.id };
         try {
             const jwt = await this.joinToken(session);
+            const controlSettings = controls ? await controls.load(controlTarget) : null;
             await this.loadJitsiScript(domain);
             if (!document.getElementById('jitsi-container')) return; // navigated away meanwhile
             container.innerHTML = '';
@@ -1898,11 +1902,19 @@ const VirtualClassModule = {
                     buttonsWithNotifyClick: this.isHost
                         ? [{ key: 'recording', preventExecution: true }, { key: 'hangup', preventExecution: true },
                             ...(session.publicMeeting ? [{ key: 'end-meeting', preventExecution: true }] : [])]
-                        : []
+                        : [],
+                    ...(controls ? controls.config(controlSettings, this.isHost) : {})
                 },
                 interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
             });
             this.jitsiApi = api;
+            if (controls) {
+                controls.attach({
+                    api, target: controlTarget, isHost: this.isHost, settings: controlSettings, title: session.title,
+                    toast: (message, type) => window.App?.showToast(message, type),
+                    openPanel: (title, body, footer) => Lms.openModal(title, body, footer)
+                });
+            }
             // The host's public meeting tab follows who is inside and how the meeting closes (js/live-room.js)
             if (session.publicMeeting) {
                 window.LiveRoom.watchPublicMeeting(api);
@@ -1935,6 +1947,8 @@ const VirtualClassModule = {
     },
 
     disposeMeeting() {
+        // A recording to the computer still running is stopped and saved
+        if (window.MeetingControls) window.MeetingControls.detach();
         if (this.jitsiApi) {
             try { this.jitsiApi.dispose(); } catch (e) { /* already closed */ }
             this.jitsiApi = null;

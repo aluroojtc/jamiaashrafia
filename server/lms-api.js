@@ -26,6 +26,7 @@ const sampleData = require('./sample-data');
 const campus = require('./campus');
 const classRecordings = require('./class-recordings');
 const publicMeetings = require('./public-meetings');
+const meetingControls = require('./meeting-controls');
 const studentImport = require('./student-import');
 
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
@@ -216,6 +217,7 @@ function ensureSchema() {
             await campus.migrate(msg => console.log(msg));
             await classRecordings.ensureSchema();
             await publicMeetings.ensureSchema();
+            await meetingControls.ensureSchema();
         })().catch(err => {
             schemaPromise = null;
             throw err;
@@ -1393,6 +1395,8 @@ async function route(req, res) {
     if (await classRecordings.route(req, res, url, RECORDING_DEPS)) return true;
     // Public meetings: started by an administrator, joined by anyone with the link (server/public-meetings.js)
     if (await publicMeetings.route(req, res, url, PUBLIC_MEETING_DEPS)) return true;
+    // The host's Meeting Settings (chat, names, unmute, camera, recording to a computer) for classes and public meetings
+    if (await meetingControls.route(req, res, url, MEETING_CONTROL_DEPS)) return true;
 
     // Institution setup (branches, programmes, sessions, profile), recording retention, sample data clean-up
     if (await masterData.route(req, res, url, DEPS)) return true;
@@ -1416,6 +1420,9 @@ const IMPORT_DEPS = { sendJson, readJson, can, caller, newId, ensureSchema, load
 
 // Helpers handed to server/public-meetings.js
 const PUBLIC_MEETING_DEPS = { sendJson, readJson, can, caller, newId, getSetting, getMeetingSettings, roomToken, stopRecordingsOf: classRecordings.stopRecordingsOf };
+
+// Helpers handed to server/meeting-controls.js
+const MEETING_CONTROL_DEPS = { sendJson, readJson, can, caller, decideVirtualAccess, meetingRoomName };
 
 // DELETE /api/admissions/:id  removes an application (duplicates, test entries); an enrolled student's account stays
 async function handleAdmissionDelete(req, res, url) {

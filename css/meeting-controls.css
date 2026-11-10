@@ -1,0 +1,53 @@
+/* MEETING CONTROLS (js/meeting-controls.js): the meeting bar's buttons, the host's request strip and Meeting Settings */
+
+.mc-tools { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mc-tools:empty { display: none; }
+.mc-rec-pill { animation: pulse 2s infinite; }
+.mc-settings-btn { position: relative; }
+.mc-badge {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 9px; background: #dc2626; color: #ffffff; font-size: 0.7rem; font-weight: 700; line-height: 1;
+}
+
+/* People asking the host to record: a strip under the meeting bar */
+.mc-requests { display: flex; flex-direction: column; gap: 6px; padding: 6px 16px; background: #13202a; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.mc-requests:empty { display: none; }
+.mc-request { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: #e2e8f0; font-size: 0.85rem; }
+.mc-request > i { color: #fbbf24; }
+.mc-request > span { flex: 1; min-width: 180px; }
+.mc-request strong { color: #ffffff; }
+
+/* Meeting Settings window */
+.mc-note { margin: 0 0 10px; font-size: 0.8rem; color: var(--text-muted, #6b828e); }
+.mc-row {
+    display: flex; align-items: center; gap: 12px; padding: 11px 4px; cursor: pointer;
+    border-bottom: 1px solid var(--border-subtle, #e2ebf0);
+}
+.mc-row:last-of-type { border-bottom: none; }
+.mc-row-icon {
+    width: 34px; height: 34px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: var(--primary-50, #eef7f9); color: var(--primary-600, #2a7c8b);
+}
+.mc-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mc-row-text strong { font-size: 0.9rem; color: var(--text-primary, #0f172a); }
+.mc-row-text small { font-size: 0.78rem; color: var(--text-muted, #6b828e); line-height: 1.4; }
+
+.mc-switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+.mc-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.mc-switch span { position: absolute; inset: 0; border-radius: 12px; background: #cbd5e1; transition: background 0.15s ease; }
+.mc-switch span::after {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+    background: #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.15s ease;
+}
+.mc-switch input:checked + span { background: var(--primary-500, #3391a2); }
+.mc-switch input:checked + span::after { transform: translateX(18px); }
+.mc-switch input:focus-visible + span { outline: 2px solid var(--primary-400, #5aaab8); outline-offset: 2px; }
+[dir="rtl"] .mc-switch span::after { left: auto; right: 3px; }
+[dir="rtl"] .mc-switch input:checked + span::after { transform: translateX(-18px); }
+
+.mc-subhead { margin: 14px 0 6px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted, #6b828e); }
+.mc-person { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 0.88rem; }
+
+@media (max-width: 600px) {
+    .mc-requests { padding: 6px 10px; }
+}

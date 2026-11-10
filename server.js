@@ -819,7 +819,9 @@ const PUBLIC_API = new Set([
     'POST /api/class-recordings/scan',
     // Guests open a public meeting link (/meet/<code>); the code itself is checked there
     'POST /api/public-meetings/lookup',
-    'POST /api/public-meetings/join'
+    'POST /api/public-meetings/join',
+    // Their meeting tab asks for the host's meeting settings and may ask to record (checked by the guest's key)
+    ...require('./server/meeting-controls').GUEST_API
 ]);
 // While previewing a role, nothing can be changed; only these are reachable besides reading
 const PREVIEW_ALLOWED = new Set(['DELETE /api/preview', 'POST /api/auth/logout', 'POST /api/auth/language']);

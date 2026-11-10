@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="css/main.css?v=4.1">
     <link rel="stylesheet" href="css/components.css?v=6.2">
     <link rel="stylesheet" href="css/i18n.css?v=1.0">
+    <link rel="stylesheet" href="css/meeting-controls.css?v=1.0">
     <style>
         html, body { height: 100%; margin: 0; overflow: hidden; background: #0b1114; }
         .live-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
@@ -58,6 +59,8 @@
             </div>
             <div class="live-bar-actions" id="live-actions"></div>
         </header>
+        <!-- Participants asking the host to record to their computer (js/meeting-controls.js) -->
+        <div id="mc-requests" class="mc-requests"></div>
         <div id="jitsi-container">
             <div style="text-align: center;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><div style="margin-top: 10px;">Connecting to the live classroom...</div></div>
         </div>
@@ -79,8 +82,9 @@
     <script src="js/data.js?v=8.0"></script>
     <script src="js/auth-rbac.js?v=8.1"></script>
     <script src="js/lms-core.js?v=8.2"></script>
-    <script src="js/modules/virtual-class.js?v=8.6"></script>
+    <script src="js/meeting-controls.js?v=1.0"></script>
+    <script src="js/modules/virtual-class.js?v=8.7"></script>
     <script src="js/modules/class-recordings.js?v=8.6"></script>
-    <script src="js/live-room.js?v=1.3"></script>
+    <script src="js/live-room.js?v=1.4"></script>
 </body>
 </html>

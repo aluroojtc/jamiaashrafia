@@ -28,6 +28,9 @@ const LOOKUP_LIMIT = 60;
 const LOOKUP_WINDOW_MS = 10 * 60 * 1000;
 // The host's tab was closed with nobody else in the meeting: it ends after this long, unless the host comes back (a reload)
 const EMPTY_TAB_GRACE_MS = Number(process.env.PUBLIC_MEETING_EMPTY_GRACE_MS) || 20 * 1000;
+// Signs the key a guest gets on joining, which their tab shows for the meeting settings and recording requests
+// (server/meeting-controls.js). New at every server start: a guest then rejoins from the link.
+const GUEST_KEY_SECRET = crypto.randomBytes(32);
 
 let schemaReady = null;
 
@@ -171,6 +174,25 @@ async function recordingTarget(req, deps, id) {
     return { id: row.id, title: row.title, roomName: row.room_name };
 }
 
+function guestKey(meetingId, guestId, guestName) {
+    return crypto.createHmac('sha256', GUEST_KEY_SECRET).update(`${meetingId}|${guestId}|${guestName}`).digest('base64url');
+}
+
+/** A guest of an open meeting, as server/meeting-controls.js sees them: checked against the key the join gave. */
+async function guestTarget(code, guestId, guestName, key) {
+    await ensureSchema();
+    const row = await loadByCode(code);
+    if (!isActive(row)) throw fail(410, 'This meeting has ended.');
+    const id = String(guestId || '');
+    const name = String(guestName || '');
+    const expected = Buffer.from(guestKey(row.id, id, name));
+    const given = Buffer.from(String(key || ''));
+    if (!/^guest_[0-9a-f]{12}$/.test(id) || given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+        throw fail(403, 'Open the meeting link again to use this.');
+    }
+    return { id: row.id, title: row.title, roomName: row.room_name, guestId: id, guestName: name };
+}
+
 /** The meeting held in a room (a recording arrived for it); null when there is none. */
 async function findByRoom(roomName) {
     await ensureSchema();
@@ -291,7 +313,10 @@ async function handleJoin(req, res, deps) {
     cancelPendingEnd(row.id); // someone is coming in, so it is not empty after all
     const guest = { id: `guest_${crypto.randomBytes(6).toString('hex')}`, name: `${name} (Guest)` };
     const join = await joinInfo(deps, row, guest, false);
-    deps.sendJson(res, 200, { success: true, title: row.title, displayName: guest.name, join });
+    deps.sendJson(res, 200, {
+        success: true, title: row.title, displayName: guest.name, join,
+        guest: { id: guest.id, name: guest.name, key: guestKey(row.id, guest.id, guest.name) }
+    });
 }
 
 async function route(req, res, url, deps) {
@@ -313,4 +338,4 @@ async function route(req, res, url, deps) {
     throw fail(404, 'Not found');
 }
 
-module.exports = { route, ensureSchema, recordingTarget, findByRoom, PERMISSION, ROOM_PREFIX };
+module.exports = { route, ensureSchema, recordingTarget, guestTarget, findByRoom, PERMISSION, ROOM_PREFIX };
