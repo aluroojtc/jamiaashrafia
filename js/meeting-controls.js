@@ -10,6 +10,7 @@
  *                   a participant then raises a hand and the host lets them speak (or show video) from the
  *                   participants list
  *   recordRequests  participants may ask to record to their computer; the host allows or refuses each request
+ * Always on: one screen share at a time. When someone starts sharing, the previous sharer's tab stops its share.
  *
  * Recording to a computer is done by this page, not by Jitsi (Jitsi's own "save to computer" only works when
  * the meeting is not embedded in another site). The browser asks which tab to record (this one is offered first);
@@ -215,6 +216,8 @@
             this.moderation = { audio: null, video: null }; // what the host's tab last set in the meeting
             this.seenRequests = new Set();
             this.lastNameFix = 0;
+            this.sharing = false;       // this tab is sharing its screen
+            this.sharers = new Set();   // everyone sharing, as last told by the meeting
             this.destroyed = false;
         }
 
@@ -241,6 +244,8 @@
                 try { msg = JSON.parse(e && e.data && e.data.eventData && e.data.eventData.text); } catch (err) { /* someone else's message */ }
                 if (msg && msg.type === NUDGE) this.refresh();
             });
+            api.addListener('screenSharingStatusChanged', e => { this.sharing = !!(e && e.on); });
+            api.addListener('contentSharingParticipantsChanged', e => this.onSharersChanged(e));
             // The host may also switch moderation in Jitsi's own participants list: the settings follow
             if (this.isHost) api.addListener('moderationStatusChanged', e => this.onModerationChanged(e));
             this.timer = setInterval(() => this.refresh(), this.isHost ? HOST_POLL_MS : PARTICIPANT_POLL_MS);
@@ -330,6 +335,23 @@
             this.lastNameFix = Date.now();
             try { this.api.executeCommand('displayName', this.joinedName); } catch (e) { /* closing */ }
             if (told) this.toast('The host does not allow changing names.', 'warning');
+        }
+
+        // One screen at a time: when someone else starts sharing, this tab stops its own share.
+        // (The one who just started sees the earlier sharer as already known, so theirs stays.)
+        onSharersChanged(e) {
+            const list = (e && Array.isArray(e.data) ? e.data : []).map(String);
+            const known = this.sharers;
+            this.sharers = new Set(list);
+            const me = this.localId ? String(this.localId) : null;
+            if (me && list.includes(me) && !known.has(me)) return; // this tab is the one that just started
+            const newcomer = list.find(id => id !== me && !known.has(id));
+            if (!newcomer || !this.sharing) return;
+            this.sharing = false;
+            let name = '';
+            try { name = this.api.getDisplayName(newcomer) || ''; } catch (err) { /* unknown */ }
+            try { this.api.executeCommand('toggleShareScreen'); } catch (err) { /* closing */ }
+            this.toast(`Your screen sharing stopped because ${name || 'someone else'} started sharing.`, 'info');
         }
 
         // The meeting forgets moderation when it empties, so the host's tab sets it again on (re)joining
