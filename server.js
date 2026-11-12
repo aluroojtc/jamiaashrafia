@@ -792,7 +792,7 @@ function legacyHandler(req, res) {
 }
 
 // Paths that may be served as static files. Everything else (source, .env, .git, SQL, archives) stays private.
-const PUBLIC_FILES = new Set(['/index.html', '/login.html', '/live.html', '/meet.html']);
+const PUBLIC_FILES = new Set(['/index.html', '/login.html', '/live.html', '/meet.html', '/privacy-policy.html']);
 const PUBLIC_DIRS = ['/css/', '/js/', '/assets/', '/uploads/'];
 const INLINE_UPLOAD_EXT = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp3', '.m4a', '.mp4', '.webm', '.txt']);
 
@@ -871,6 +871,29 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'same-origin');
 
+    // Android checks this file before it opens the portal's meeting links (/meet/<code>, live.html) in the
+    // mobile app without asking. It lists the app and the certificate(s) it is signed with (public values):
+    // ANDROID_APP_SHA256 in .env, comma separated; see mobile/README.md. Not served until that is set.
+    if (pathname === '/.well-known/assetlinks.json') {
+        const fingerprints = String(process.env.ANDROID_APP_SHA256 || '').split(',')
+            .map(f => f.trim().toUpperCase()).filter(f => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(f));
+        if (!fingerprints.length) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('404 Not Found');
+            return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' });
+        res.end(JSON.stringify([{
+            relation: ['delegate_permission/common.handle_all_urls'],
+            target: {
+                namespace: 'android_app',
+                package_name: process.env.ANDROID_APP_PACKAGE || 'com.jamiaashrafia.lms',
+                sha256_cert_fingerprints: fingerprints
+            }
+        }]));
+        return;
+    }
+
     if (pathname.startsWith('/api/') || pathname.startsWith('/uploads/')) {
         try {
             await authenticate(req);
@@ -906,6 +929,9 @@ const server = http.createServer(async (req, res) => {
         // Public meeting link: the join page reads the code from its own address
         req.url = '/meet.html';
         res.setHeader('Referrer-Policy', 'no-referrer');
+    } else if (/^\/privacy-policy\/?$/.test(pathname)) {
+        // Privacy policy of the portal and the mobile app (linked from the Google Play listing); no sign-in
+        req.url = '/privacy-policy.html';
     } else if (!['/', '', '/login'].includes(pathname) && !isPublicPath(pathname)) {
         if (path.extname(pathname) || pathname.split('/').some(seg => seg.startsWith('.'))) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });

@@ -1,0 +1,79 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Live classes and meetings (the Jitsi Meet SDK adds the rest it needs, including the
+         media-projection foreground service used for screen sharing) -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <!-- The meeting SDK asks for the calendar; the app never uses it (calendar is switched off in meetings) -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" tools:node="remove"/>
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" tools:node="remove"/>
+
+    <application
+        android:label="Jamia Ashrafia LMS"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        tools:replace="android:label,android:allowBackup">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <!-- Meeting and class links of the portal (the ones shared on WhatsApp) open in the app.
+                 Android checks https://<host>/.well-known/assetlinks.json before it does so without asking;
+                 the portal server serves that file (see mobile/README.md). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="${lmsHost}"/>
+                <data android:pathPrefix="/meet/"/>
+                <data android:path="/live.html"/>
+            </intent-filter>
+
+            <!-- jamiaashrafia://meet/<code> and jamiaashrafia://class/<id> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="jamiaashrafia"/>
+            </intent-filter>
+        </activity>
+
+        <!-- Links are handled by the app itself (lib/core/deep_links.dart), not by Flutter's router -->
+        <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
+
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Classes held on Zoom / Google Meet / Teams open in their own app or the browser -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+    </queries>
+</manifest>

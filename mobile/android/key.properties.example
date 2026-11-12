@@ -1,0 +1,7 @@
+# Copy to key.properties (same folder) and fill in. key.properties and the keystore are never committed.
+# Create the keystore once and keep it and its passwords safe: every update on Google Play must be signed with it.
+#   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+storeFile=../upload-keystore.jks
+storePassword=
+keyAlias=upload
+keyPassword=
