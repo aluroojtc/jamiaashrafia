@@ -26,7 +26,7 @@ const MAX_ACTIVE = 10;
 // Wrong or old links from one address: at most this many lookups per window
 const LOOKUP_LIMIT = 60;
 const LOOKUP_WINDOW_MS = 10 * 60 * 1000;
-// The host's tab was closed with nobody else in the meeting: it ends after this long, unless the host comes back (a reload)
+// The host's tab was closed: the meeting ends for everyone after this long, unless the host comes back (a reload)
 const EMPTY_TAB_GRACE_MS = Number(process.env.PUBLIC_MEETING_EMPTY_GRACE_MS) || 20 * 1000;
 // Signs the key a guest gets on joining, which their tab shows for the meeting settings and recording requests
 // (server/meeting-controls.js). New at every server start: a guest then rejoins from the link.
@@ -270,7 +270,7 @@ async function handleEnd(req, res, deps, id) {
     deps.sendJson(res, 200, { success: true, meeting: toJson(req, await loadById(id)) });
 }
 
-// POST /api/public-meetings/:id/left  the host's tab is closing with nobody else in the meeting.
+// POST /api/public-meetings/:id/left  the host's tab is closing (the browser asked first): the meeting ends for everyone.
 // A reload looks the same from here, so it only ends if the host does not come back (handleHost).
 async function handleLeft(req, res, deps, id) {
     requirePermission(req, deps);
@@ -281,7 +281,7 @@ async function handleLeft(req, res, deps, id) {
         const actor = { id: req.auth.id, role: req.auth.role };
         const timer = setTimeout(() => {
             pendingEnds.delete(row.id);
-            endMeeting(row, deps, actor).catch(err => console.warn('[Public meetings] Could not end an empty meeting:', err.message));
+            endMeeting(row, deps, actor).catch(err => console.warn('[Public meetings] Could not end a meeting whose host left:', err.message));
         }, EMPTY_TAB_GRACE_MS);
         timer.unref();
         pendingEnds.set(row.id, timer);
@@ -310,7 +310,6 @@ async function handleJoin(req, res, deps) {
     if (!isActive(row)) throw fail(410, 'This meeting has ended.');
     const name = String(body.name || '').replace(/[\u0000-\u001f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
     if (name.length < 2) throw fail(400, 'Enter your name.');
-    cancelPendingEnd(row.id); // someone is coming in, so it is not empty after all
     const guest = { id: `guest_${crypto.randomBytes(6).toString('hex')}`, name: `${name} (Guest)` };
     const join = await joinInfo(deps, row, guest, false);
     deps.sendJson(res, 200, {

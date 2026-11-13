@@ -15,14 +15,15 @@ const auth = require('./server/auth');
 
 const TEST_PORT = 3057;
 process.env.PORT = TEST_PORT;
-// How long a host's closed tab waits before an empty meeting ends (shortened for this run)
+// How long a host's closed tab waits before the meeting or class ends (shortened for this run)
 const EMPTY_GRACE_MS = 400;
 process.env.PUBLIC_MEETING_EMPTY_GRACE_MS = String(EMPTY_GRACE_MS);
+process.env.CLASS_HOST_LEFT_GRACE_MS = String(EMPTY_GRACE_MS);
 
 const P = `pmtest_${Date.now().toString(36)}_`;
 const R = P.toUpperCase();
 const roleIds = { opener: `${R}OPENER`, plainAdmin: `${R}ADMIN` };
-const ids = { superAdmin: `${P}super`, opener: `${P}opener`, plainAdmin: `${P}admin`, teacher: `${P}t1`, student: `${P}s1`, classA: `${P}clsA`, vcA: `${P}vcA` };
+const ids = { superAdmin: `${P}super`, opener: `${P}opener`, plainAdmin: `${P}admin`, teacher: `${P}t1`, student: `${P}s1`, classA: `${P}clsA`, vcA: `${P}vcA`, vcLive: `${P}vcLive`, vcDay: `${P}vcDay` };
 const passwords = {};
 const SECRET = crypto.randomBytes(24).toString('hex');
 
@@ -135,6 +136,8 @@ async function run() {
         await createUser(ids.student, { role: 'STUDENT', classId: ids.classA });
         await insertRecord('classes', { id: ids.classA, name: 'Pmtest A', teacherId: ids.teacher, courseTeachers: [] });
         await insertRecord('virtualClasses', { id: ids.vcA, title: 'Pmtest live', classId: ids.classA, hostId: ids.teacher, status: 'UPCOMING' });
+        await insertRecord('virtualClasses', { id: ids.vcLive, title: 'Pmtest running', classId: ids.classA, hostId: ids.teacher, status: 'LIVE', isLive: true });
+        await insertRecord('virtualClasses', { id: ids.vcDay, title: 'Pmtest day room', classId: ids.classA, hostId: ids.teacher, status: 'LIVE', isLive: true, dayRoom: true, periods: [{ teacherId: ids.teacher }] });
         await require('./server/roles').load();
 
         const sess = {};
@@ -195,7 +198,7 @@ async function run() {
         check('Signed-out visitors cannot ask', (await request('GET', `/api/public-meetings/${meeting.id}`)).status === 401);
         check('An unknown meeting is not found', (await request('GET', '/api/public-meetings/pmeet_nosuch', { cookie: sess.opener })).status === 404);
 
-        // --- The host's tab closing with nobody else inside --------------------------------------------
+        // --- The host's tab closing: the meeting ends for everyone --------------------------------------
         const emptyMeeting = (await request('POST', '/api/public-meetings', { cookie: sess.opener, body: { title: `${P}Empty room`, hours: 1 } })).body.meeting;
         const emptyCode = (/\/meet\/([A-Za-z0-9_-]+)$/.exec(emptyMeeting.link) || [])[1];
         const statusOf = async id => (await request('GET', `/api/public-meetings/${id}`, { cookie: sess.opener })).body.meeting.status;
@@ -210,10 +213,7 @@ async function run() {
         await request('POST', `/api/public-meetings/${emptyMeeting.id}/left`, { cookie: sess.opener });
         await request('POST', '/api/public-meetings/join', { body: { code: emptyCode, name: 'Early guest' } });
         await pause(EMPTY_GRACE_MS + 300);
-        check('A guest coming in keeps it open', await statusOf(emptyMeeting.id) === 'ACTIVE');
-        await request('POST', `/api/public-meetings/${emptyMeeting.id}/left`, { cookie: sess.opener });
-        await pause(EMPTY_GRACE_MS + 300);
-        check('Otherwise it ends by itself', await statusOf(emptyMeeting.id) === 'ENDED');
+        check('Without the host coming back it ends, guests inside or not', await statusOf(emptyMeeting.id) === 'ENDED');
         check('The link then stops working', (await request('POST', '/api/public-meetings/join', { body: { code: emptyCode, name: 'Late guest' } })).status === 410);
         const auditRows = (await db.query(`SELECT actor_id FROM audit_log WHERE action = 'public_meeting.end' AND entity_id = ?`, [emptyMeeting.id]))[0];
         check('Ending it by itself is logged against the host', auditRows.length === 1 && auditRows[0].actor_id === ids.opener, JSON.stringify(auditRows));
@@ -241,6 +241,31 @@ async function run() {
         check('A class host still gets the class room token', classToken.status === 200 && ct && ct.room === expectedRoom && ct.moderator === true, JSON.stringify(classToken.body));
         check('A student still cannot enter a class before it starts', (await request('POST', '/api/virtual-class/join-token', { cookie: sess.student, body: { sessionId: ids.vcA } })).status === 403);
         check('Class join tokens still need sign-in', (await request('POST', '/api/virtual-class/join-token', { body: { sessionId: ids.vcA } })).status === 401);
+
+        // --- The host's tab of a live class closing ---------------------------------------------------
+        const classStatus = async id => JSON.parse((await db.query(`SELECT data FROM lms_records WHERE collection = 'virtualClasses' AND id = ?`, [id]))[0][0].data).status;
+        const left = id => `/api/virtual-class/${id}/left`;
+        check('Signed-out visitors cannot report a class tab closing', (await request('POST', left(ids.vcLive))).status === 401);
+        check('A student closing the tab cannot end the class', (await request('POST', left(ids.vcLive), { cookie: sess.student })).status === 403);
+        await pause(EMPTY_GRACE_MS + 300);
+        check('The class is still live after the student left', await classStatus(ids.vcLive) === 'LIVE');
+        const hostLeft = await request('POST', left(ids.vcLive), { cookie: sess.teacher });
+        check('The host closing the tab is accepted', hostLeft.status === 202 && hostLeft.body.ends === true, JSON.stringify(hostLeft.body));
+        check('The class does not end at once (it could be a reload)', await classStatus(ids.vcLive) === 'LIVE');
+        await request('POST', '/api/virtual-class/verify-access', { cookie: sess.teacher, body: { sessionId: ids.vcLive } });
+        await pause(EMPTY_GRACE_MS + 300);
+        check('The host coming back keeps the class live', await classStatus(ids.vcLive) === 'LIVE');
+        await request('POST', left(ids.vcLive), { cookie: sess.teacher });
+        await request('POST', '/api/virtual-class/verify-access', { cookie: sess.student, body: { sessionId: ids.vcLive } });
+        await pause(EMPTY_GRACE_MS + 300);
+        check('Without the host coming back the class ends for everyone', await classStatus(ids.vcLive) === 'COMPLETED');
+        const classAudit = (await db.query(`SELECT actor_id FROM audit_log WHERE action = 'virtual_class.end' AND entity_id = ?`, [ids.vcLive]))[0];
+        check('That is logged against the host', classAudit.length === 1 && classAudit[0].actor_id === ids.teacher, JSON.stringify(classAudit));
+        const dayLeft = await request('POST', left(ids.vcDay), { cookie: sess.teacher });
+        await pause(EMPTY_GRACE_MS + 300);
+        check('A teacher closing the tab of a full-day room only leaves: the room stays open', dayLeft.status === 202 && dayLeft.body.ends === false && await classStatus(ids.vcDay) === 'LIVE', JSON.stringify(dayLeft.body));
+        const notLive = await request('POST', left(ids.vcA), { cookie: sess.teacher });
+        check('A class that is not live is left as it is', notLive.status === 202 && notLive.body.ends === false && await classStatus(ids.vcA) === 'UPCOMING');
     } catch (err) {
         failed++;
         console.error('[ERROR]', err);

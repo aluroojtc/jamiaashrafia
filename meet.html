@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/css/main.css?v=4.1">
     <link rel="stylesheet" href="/css/components.css?v=6.2">
-    <link rel="stylesheet" href="/css/meeting-controls.css?v=1.0">
+    <link rel="stylesheet" href="/css/meeting-controls.css?v=1.1">
     <style>
         html, body { min-height: 100%; margin: 0; background: #0b1114; }
         .meet-shell { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
@@ -66,7 +66,7 @@
     </main>
     <div id="toast-container"></div>
 
-    <script src="/js/meeting-controls.js?v=1.1"></script>
+    <script src="/js/meeting-controls.js?v=1.2"></script>
     <script>
     (function () {
         'use strict';
@@ -149,9 +149,23 @@
             function close(icon, title, text, rejoin) {
                 if (closed) return;
                 closed = true;
+                window.MeetingControls.ExitGuard.disarm();
                 window.MeetingControls.detach();
                 if (api) { try { api.dispose(); } catch (e) { /* already closed */ } }
                 showAfter(icon, title, text, rejoin);
+            }
+            // Every way out asks first (Leave, the meeting's own hang-up, the browser's Back button, Backspace);
+            // a guest only ever leaves, the meeting goes on for the others
+            function askLeave() {
+                if (closed || !api) return;
+                window.MeetingControls.confirm({
+                    title: 'Leave the meeting?', icon: 'fa-sign-out-alt', confirmLabel: 'Leave Meeting',
+                    text: 'You will leave the meeting. You can rejoin with the same link while it is still open.'
+                }).then(function (ok) {
+                    if (!ok || closed) return;
+                    try { api.executeCommand('hangup'); } catch (e) { /* closed */ }
+                    setTimeout(function () { close('fa-door-open', data.title, 'You have left the meeting.', true); }, 1500);
+                });
             }
             return window.MeetingControls.load(target, 'omit').then(function (settings) {
                 return loadMeetingScript(join.domain).then(function () { return settings; });
@@ -184,7 +198,9 @@
                         startWithAudioMuted: true,
                         startWithVideoMuted: true,
                         disableDeepLinking: true,
-                        disableInviteFunctions: true
+                        disableInviteFunctions: true,
+                        // The meeting's own hang-up button asks first (askLeave)
+                        buttonsWithNotifyClick: [{ key: 'hangup', preventExecution: true }]
                     }, window.MeetingControls.config(settings, false)),
                     interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
                 });
@@ -193,10 +209,12 @@
                     onEnded: function () { close('fa-door-closed', data.title, 'This meeting has ended.', false); }
                 });
                 api.addListener('readyToClose', function () { close('fa-door-open', data.title, 'You have left the meeting.', true); });
-                document.getElementById('meet-leave').addEventListener('click', function () {
-                    try { api.executeCommand('hangup'); } catch (e) { /* closed */ }
-                    setTimeout(function () { close('fa-door-open', data.title, 'You have left the meeting.', true); }, 1500);
+                api.addListener('toolbarButtonClicked', function (e) {
+                    if (e && e.key === 'hangup') askLeave();
                 });
+                document.getElementById('meet-leave').addEventListener('click', askLeave);
+                // Closing the tab gets the browser's own question
+                window.MeetingControls.ExitGuard.arm({ onBack: askLeave });
             });
         }
 

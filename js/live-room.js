@@ -8,6 +8,10 @@
  * The host of a public meeting uses this tab too (live.html?publicMeeting=<id>; guests use meet.html): recording
  * works as for a class, and the tab tells the server and the portal's lobby when the meeting ends.
  *
+ * Every way out asks first (Leave, End, the meeting's own hang-up, the browser's Back button, Backspace, closing the tab).
+ * A host going out ends the meeting for everyone, except in a full-day room shared by the day's teachers, where the
+ * teacher only leaves. Students and guests only ever leave.
+ *
  * The bar also holds the Meeting Settings (host) and Record to Computer / Ask to Record (js/meeting-controls.js),
  * and, under it, the participants asking the host to record (#mc-requests).
  */
@@ -190,14 +194,33 @@ const LiveRoom = {
             <span id="mc-tools" class="mc-tools"></span>
             ${vc.canRecord(session) ? `<span id="vc-rec-controls" style="display: inline-flex; gap: 8px; align-items: center;">${vc.recordingControlsHtml()}</span>` : ''}
             ${vc.isHost && live ? `<button class="btn btn-danger btn-sm" onclick="VirtualClassModule.endSession('${Lms.esc(session.id)}')"><i class="fas fa-stop-circle"></i> ${I18n.t('End Class for Everyone')}</button>` : ''}
-            <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.leaveClass()"><i class="fas fa-sign-out-alt"></i> ${I18n.t('Leave')}</button>`;
+            ${vc.exitEnds(session) ? '' : `<button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.requestExit()"><i class="fas fa-sign-out-alt"></i> ${I18n.t('Leave')}</button>`}`;
         if (window.MeetingControls && MeetingControls.current) MeetingControls.current.render();
+    },
+
+    classEnded() {
+        const vc = VirtualClassModule;
+        return !!vc.activeSession && vc.liveRecord(vc.activeSession).status === 'COMPLETED';
+    },
+
+    showClassEnded() {
+        this._endedShown = true;
+        this.message('fa-door-closed', 'The class has ended', 'Students can no longer join. You can close this tab.', this.closeButton());
+    },
+
+    // The class ended somewhere else (the host closed their tab, or ended it from the portal): it closes here too
+    followClass() {
+        window.addEventListener('lms:data_synced', () => {
+            if (this._endedShown || !this.classEnded()) return;
+            if (VirtualClassModule.jitsiApi) window.App.showToast('The class has ended.', 'info');
+            VirtualClassModule.leaveClass();
+        });
     },
 
     // -------------------------------------------------------------------------
     // The host's tab of a public meeting
     // -------------------------------------------------------------------------
-    publicMeeting: null, // { others: ids of the other people inside, joined, closing: null | 'leave' | 'end' }
+    publicMeeting: null, // { joined, closing: null | 'leave' (removed by another host) | 'end' }
 
     async startPublicMeeting() {
         const vc = VirtualClassModule;
@@ -219,7 +242,7 @@ const LiveRoom = {
             location.replace(vc.publicMeetingUrl(data.join, m.title));
             return;
         }
-        this.publicMeeting = { others: new Set(), joined: false, closing: null };
+        this.publicMeeting = { joined: false, closing: null };
         this.renderPublicBar();
         this.followPublicMeeting();
         await vc.mountMeeting();
@@ -236,8 +259,7 @@ const LiveRoom = {
             <span id="mc-tools" class="mc-tools"></span>
             ${vc.canRecord(session) ? `<span id="vc-rec-controls" style="display: inline-flex; gap: 8px; align-items: center;">${vc.recordingControlsHtml()}</span>` : ''}
             <button class="btn btn-secondary btn-sm" onclick="VirtualClassModule.copyMeetingLink()"><i class="fas fa-link"></i> Copy Link</button>
-            <button class="btn btn-danger btn-sm" onclick="LiveRoom.endPublicMeeting(true)"><i class="fas fa-stop-circle"></i> End Meeting for Everyone</button>
-            <button class="btn btn-secondary btn-sm" onclick="LiveRoom.leavePublicMeeting()"><i class="fas fa-sign-out-alt"></i> Leave</button>`;
+            <button class="btn btn-danger btn-sm" onclick="LiveRoom.endPublicMeeting(true)"><i class="fas fa-stop-circle"></i> End Meeting for Everyone</button>`;
         if (window.MeetingControls && MeetingControls.current) MeetingControls.current.render();
     },
 
@@ -246,14 +268,13 @@ const LiveRoom = {
         const vc = VirtualClassModule;
         const pm = this.publicMeeting;
         api.addListener('videoConferenceJoined', () => { pm.joined = true; });
-        api.addListener('participantJoined', e => pm.others.add(e.id));
-        api.addListener('participantLeft', e => pm.others.delete(e.id));
         api.addListener('recordingStatusChanged', e => vc.onRecordingStatus(e));
         api.addListener('toolbarButtonClicked', e => {
             if (!e) return;
             if (e.key === 'recording') vc.recording ? vc.stopRecording() : vc.startRecording();
-            if (e.key === 'hangup') this.leavePublicMeeting();
-            if (e.key === 'end-meeting') this.endPublicMeeting(false);
+            // The host hanging up ends the meeting, as closing the tab does: asked first either way
+            if (e.key === 'hangup') this.endPublicMeeting(true, true);
+            if (e.key === 'end-meeting') this.endPublicMeeting(true);
         });
         // Removed by another host: this person is out, the meeting goes on
         api.addListener('participantKickedOut', e => {
@@ -262,41 +283,29 @@ const LiveRoom = {
         api.addListener('readyToClose', () => this.publicMeetingClosed());
     },
 
-    // Who is inside, just before this person goes (the meeting reports everyone as gone once they have left)
-    alonePublicMeeting() {
-        const pm = this.publicMeeting;
-        return !!pm && pm.joined && pm.others.size === 0;
-    },
-
     // Waits for the meeting to confirm; a command the meeting no longer answers must not leave the tab stuck
     awaitPublicMeetingClose() {
         clearTimeout(this._publicCloseTimer);
         this._publicCloseTimer = setTimeout(() => this.publicMeetingClosed(), 4000);
     },
 
-    /** Leave (the bar's button or the meeting's own): with nobody else inside, the meeting is over. */
-    async leavePublicMeeting() {
+    /**
+     * End Meeting for Everyone (the bar's button or the meeting's own): the link stops working and everyone is out.
+     * The host leaving (hang-up, Back, Backspace; leaving: true) does the same. Asked first, over the running meeting.
+     */
+    async endPublicMeeting(ask, leaving = false) {
         const pm = this.publicMeeting;
         const vc = VirtualClassModule;
-        if (!pm || pm.closing) return;
-        if (this.alonePublicMeeting()) {
-            await this.endPublicMeeting(false);
-            return;
+        if (!pm || pm.closing || pm.closed) return;
+        if (ask) {
+            const ok = await vc.confirmExit({
+                title: 'End the meeting for everyone?', icon: 'fa-stop-circle', confirmLabel: 'End Meeting',
+                text: leaving
+                    ? 'Leaving will end the meeting for everyone. The public link stops working at once.'
+                    : 'End this meeting for everyone? The public link stops working at once.'
+            });
+            if (!ok || pm.closing || pm.closed) return;
         }
-        pm.closing = 'leave';
-        if (vc.recording) await vc.stopRecording();
-        if (vc.jitsiApi) {
-            try { vc.jitsiApi.executeCommand('hangup'); } catch (e) { /* the meeting already closed */ }
-        }
-        this.awaitPublicMeetingClose();
-    },
-
-    /** End Meeting for Everyone (the bar's button or the meeting's own): the link stops working and everyone is out. */
-    async endPublicMeeting(ask) {
-        const pm = this.publicMeeting;
-        const vc = VirtualClassModule;
-        if (!pm || pm.closing === 'end') return;
-        if (ask && !confirm('End this meeting for everyone? The public link stops working at once.')) return;
         pm.closing = 'end';
         if (vc.recording) await vc.stopRecording();
         await this.reportPublicMeetingEnded();
@@ -370,10 +379,10 @@ const LiveRoom = {
                 if (meeting.status === 'ENDED') this.publicMeetingEndedElsewhere();
             } catch (e) { /* offline for a moment: ask again next time */ }
         }, PUBLIC_MEETING_POLL_MS);
-        // Closing the tab with nobody else inside ends the meeting, unless the host comes back at once (a reload)
+        // The host closing the tab (the browser asks first) ends the meeting, unless the host comes back at once (a reload)
         window.addEventListener('pagehide', () => {
             const pm = this.publicMeeting;
-            if (!pm || pm.closed || pm.closing || !this.alonePublicMeeting()) return;
+            if (!pm || pm.closed || pm.closing) return;
             navigator.sendBeacon(`/api/public-meetings/${encodeURIComponent(id)}/left`);
             vc.tellPublicMeetingTabs('tab-closed', id);
         });
@@ -405,6 +414,10 @@ const LiveRoom = {
         vc.leaveClass = async function () {
             if (this.recording) await this.stopRecording();
             this.disposeMeeting();
+            if (LiveRoom.classEnded()) {
+                LiveRoom.showClassEnded();
+                return;
+            }
             LiveRoom.message('fa-door-open', 'You have left the class', 'You can rejoin while the class is live, or close this tab.',
                 `<button class="btn btn-gold" onclick="location.reload()"><i class="fas fa-sign-in-alt"></i> ${I18n.t('Rejoin')}</button>${LiveRoom.closeButton()}`);
         };
@@ -446,6 +459,7 @@ const LiveRoom = {
             return;
         }
         this.renderBar();
+        this.followClass();
         await vc.mountMeeting();
     }
 };

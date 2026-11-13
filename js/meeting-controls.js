@@ -606,9 +606,111 @@
         }
     }
 
+    // =========================================================================
+    // Leaving the meeting: always asked first
+    // =========================================================================
+    const tr = text => (window.I18n && window.I18n.t ? window.I18n.t(text) : text);
+    const escHtml = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    let confirmOpen = false;
+
+    /**
+     * Asks in the page, over the meeting, which keeps running meanwhile (the browser's own confirm() would freeze it).
+     * opts: { title, text, confirmLabel, cancelLabel, icon }. Resolves true (go ahead) or false (stay).
+     * While one question is open another resolves false, so a second press of Back does nothing.
+     */
+    function confirmDialog(opts) {
+        if (confirmOpen) return Promise.resolve(false);
+        confirmOpen = true;
+        return new Promise(resolve => {
+            const back = document.createElement('div');
+            back.className = 'mc-confirm-backdrop';
+            back.innerHTML = `
+                <div class="mc-confirm" role="alertdialog" aria-modal="true" aria-labelledby="mc-confirm-title" aria-describedby="mc-confirm-text">
+                    <div class="mc-confirm-icon"><i class="fas ${escHtml(opts.icon || 'fa-exclamation-triangle')}"></i></div>
+                    <h3 id="mc-confirm-title">${escHtml(tr(opts.title))}</h3>
+                    <p id="mc-confirm-text">${escHtml(tr(opts.text))}</p>
+                    <div class="mc-confirm-actions">
+                        <button type="button" class="btn btn-secondary" data-answer="no">${escHtml(tr(opts.cancelLabel || 'Stay in Meeting'))}</button>
+                        <button type="button" class="btn btn-danger" data-answer="yes">${escHtml(tr(opts.confirmLabel || 'Leave'))}</button>
+                    </div>
+                </div>`;
+            const done = answer => {
+                document.removeEventListener('keydown', onKey, true);
+                back.remove();
+                confirmOpen = false;
+                resolve(answer);
+            };
+            const onKey = e => {
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
+            };
+            back.addEventListener('click', e => {
+                const btn = e.target.closest('[data-answer]');
+                if (btn) done(btn.dataset.answer === 'yes');
+            });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(back);
+            // Enter must not end the meeting by accident
+            back.querySelector('[data-answer="no"]').focus();
+        });
+    }
+
+    /**
+     * While a meeting is open in the page: the browser's Back button and the Backspace key ask before leaving
+     * (opts.onBack shows the question and acts on the answer), and closing or reloading the tab gets the browser's
+     * own "Leave site?" question (its wording cannot be changed, and nothing else can be shown at that moment).
+     */
+    const ExitGuard = {
+        opts: null,
+
+        arm(opts) {
+            this.opts = opts;
+            // An entry of this page's own for Back to land on
+            try {
+                if (!(history.state && history.state.mcExitGuard)) history.pushState({ mcExitGuard: true }, '');
+            } catch (e) { /* history not available */ }
+        },
+
+        disarm() {
+            if (!this.opts) return;
+            this.opts = null;
+            try {
+                if (history.state && history.state.mcExitGuard) history.back();
+            } catch (e) { /* history not available */ }
+        },
+
+        ask() {
+            if (this.opts && this.opts.onBack) this.opts.onBack();
+        }
+    };
+
+    window.addEventListener('popstate', () => {
+        if (!ExitGuard.opts) return;
+        // Stay on the page whatever the answer: leaving the meeting shows its own message here
+        try { history.pushState({ mcExitGuard: true }, ''); } catch (e) { /* history not available */ }
+        ExitGuard.ask();
+    });
+
+    // Backspace outside a text box (some browsers and extensions go back a page on it)
+    document.addEventListener('keydown', e => {
+        if (!ExitGuard.opts || e.key !== 'Backspace' || e.defaultPrevented) return;
+        const el = e.target;
+        if (el && el.closest && el.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+        e.preventDefault();
+        ExitGuard.ask();
+    });
+
+    window.addEventListener('beforeunload', e => {
+        if (!ExitGuard.opts) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+
     const MeetingControls = {
         DEFAULTS,
         LocalRecorder,
+        ExitGuard,
+        confirm: confirmDialog,
         current: null,
 
         /** The settings before the meeting opens (so it opens with them); the defaults if the server cannot say. */

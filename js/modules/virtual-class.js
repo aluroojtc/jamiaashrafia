@@ -1742,7 +1742,7 @@ const VirtualClassModule = {
                 </div>
             </div>
             <div style="font-size: 0.78rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px;">
-                <i class="fas fa-exclamation-triangle"></i> Share the link only with the people you want in the meeting. It stops working when you end the meeting, when you leave it with nobody else inside, or when the time runs out.
+                <i class="fas fa-exclamation-triangle"></i> Share the link only with the people you want in the meeting. It stops working when you end the meeting, when you leave it, or when the time runs out.
             </div>`,
             `<button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
              <button class="btn btn-primary" onclick="VirtualClassModule.startPublicMeeting(this)"><i class="fas fa-play"></i> Start Meeting</button>`
@@ -1804,7 +1804,7 @@ const VirtualClassModule = {
                 <strong>${Lms.esc(meeting.title)}</strong> is open in a new tab. Share this link; anyone who has it can join without signing in until ${Lms.esc(Lms.fmtDateTime(meeting.expiresAt))}.
             </p>
             <div class="vc-public-link-box"><span>${Lms.esc(meeting.link)}</span>${CopyButton.html(meeting.link, 'Copy public link', { text: 'Copy' })}</div>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0;">The meeting stays listed under Open Public Meetings in the Classrooms Lobby, where you can copy the link again, rejoin as host or end it. If you leave it with nobody else inside, it ends.</p>`,
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0;">The meeting stays listed under Open Public Meetings in the Classrooms Lobby, where you can copy the link again, rejoin as host or end it. Leaving the meeting ends it for everyone; you are asked first.</p>`,
             `<a class="btn btn-secondary" href="https://wa.me/?text=${encodeURIComponent(`${meeting.title}: ${meeting.link}`)}" target="_blank" rel="noopener noreferrer"><i class="fab fa-whatsapp"></i> Share on WhatsApp</a>
              <button class="btn btn-primary" onclick="App.closeModal()">Done</button>`
         );
@@ -1896,19 +1896,22 @@ const VirtualClassModule = {
                     disableDeepLinking: true,
                     // Jitsi's own invite shares the bare meeting link, which needs a sign-in token; Copy Link gives the portal's
                     disableInviteFunctions: true,
-                    // Jitsi's own record button runs the portal's Start / Stop Recording instead, and a host
-                    // hanging up stops the recording first (once out of the meeting it can no longer be stopped)
+                    // Jitsi's own record button runs the portal's Start / Stop Recording instead. Its hang-up button asks
+                    // first, as every way out does (requestExit): a host leaving ends the meeting, and stops the recording
+                    // before that (once out of the meeting it can no longer be stopped).
                     // In a public meeting, ending it for everyone also closes its link (LiveRoom.endPublicMeeting)
                     buttonsWithNotifyClick: this.isHost
                         ? [{ key: 'recording', preventExecution: true }, { key: 'hangup', preventExecution: true },
                             ...(session.publicMeeting ? [{ key: 'end-meeting', preventExecution: true }] : [])]
-                        : [],
+                        : [{ key: 'hangup', preventExecution: true }],
                     ...(controls ? controls.config(controlSettings, this.isHost) : {})
                 },
                 interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
             });
             this.jitsiApi = api;
             if (controls) {
+                // Back, Backspace and closing the tab ask before the meeting is left (js/meeting-controls.js)
+                controls.ExitGuard.arm({ onBack: () => (session.publicMeeting ? window.LiveRoom.endPublicMeeting(true, true) : this.requestExit()) });
                 controls.attach({
                     api, target: controlTarget, isHost: this.isHost, settings: controlSettings, title: session.title,
                     toast: (message, type) => window.App?.showToast(message, type),
@@ -1929,12 +1932,9 @@ const VirtualClassModule = {
             });
             api.addListener('readyToClose', () => this.leaveClass());
             api.addListener('recordingStatusChanged', e => this.onRecordingStatus(e));
-            api.addListener('toolbarButtonClicked', async e => {
+            api.addListener('toolbarButtonClicked', e => {
                 if (e && e.key === 'recording') this.recording ? this.stopRecording() : this.startRecording();
-                if (e && e.key === 'hangup') {
-                    if (this.recording) await this.stopRecording();
-                    try { api.executeCommand('hangup'); } catch (err) { this.leaveClass(); }
-                }
+                if (e && e.key === 'hangup') this.requestExit();
             });
         } catch (err) {
             container.innerHTML = `
@@ -1948,7 +1948,10 @@ const VirtualClassModule = {
 
     disposeMeeting() {
         // A recording to the computer still running is stopped and saved
-        if (window.MeetingControls) window.MeetingControls.detach();
+        if (window.MeetingControls) {
+            window.MeetingControls.ExitGuard.disarm();
+            window.MeetingControls.detach();
+        }
         if (this.jitsiApi) {
             try { this.jitsiApi.dispose(); } catch (e) { /* already closed */ }
             this.jitsiApi = null;
@@ -2094,14 +2097,74 @@ const VirtualClassModule = {
         if (capture) window.ClassRecordingsModule?.openDecision(capture);
     },
 
-    // Closing the browser tab while recording: stop it on the server; the decision waits in Class Recordings
+    // Closing the browser tab while recording: the browser asks first; nothing is stopped unless the person goes ahead
     onPageUnload(e) {
         const r = VirtualClassModule.recording;
         if (!r || !r.captureId || r.state !== 'on') return;
-        try { VirtualClassModule.jitsiApi && VirtualClassModule.jitsiApi.executeCommand('stopRecording', 'file'); } catch (err) { /* closing */ }
-        navigator.sendBeacon(`/api/class-recordings/${encodeURIComponent(r.captureId)}/stop`);
         e.preventDefault();
         e.returnValue = '';
+    },
+
+    // The tab is really going (closed, reloaded, or left after the browser's question)
+    onPageHide() {
+        // A recording is stopped on the server; the decision waits in Class Recordings
+        const r = this.recording;
+        if (r && r.captureId && r.state === 'on') {
+            try { this.jitsiApi && this.jitsiApi.executeCommand('stopRecording', 'file'); } catch (err) { /* closing */ }
+            navigator.sendBeacon(`/api/class-recordings/${encodeURIComponent(r.captureId)}/stop`);
+        }
+        // The host's tab of a class closing ends the class for everyone, unless the host comes back at once (a reload);
+        // the server waits a moment for that (handleVirtualLeft in server/lms-api.js). Public meetings: js/live-room.js
+        const session = this.activeSession;
+        if (this.jitsiApi && session && !session.publicMeeting && this.exitEnds(session)) {
+            navigator.sendBeacon(`/api/virtual-class/${encodeURIComponent(session.id)}/left`);
+        }
+    },
+
+    // =========================================================================
+    // 8b. LEAVING THE LIVE CLASS: every way out asks first
+    // The host of a class going out ends it for everyone. A full-day room is shared by the teachers of the day, so a
+    // teacher going out of it only leaves and the room stays open. Students only ever leave.
+    // =========================================================================
+    liveRecord(session) {
+        return (window.LmsData?.virtualClasses || []).find(s => s.id === session.id) || session;
+    },
+
+    exitEnds(session) {
+        const rec = this.liveRecord(session);
+        return !!this.isHost && !rec.dayRoom && (rec.status === 'LIVE' || !!rec.isLive);
+    },
+
+    // Over the meeting, which keeps running while the question is open; the browser's own question without the meeting page
+    confirmExit(opts) {
+        if (window.MeetingControls && window.MeetingControls.confirm) return window.MeetingControls.confirm(opts);
+        return Promise.resolve(confirm(I18n.t(opts.text)));
+    },
+
+    /** Leave, the meeting's own hang-up button, the browser's Back button or Backspace. */
+    async requestExit() {
+        const session = this.activeSession;
+        if (!session) return;
+        if (this.exitEnds(session)) {
+            await this.endSession(session.id, true);
+            return;
+        }
+        const ok = await this.confirmExit({
+            title: 'Leave the class?', icon: 'fa-sign-out-alt', confirmLabel: 'Leave Class',
+            text: this.isHost && this.liveRecord(session).dayRoom
+                ? 'You will leave this full-day room. The class stays open for the students and the next teachers.'
+                : 'You will leave the live class. You can rejoin while it is still running.'
+        });
+        if (!ok || this.activeSession !== session) return;
+        if (this.recording) await this.stopRecording();
+        const api = this.jitsiApi;
+        if (!api) {
+            this.leaveClass();
+            return;
+        }
+        // The meeting says goodbye properly (readyToClose then closes it here); if it does not answer, close it anyway
+        try { api.executeCommand('hangup'); } catch (err) { /* already closed */ }
+        setTimeout(() => { if (this.jitsiApi === api) this.leaveClass(); }, 1500);
     },
 
     // Called by the router when the user leaves the Online Classes page
@@ -2128,9 +2191,18 @@ const VirtualClassModule = {
         this.enterClassroom(sessionId);
     },
 
-    async endSession(sessionId) {
+    /** End Class for Everyone, or (leaving: true) the host going out of the class, which ends it too. */
+    async endSession(sessionId, leaving = false) {
         const session = (window.LmsData?.virtualClasses || []).find(s => s.id === sessionId);
-        if (!session || !confirm('End this class for everyone? Students will no longer be able to join.')) return;
+        if (!session) return;
+        const ok = await this.confirmExit({
+            title: 'End the class for everyone?', icon: 'fa-stop-circle', confirmLabel: 'End Class',
+            cancelLabel: this.jitsiApi ? 'Stay in Meeting' : 'Cancel',
+            text: leaving
+                ? 'Leaving will end the class for everyone. Students will no longer be able to join.'
+                : 'End this class for everyone? Students will no longer be able to join.'
+        });
+        if (!ok || session.status === 'COMPLETED') return;
         // The class ending stops its recording (and asks whether to save it)
         if (this.recording) await this.stopRecording();
         Object.assign(session, { status: 'COMPLETED', isLive: false, endedAt: new Date().toISOString() });
@@ -2138,6 +2210,8 @@ const VirtualClassModule = {
         window.DataStore.save(window.LmsData);
         if (this.jitsiApi) {
             try { this.jitsiApi.executeCommand('endConference'); } catch (e) { /* not moderator */ }
+            // Time for the meeting to pass that on before it is closed here
+            await new Promise(r => setTimeout(r, 600));
         }
         this.leaveClass();
         window.App?.showToast('Class ended', 'success');
@@ -2258,3 +2332,4 @@ const VirtualClassModule = {
 
 window.VirtualClassModule = VirtualClassModule;
 window.addEventListener('beforeunload', e => VirtualClassModule.onPageUnload(e));
+window.addEventListener('pagehide', () => VirtualClassModule.onPageHide());

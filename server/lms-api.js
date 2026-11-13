@@ -1003,11 +1003,72 @@ async function handleVirtualVerify(req, res) {
     }
     const d = await decideVirtualAccess(req, sessionId);
     if (d.status === 200) {
+        // The host is (back) in the class: a closed tab reported a moment ago was a reload
+        if (d.isHost) cancelPendingClassEnd(d.session.id);
         sendJson(res, 200, { status: 'success', authorized: true, isHost: d.isHost, session: d.session });
         return;
     }
     const error = { 401: '401 Unauthorized', 404: '404 Not Found', 403: '403 Forbidden' }[d.status];
     sendJson(res, d.status, { error, message: d.message });
+}
+
+// ---------------------------------------------------------------------------
+// The host's tab of a live class closed (the browser asked first): the class ends for everyone.
+// A reload looks the same from here, so it only ends if the host does not come back (handleVirtualVerify).
+// A full-day room is shared by the teachers of the day: a teacher closing the tab only leaves, the room stays open.
+// ---------------------------------------------------------------------------
+
+const CLASS_HOST_LEFT_GRACE_MS = Number(process.env.CLASS_HOST_LEFT_GRACE_MS) || 20 * 1000;
+const pendingClassEnds = new Map(); // class id -> timer
+
+function cancelPendingClassEnd(id) {
+    clearTimeout(pendingClassEnds.get(id));
+    pendingClassEnds.delete(id);
+}
+
+const classEndsOnHostExit = session => !session.dayRoom && (session.status === 'LIVE' || !!session.isLive);
+
+// Saved the way the host's own End Class is (the record store's rules apply), so every tab learns of it at its next sync
+async function endClassAfterHostLeft(who, sessionId) {
+    const rec = await loadRecord('virtualClasses', sessionId);
+    const session = rec && !rec.deleted ? rec.data : null;
+    if (!session || !classEndsOnHostExit(session)) return;
+    const ctx = await policy.buildContext(who, loadCollection);
+    const st = { allUsers: null, revoke: new Set(), audits: [] };
+    const conn = await db.getConnection();
+    try {
+        const r = await writeRecord(conn, ctx, who, 'virtualClasses', { ...session, status: 'COMPLETED', isLive: false, endedAt: new Date().toISOString() }, st);
+        if (r.error !== undefined) throw new Error(r.error);
+    } finally {
+        conn.release();
+    }
+    await classRecordings.stopRecordingsOf(sessionId);
+    await audit.log({
+        req: null, actor: { id: who.id, role: who.role }, action: 'virtual_class.end', entityType: 'virtualClasses', entityId: sessionId,
+        summary: `Live class "${session.title || sessionId}" ended: the host closed the class tab`
+    });
+}
+
+// POST /api/virtual-class/:id/left  (sent as the tab goes, so there is no answer to read)
+async function handleVirtualLeft(req, res, sessionId) {
+    const d = await decideVirtualAccess(req, sessionId);
+    if (d.status !== 200 || !d.isHost) {
+        sendJson(res, d.status === 200 ? 403 : d.status, { success: false, error: d.message || 'Only the host can end this class.' });
+        return;
+    }
+    const id = d.session.id;
+    const ends = classEndsOnHostExit(d.session);
+    if (ends) {
+        cancelPendingClassEnd(id);
+        const who = caller(req);
+        const timer = setTimeout(() => {
+            pendingClassEnds.delete(id);
+            endClassAfterHostLeft(who, id).catch(err => console.warn('[Virtual class] Could not end a class whose host left:', err.message));
+        }, CLASS_HOST_LEFT_GRACE_MS);
+        timer.unref();
+        pendingClassEnds.set(id, timer);
+    }
+    sendJson(res, 202, { success: true, ends });
 }
 
 // ---------------------------------------------------------------------------
@@ -1391,6 +1452,8 @@ async function route(req, res) {
 
     if (p === '/api/virtual-class/verify-access' && m === 'POST') { await handleVirtualVerify(req, res); return true; }
     if (p === '/api/virtual-class/join-token' && m === 'POST') { await handleMeetingToken(req, res); return true; }
+    const classLeft = m === 'POST' && p.match(/^\/api\/virtual-class\/([^/]+)\/left$/);
+    if (classLeft) { await handleVirtualLeft(req, res, decodeURIComponent(classLeft[1])); return true; }
     // Live class recording: start / stop / save or discard, and the protected video stream
     if (await classRecordings.route(req, res, url, RECORDING_DEPS)) return true;
     // Public meetings: started by an administrator, joined by anyone with the link (server/public-meetings.js)
